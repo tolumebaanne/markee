@@ -9,5 +9,14 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs"
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.0",
+    "ejs": "^5.0.1",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.3.2",
+    "http-proxy-middleware": "^3.0.5",
+    "jsonwebtoken": "^9.0.3"
+  }
 }

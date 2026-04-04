@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Markee | Multi-Vendor Marketplace</title>
+  <style>
+    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 2rem; background-color: #f7f9fc; }
+    .container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 800px; }
+    h1 { color: #333; }
+    .product-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-top: 2rem; }
+    .product-card { padding: 1rem; border: 1px solid #ddd; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Markee Products</h1>
+    <a href="/login" style="float: right; margin-left: 1rem;">Login / Register</a>
+    <div id="products" class="product-list">Loading products...</div>
+  </div>
+  <script>
+    fetch('/api/catalog/products')
+      .then(r => r.json())
+      .then(data => {
+        const container = document.getElementById('products');
+        container.innerHTML = '';
+        if(data.length === 0) container.innerHTML = '<p>No products available.</p>';
+        data.forEach(p => {
+          container.innerHTML += `<div class="product-card"><h3>${p.title}</h3><p>$${(p.price/100).toFixed(2)}</p><p>${p.category}</p></div>`;
+        });
+      }).catch(err => {
+         document.getElementById('products').innerHTML = '<p>Failed to load products. Service may be down.</p>';
+      });
+  </script>
+</body>
+</html>
