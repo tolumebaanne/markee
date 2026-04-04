@@ -1,0 +1,126 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
+:root {
+  --bg-dark: #0f172a;
+  --bg-glass: rgba(30, 41, 59, 0.7);
+  --accent-primary: #8b5cf6;
+  --accent-secondary: #06b6d4;
+  --text-light: #f8fafc;
+  --text-muted: #94a3b8;
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glow-shadow: 0 4px 30px rgba(139, 92, 246, 0.2);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-dark);
+  color: var(--text-light);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+body::before, body::after {
+  content: "";
+  position: fixed;
+  width: 50vw;
+  height: 50vw;
+  border-radius: 50%;
+  filter: blur(100px);
+  z-index: -1;
+  opacity: 0.15;
+  pointer-events: none;
+}
+body::before { background: var(--accent-primary); top: -10vw; left: -10vw; }
+body::after { background: var(--accent-secondary); bottom: -10vw; right: -10vw; }
+
+a { color: var(--accent-secondary); text-decoration: none; transition: 0.3s ease; }
+a:hover { color: var(--accent-primary); }
+
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 5%;
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--glass-border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.brand { font-size: 1.7rem; font-weight: 700; background: linear-gradient(to right, var(--text-light), var(--accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.nav-links { display: flex; gap: 1.5rem; align-items: center; }
+.nav-links a { font-weight: 600; color: var(--text-light); }
+.nav-links a:hover { color: var(--accent-secondary); }
+
+.container { padding: 3rem 5%; flex-grow: 1; }
+h1 { font-size: 2.5rem; margin-bottom: 2rem; font-weight: 700; text-align: center; }
+
+/* Grid Layout */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 2rem; }
+
+/* Glassmorphic Card */
+.glass-card {
+  background: var(--bg-glass);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+.glass-card:hover { 
+  transform: translateY(-8px); 
+  box-shadow: var(--glow-shadow); 
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.glass-card h3 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
+.glass-card p { color: var(--text-muted); font-size: 0.95rem; line-height: 1.5; flex-grow: 1; margin-bottom: 1rem; }
+.price-tag { font-size: 1.5rem; font-weight: 700; color: var(--text-light); margin-top: auto; display:flex; justify-content: space-between; align-items: center; }
+
+/* Forms */
+.auth-wrapper { display: flex; justify-content: center; align-items: center; min-height: 70vh; }
+.auth-panel { max-width: 400px; width: 100%; text-align: center; }
+.form-group { margin-bottom: 1.5rem; text-align: left; }
+label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-muted); font-weight: 600;}
+input { width: 100%; padding: 0.8rem; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; border-radius: 8px; outline: none; transition: 0.3s; }
+input:focus { border-color: var(--accent-primary); box-shadow: 0 0 10px rgba(139, 92, 246, 0.3); }
+
+/* Buttons */
+.btn {
+  display: inline-block;
+  padding: 0.8rem 1.5rem;
+  background: linear-gradient(45deg, var(--accent-primary), var(--accent-secondary));
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.3s ease;
+  text-align: center;
+  width: 100%;
+}
+.btn:hover { transform: scale(1.02); box-shadow: var(--glow-shadow); }
+
+.animate-fade {
+    animation: fadeIn 0.6s ease forwards;
+    opacity: 0;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Dashboard Sidebar Layout */
+.dashboard-layout { display: flex; gap: 2rem; min-height: 70vh; }
+.sidebar { width: 250px; display: flex; flex-direction: column; gap: 1rem; }
+.main-content { flex-grow: 1; }

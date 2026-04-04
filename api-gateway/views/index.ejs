@@ -1,34 +1,58 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Markee | Multi-Vendor Marketplace</title>
-  <style>
-    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 2rem; background-color: #f7f9fc; }
-    .container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 800px; }
-    h1 { color: #333; }
-    .product-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-top: 2rem; }
-    .product-card { padding: 1rem; border: 1px solid #ddd; border-radius: 4px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markee | The Modern Marketplace</title>
+    <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-  <div class="container">
-    <h1>Markee Products</h1>
-    <a href="/login" style="float: right; margin-left: 1rem;">Login / Register</a>
-    <div id="products" class="product-list">Loading products...</div>
-  </div>
-  <script>
-    fetch('/api/catalog/products')
-      .then(r => r.json())
-      .then(data => {
-        const container = document.getElementById('products');
-        container.innerHTML = '';
-        if(data.length === 0) container.innerHTML = '<p>No products available.</p>';
-        data.forEach(p => {
-          container.innerHTML += `<div class="product-card"><h3>${p.title}</h3><p>$${(p.price/100).toFixed(2)}</p><p>${p.category}</p></div>`;
-        });
-      }).catch(err => {
-         document.getElementById('products').innerHTML = '<p>Failed to load products. Service may be down.</p>';
-      });
-  </script>
+    <nav class="navbar">
+        <div class="brand">Markee.</div>
+        <div class="nav-links">
+            <a href="/">Explore</a>
+            <a href="/login" class="btn" style="width:auto; padding: 0.5rem 1rem;">Sign In</a>
+        </div>
+    </nav>
+
+    <div class="container animate-fade">
+        <h1>Discover the Future of Commerce.</h1>
+        <p style="text-align: center; color: var(--text-muted); margin-bottom: 3rem; max-width: 600px; margin-inline: auto;">
+            Explore thousands of curated digital and physical assets directly from our verified network of global sellers.
+        </p>
+
+        <div id="products" class="grid">
+            <!-- Products injected via JS -->
+            <p style="text-align: center; width: 100%;">Connecting to Catalog Engine...</p>
+        </div>
+    </div>
+
+    <script>
+        fetch('/api/catalog/products')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('products');
+                container.innerHTML = '';
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<p style="text-align:center; width:100%;">No products available right now.</p>';
+                } else {
+                    data.forEach((p, index) => {
+                        container.innerHTML += `
+                            <div class="glass-card animate-fade" style="animation-delay: ${index * 0.1}s">
+                                <h3>${p.title}</h3>
+                                <p>${p.description || 'No description available.'}</p>
+                                <div class="price-tag">
+                                    <span>$${(p.price/100).toFixed(2)}</span>
+                                    <span style="font-size: 0.8rem; font-weight: normal; color: var(--accent-secondary); border: 1px solid var(--accent-secondary); padding: 0.2rem 0.5rem; border-radius: 12px;">${p.category}</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+            })
+            .catch(err => {
+                 document.getElementById('products').innerHTML = '<p style="color:var(--accent-secondary); text-align:center; width: 100%;">Catalog Service is currently unreachable.</p>';
+            });
+    </script>
 </body>
 </html>

@@ -1,9 +1,46 @@
 <!DOCTYPE html>
-<html>
-<head><title>Markee Dashboard</title></head>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Markee</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
 <body>
-    <h1>Dashboard</h1>
-    <p>Welcome to your markee dashboard.</p>
-    <a href="/">Back to Home</a>
+    <nav class="navbar">
+        <a href="/" class="brand">Markee.</a>
+        <div class="nav-links">
+            <a href="/">Explore</a>
+            <a href="#" class="btn" style="width:auto; padding: 0.5rem 1rem;">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container animate-fade">
+        <h1>Your Command Center.</h1>
+        <div class="dashboard-layout">
+            <div class="sidebar glass-card">
+                <h3>Menu</h3>
+                <br>
+                <a href="#">Overview</a>
+                <a href="#">My Orders</a>
+                <a href="#">Security</a>
+                <a href="#">API Keys</a>
+            </div>
+            <div class="main-content grid">
+                <div class="glass-card">
+                    <h3>Recent Transactions</h3>
+                    <p>You have no recent transactions.</p>
+                </div>
+                <div class="glass-card">
+                    <h3>System Analytics</h3>
+                    <p>Connected to 4 datacenters securely via Gateway.</p>
+                </div>
+                <div class="glass-card">
+                    <h3>Auth Scope</h3>
+                    <p>Your current JWT is valid. Escrow operations locked.</p>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
