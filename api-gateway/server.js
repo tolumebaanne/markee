@@ -19,7 +19,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 app.use(platformGuard);
 
-const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
+const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 1000 });
 app.use('/api/', apiLimiter);
 
 // ── Proxy factory helpers ─────────────────────────────────────────────────────

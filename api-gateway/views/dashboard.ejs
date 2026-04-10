@@ -162,6 +162,10 @@
             <i class="fa fa-store" style="margin-right:0.35rem; font-size:0.8rem;"></i>Browse
         </a>
 
+        <button class="nav-pill nav-pill-red" onclick="navSell()" title="Sell on Markee">
+            <i class="fa fa-tag" style="margin-right:0.4rem;"></i> Sell
+        </button>
+
         <a href="/cart" class="nav-cart-btn" title="View Cart">
             <i class="fa fa-shopping-cart"></i>
             <span class="cart-count-badge">0</span>
@@ -1006,6 +1010,18 @@
                     }
                 })
                 .catch(() => {}); // best-effort
+        }
+    }
+
+    function navSell() {
+        if (userData && userData.storeActive) {
+            switchTab('listings');
+        } else {
+            switchTab('overview');
+            setTimeout(() => {
+                const card = document.getElementById('start-selling-card');
+                if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
         }
     }
 
