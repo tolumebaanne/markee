@@ -15,6 +15,7 @@ const PORT = process.env.PORT || 4000;
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 app.use(platformGuard);
 
@@ -200,7 +201,32 @@ app.get('/login',       (req, res) => res.render('login',    {
     authUrl:    process.env.AUTH_SERVICE_URL || 'http://localhost:5001',
     gatewayUrl: process.env.GATEWAY_URL      || `http://localhost:${process.env.PORT || 4000}`
 }));
-app.get('/register',    (req, res) => res.render('register', { authUrl: process.env.AUTH_SERVICE_URL || 'http://localhost:5001' }));
+app.get('/register',  (_req, res) => res.render('register', {}));
+app.post('/register', async (req, res) => {
+    const AUTH = process.env.AUTH_SERVICE_URL || 'http://localhost:5001';
+    try {
+        const body = new URLSearchParams(req.body).toString();
+        const r = await fetch(`${AUTH}/register`, {
+            method:   'POST',
+            headers:  { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body,
+            redirect: 'manual'   // intercept the redirect instead of following it
+        });
+        const location = r.headers.get('location') || '';
+        // Auth-service redirects to /login on success, /register?error=... on failure
+        if (location.includes('/login')) {
+            return res.redirect('/login?success=Registration successful! Please sign in.');
+        }
+        // Parse error param from redirect URL
+        const errParam = location.includes('error=')
+            ? decodeURIComponent(location.split('error=')[1] || '')
+            : 'Registration failed. Please try again.';
+        return res.render('register', { error: errParam });
+    } catch (err) {
+        console.error('[GATEWAY] /register proxy error:', err.message);
+        res.render('register', { error: 'Registration service is currently unavailable.' });
+    }
+});
 app.get('/dashboard',   (req, res) => res.render('dashboard'));
 app.get('/inventory',   (req, res) => res.render('inventory'));
 app.get('/messages',    (req, res) => res.render('messages', {
