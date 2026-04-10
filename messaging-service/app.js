@@ -430,9 +430,9 @@ const upload = multer({
     }
 });
 
-// POST /messages/upload — image upload with compression (S19)
+// POST /upload — image upload with compression (S19)
 // Must be registered BEFORE parseUser because multer handles the body
-app.post('/messages/upload', (req, res, next) => {
+app.post('/upload', (req, res, next) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
     upload.single('image')(req, res, async (err) => {
         if (err?.code === 'LIMIT_FILE_SIZE') return errorResponse(res, 413, 'File exceeds 8MB limit');
@@ -709,8 +709,8 @@ app.post('/thread/:threadId/pin', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// GET /messages/unread-count — total unread for nav badge (C14)
-app.get('/messages/unread-count', async (req, res) => {
+// GET /unread-count — total unread for nav badge (C14)
+app.get('/unread-count', async (req, res) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
     try {
         const total = await getTotalUnread(req.user.sub);
@@ -729,8 +729,8 @@ app.get('/presence/:userId', async (req, res) => {
     });
 });
 
-// GET /messages/templates — seller quick-reply templates (C7)
-app.get('/messages/templates', async (req, res) => {
+// GET /templates — seller quick-reply templates (C7)
+app.get('/templates', async (req, res) => {
     if (!req.user?.sub)      return errorResponse(res, 401, 'Unauthorized');
     if (!req.user.storeId)   return errorResponse(res, 403, 'Sellers only');
     try {
@@ -739,8 +739,8 @@ app.get('/messages/templates', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// POST /messages/templates — create template (C7, max 10)
-app.post('/messages/templates', async (req, res) => {
+// POST /templates — create template (C7, max 10)
+app.post('/templates', async (req, res) => {
     if (!req.user?.sub)    return errorResponse(res, 401, 'Unauthorized');
     if (!req.user.storeId) return errorResponse(res, 403, 'Sellers only');
     try {
@@ -753,8 +753,8 @@ app.post('/messages/templates', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// PUT /messages/:id — edit message (R12, 5-minute window)
-app.put('/messages/:id', async (req, res) => {
+// PUT /:id — edit message (R12, 5-minute window)
+app.put('/:id', async (req, res) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
     try {
         const msg = await Message.findById(req.params.id);
@@ -783,7 +783,7 @@ app.put('/messages/:id', async (req, res) => {
 });
 
 // DELETE /messages/:id — soft delete (R11)
-app.delete('/messages/:id', async (req, res) => {
+app.delete('/:id', async (req, res) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
     try {
         const msg     = await Message.findById(req.params.id);
@@ -805,7 +805,7 @@ app.delete('/messages/:id', async (req, res) => {
 });
 
 // POST /messages/:id/react — message reactions (C4)
-app.post('/messages/:id/react', async (req, res) => {
+app.post('/:id/react', async (req, res) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
     const ALLOWED = ['✓', '👍', '❤️', '😮'];
     const { emoji } = req.body;
