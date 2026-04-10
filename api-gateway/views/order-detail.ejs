@@ -679,12 +679,10 @@
     // ── Navbar role awareness ────────────────────────────────────────────────
     const isSeller = user.storeActive === true;
     const isAdmin  = user.role === 'admin';
-    if (isSeller || isAdmin) {
-        document.getElementById('nav-dashboard').style.display = 'inline-flex';
-    }
-    if (isAdmin) {
-        document.getElementById('nav-admin').style.display = 'inline-flex';
-    }
+    const ndEl = document.getElementById('nav-dashboard');
+    if ((isSeller || isAdmin) && ndEl) ndEl.style.display = 'inline-flex';
+    const naEl = document.getElementById('nav-admin');
+    if (isAdmin && naEl) naEl.style.display = 'inline-flex';
 
     function handleLogout() {
         localStorage.removeItem('access_token');
