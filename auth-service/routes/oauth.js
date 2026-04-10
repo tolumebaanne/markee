@@ -62,8 +62,10 @@ async function computeScopes(user) {
 
 const requireAuth = (req, res, next) => {
   if (!req.session.user) {
-    req.session.returnTo = req.originalUrl;
-    return res.redirect('/oauth/login'); // stays inside the /oauth proxy — avoids redirect loop
+    // Pass returnTo as a URL param so it survives even if the session cookie
+    // is lost in transit through the reverse proxy (production).
+    const next_ = encodeURIComponent(req.originalUrl);
+    return res.redirect(`/oauth/login?next=${next_}`);
   }
   next();
 };
@@ -73,27 +75,29 @@ const requireAuth = (req, res, next) => {
 // After successful sign-in, redirects to req.session.returnTo (the authorize URL).
 
 router.get('/login', (req, res) => {
+  // If already logged in, proceed to where they were going
   if (req.session?.user) {
-    return res.redirect(req.session.returnTo || '/oauth/authorize');
+    const dest = req.query.next || req.session.returnTo || '/oauth/authorize';
+    return res.redirect(dest);
   }
-  // If there's no returnTo set (user landed here directly, not from the OAuth flow),
-  // bounce them to the proper gateway login page which initiates the full flow.
-  if (!req.session?.returnTo) {
-    return res.redirect('/login');
-  }
-  res.render('oauth-login', { error: req.query.error || null });
+  // No next= and no session returnTo = direct visit with no context — bounce to gateway /login
+  const nextUrl = req.query.next || req.session?.returnTo || '';
+  if (!nextUrl) return res.redirect('/login');
+  res.render('oauth-login', { error: req.query.error || null, nextUrl });
 });
 
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, next: nextUrl } = req.body;
+  const returnTo = nextUrl || req.session?.returnTo || '/oauth/authorize';
+
   if (!email || !password) {
-    return res.render('oauth-login', { error: 'Email and password are required.' });
+    return res.render('oauth-login', { error: 'Email and password are required.', nextUrl: returnTo });
   }
   try {
     const user = await User.validatePassword(email, password);
-    if (!user) return res.render('oauth-login', { error: 'Invalid email or password.' });
-    if (user.status === 'deleted') return res.render('oauth-login', { error: 'This account no longer exists.' });
-    if (user.moderationStatus === 'banned') return res.render('oauth-login', { error: 'This account has been banned.' });
+    if (!user) return res.render('oauth-login', { error: 'Invalid email or password.', nextUrl: returnTo });
+    if (user.status === 'deleted') return res.render('oauth-login', { error: 'This account no longer exists.', nextUrl: returnTo });
+    if (user.moderationStatus === 'banned') return res.render('oauth-login', { error: 'This account has been banned.', nextUrl: returnTo });
 
     req.session.user = {
       id:              user._id.toString(),
@@ -103,12 +107,11 @@ router.post('/login', async (req, res) => {
       pendingDeletion: user.status === 'pending_deletion'
     };
 
-    const returnTo = req.session.returnTo || '/oauth/authorize';
     delete req.session.returnTo;
     res.redirect(returnTo);
   } catch (err) {
     console.error('[AUTH] oauth/login error:', err);
-    res.render('oauth-login', { error: 'Login failed. Please try again.' });
+    res.render('oauth-login', { error: 'Login failed. Please try again.', nextUrl: returnTo });
   }
 });
 
