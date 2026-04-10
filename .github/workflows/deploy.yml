@@ -27,5 +27,15 @@ jobs:
 
       - name: Verify gateway is up
         run: |
-          sleep 5
-          curl -sf http://localhost:4000 > /dev/null && echo "Gateway OK" || (echo "Gateway not responding" && exit 1)
+          echo "Waiting for gateway..."
+          for i in 1 2 3 4 5 6; do
+            sleep 5
+            if curl -sf http://localhost:4000/health > /dev/null 2>&1; then
+              echo "Gateway OK (attempt $i)"
+              exit 0
+            fi
+            echo "Not ready yet (attempt $i), retrying..."
+          done
+          echo "Gateway did not respond after 30s — dumping pm2 logs:"
+          pm2 logs markee-monolith --lines 50 --nostream || true
+          exit 1
