@@ -1,0 +1,253 @@
+<!-- tab-analytics.ejs: Platform analytics with charts -->
+<div class="tab-panel" id="tab-analytics">
+  <div class="page-header">
+    <h2><i class="fas fa-chart-bar"></i> Analytics</h2>
+    <button class="btn btn-sm btn-ghost" onclick="loadAnalytics()"><i class="fas fa-refresh"></i> Refresh</button>
+  </div>
+
+  <div class="sub-tabs" id="anlt-tabs">
+    <button class="sub-tab active" onclick="switchSubTab('anlt','overview',this);loadOverview()">Overview</button>
+    <button class="sub-tab" onclick="switchSubTab('anlt','products',this);loadTopProductsChart()">Top Products</button>
+    <button class="sub-tab" onclick="switchSubTab('anlt','revenue',this);loadRevenueChart()">Revenue</button>
+  </div>
+
+  <!-- Overview -->
+  <div class="sub-panel" id="anlt-overview" style="display:block">
+    <div id="anlt-overview-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="anlt-overview-loading" class="loading" style="display:none"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+    <div class="stats-grid" id="anlt-overview-stats"></div>
+    <div class="grid-2 section-gap">
+      <div class="card">
+        <div class="card-title"><i class="fas fa-box"></i> Top Products</div>
+        <div class="chart-wrap" style="height:260px">
+          <canvas id="anlt-top-canvas-overview"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="fas fa-dollar-sign"></i> Top Sellers by Revenue</div>
+        <div class="chart-wrap" style="height:260px">
+          <canvas id="anlt-rev-canvas-overview"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Products -->
+  <div class="sub-panel" id="anlt-products" style="display:none">
+    <div id="anlt-products-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="anlt-products-loading" class="loading" style="display:none"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+    <div class="card">
+      <div class="card-title">Top 10 Products by Order Count</div>
+      <div class="chart-wrap-lg" style="height:360px">
+        <canvas id="anlt-top-canvas"></canvas>
+      </div>
+      <div class="table-wrap section-gap">
+        <table>
+          <thead><tr><th>#</th><th>Product</th><th>Order Count</th></tr></thead>
+          <tbody id="anlt-top-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Revenue -->
+  <div class="sub-panel" id="anlt-revenue" style="display:none">
+    <div id="anlt-revenue-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="anlt-revenue-loading" class="loading" style="display:none"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+    <div class="card">
+      <div class="card-title">Top 10 Sellers by Revenue</div>
+      <div class="chart-wrap-lg" style="height:360px">
+        <canvas id="anlt-rev-canvas"></canvas>
+      </div>
+      <div class="table-wrap section-gap">
+        <table>
+          <thead><tr><th>#</th><th>Seller ID</th><th>Revenue</th></tr></thead>
+          <tbody id="anlt-rev-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const _anltChartDefaults = {
+    responsive: true,
+    maintainAspectRatio: false,
+    indexAxis: 'y',
+    plugins: {
+      legend: { display: false }
+    },
+    scales: {
+      x: { ticks: { color: '#64748b' }, grid: { color: '#1e2d45' } },
+      y: { ticks: { color: '#64748b' }, grid: { color: '#1e2d45' } }
+    }
+  };
+
+  async function loadAnalytics() {
+    await Promise.all([loadOverview(), loadTopProductsChart()]);
+  }
+
+  async function loadOverview() {
+    const statsEl = document.getElementById('anlt-overview-stats');
+    const loading = document.getElementById('anlt-overview-loading');
+    hideErr('anlt-overview-error');
+    loading.style.display = 'block';
+    statsEl.innerHTML = '';
+    try {
+      const [dash, products, revData] = await Promise.all([
+        adminApi('GET', '/proxy/analytics/platform/dashboard'),
+        adminApi('GET', '/proxy/analytics/platform/top-products'),
+        adminApi('GET', '/proxy/analytics/platform/revenue')
+      ]);
+      loading.style.display = 'none';
+
+      const totalOrders = dash.totalOrders || 0;
+      const totalRev = dash.totalRevenueCents || 0;
+      const totalSellers = dash.totalSellers || 0;
+      const totalBuyers = dash.totalBuyers || 0;
+      const avgOrder = totalOrders > 0 ? Math.round(totalRev / totalOrders) : 0;
+
+      statsEl.innerHTML = `
+        <div class="stat-card"><div class="stat-label">Total Orders</div><div class="stat-value" id="anlt-ov-orders">0</div></div>
+        <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-value">${fmt$(totalRev)}</div></div>
+        <div class="stat-card"><div class="stat-label">Total Sellers</div><div class="stat-value" id="anlt-ov-sellers">0</div></div>
+        <div class="stat-card"><div class="stat-label">Total Buyers</div><div class="stat-value" id="anlt-ov-buyers">0</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Order Value</div><div class="stat-value">${fmt$(avgOrder)}</div></div>
+      `;
+      animateCounter(document.getElementById('anlt-ov-orders'), totalOrders, '', '');
+      animateCounter(document.getElementById('anlt-ov-sellers'), totalSellers, '', '');
+      animateCounter(document.getElementById('anlt-ov-buyers'), totalBuyers, '', '');
+
+      // Mini overview charts
+      const prodArr = products.products || (Array.isArray(products) ? products : []);
+      const top5Prod = prodArr.slice(0, 5);
+      if (top5Prod.length) {
+        if (window._anltTopOvChart) window._anltTopOvChart.destroy();
+        const ctx1 = document.getElementById('anlt-top-canvas-overview').getContext('2d');
+        window._anltTopOvChart = new Chart(ctx1, {
+          type: 'bar',
+          data: {
+            labels: top5Prod.map(p => trunc(p.title || p.productId, 18)),
+            datasets: [{ data: top5Prod.map(p => p.count||0), backgroundColor: 'rgba(56,189,248,0.7)', borderColor: '#38bdf8', borderWidth: 1, borderRadius: 6 }]
+          },
+          options: { ..._anltChartDefaults, plugins: { ..._anltChartDefaults.plugins, tooltip: { callbacks: { label: ctx => `${ctx.raw} orders` } } } }
+        });
+      }
+
+      const revArr = revData.sellers || (Array.isArray(revData) ? revData : []);
+      const top5Rev = revArr.slice(0, 5);
+      if (top5Rev.length) {
+        if (window._anltRevOvChart) window._anltRevOvChart.destroy();
+        const ctx2 = document.getElementById('anlt-rev-canvas-overview').getContext('2d');
+        window._anltRevOvChart = new Chart(ctx2, {
+          type: 'bar',
+          data: {
+            labels: top5Rev.map(s => trunc(s.sellerId, 12)),
+            datasets: [{ data: top5Rev.map(s => (s.revenueCents||0)/100), backgroundColor: 'rgba(74,222,128,0.7)', borderColor: '#4ade80', borderWidth: 1, borderRadius: 6 }]
+          },
+          options: { ..._anltChartDefaults, plugins: { ..._anltChartDefaults.plugins, tooltip: { callbacks: { label: ctx => fmt$(Math.round(ctx.raw * 100)) } } } }
+        });
+      }
+    } catch (err) {
+      loading.style.display = 'none';
+      showErr('anlt-overview-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  async function loadTopProductsChart() {
+    const loading = document.getElementById('anlt-products-loading');
+    const table = document.getElementById('anlt-top-table');
+    hideErr('anlt-products-error');
+    loading.style.display = 'block';
+    if (table) table.innerHTML = '';
+    try {
+      const data = await adminApi('GET', '/proxy/analytics/platform/top-products');
+      const products = data.products || (Array.isArray(data) ? data : []);
+      const top10 = products.slice(0, 10);
+      loading.style.display = 'none';
+
+      if (top10.length) {
+        if (window._topChart) window._topChart.destroy();
+        const ctx = document.getElementById('anlt-top-canvas').getContext('2d');
+        window._topChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: top10.map(p => trunc(p.title || p.productId, 22)),
+            datasets: [{ data: top10.map(p => p.count||0), backgroundColor: 'rgba(56,189,248,0.7)', borderColor: '#38bdf8', borderWidth: 1, borderRadius: 6 }]
+          },
+          options: {
+            ..._anltChartDefaults,
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.raw} orders` } } }
+          }
+        });
+      }
+
+      if (table) {
+        if (!top10.length) {
+          table.innerHTML = '<tr><td colspan="3"><div class="empty-state">No product data available.</div></td></tr>';
+        } else {
+          table.innerHTML = top10.map((p, i) => `
+            <tr>
+              <td style="color:#94a3b8">${i+1}</td>
+              <td>${p.title ? `${p.title} <span class="mono" style="color:#64748b;font-size:0.75rem">(${trunc(p.productId,10)})</span>` : `<span class="mono">${p.productId}</span>`}</td>
+              <td>${(p.count||0).toLocaleString()}</td>
+            </tr>
+          `).join('');
+        }
+      }
+    } catch (err) {
+      if (loading) loading.style.display = 'none';
+      showErr('anlt-products-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  async function loadRevenueChart() {
+    const loading = document.getElementById('anlt-revenue-loading');
+    const table = document.getElementById('anlt-rev-table');
+    hideErr('anlt-revenue-error');
+    loading.style.display = 'block';
+    if (table) table.innerHTML = '';
+    try {
+      const data = await adminApi('GET', '/proxy/analytics/platform/revenue');
+      const sellers = data.sellers || (Array.isArray(data) ? data : []);
+      const top10 = sellers.slice(0, 10);
+      loading.style.display = 'none';
+
+      if (top10.length) {
+        if (window._revChart) window._revChart.destroy();
+        const ctx = document.getElementById('anlt-rev-canvas').getContext('2d');
+        window._revChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: top10.map(s => trunc(s.sellerId, 14)),
+            datasets: [{ data: top10.map(s => (s.revenueCents||0)/100), backgroundColor: 'rgba(74,222,128,0.7)', borderColor: '#4ade80', borderWidth: 1, borderRadius: 6 }]
+          },
+          options: {
+            ..._anltChartDefaults,
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmt$(Math.round(ctx.raw * 100)) } } }
+          }
+        });
+      }
+
+      if (table) {
+        if (!top10.length) {
+          table.innerHTML = '<tr><td colspan="3"><div class="empty-state">No revenue data available.</div></td></tr>';
+        } else {
+          table.innerHTML = top10.map((s, i) => `
+            <tr>
+              <td style="color:#94a3b8">${i+1}</td>
+              <td class="mono">${s.sellerId}</td>
+              <td>${fmt$(s.revenueCents||0)}</td>
+            </tr>
+          `).join('');
+        }
+      }
+    } catch (err) {
+      if (loading) loading.style.display = 'none';
+      showErr('anlt-revenue-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+</script>

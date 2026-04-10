@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Cart | Markee</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js" defer></script>
+    <script src="/js/cart.js" defer></script>
+</head>
+<body class="bg-light">
+
+<nav class="navbar">
+    <div class="brand-combo">
+        <a href="/"><span class="brand">Markee</span></a>
+    </div>
+    <%- include('_nav') %>
+</nav>
+
+<div class="container py-4 animate-fade">
+    <h2 class="mb-4">Your Cart</h2>
+
+    <div id="cart-empty" style="display:none; text-align:center; padding: 4rem 0;">
+        <i class="fa fa-shopping-cart" style="font-size:3rem; color:var(--border-light); margin-bottom:1rem; display:block;"></i>
+        <h3 class="text-muted">Your cart is empty</h3>
+        <p class="text-muted mb-4">Discover products and add them to your cart.</p>
+        <a href="/" class="nav-pill nav-pill-red" style="text-decoration:none;">Browse Marketplace</a>
+    </div>
+
+    <div id="cart-content" style="display:none;">
+        <div style="display:grid; grid-template-columns:1fr 320px; gap:2rem; align-items:start;">
+            <div class="card overflow-hidden">
+                <div class="card-header flex-between">
+                    <h4 style="margin:0">Items</h4>
+                    <button onclick="clearCartAndRefresh()" class="nav-pill" style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca;padding:0.3rem 0.8rem;font-size:0.8rem;">
+                        <i class="fa fa-trash mr-2"></i>Clear Cart
+                    </button>
+                </div>
+                <div id="cart-items-list"></div>
+            </div>
+
+            <div class="card p-4" style="position:sticky;top:5rem;">
+                <h4 class="mb-3">Order Summary</h4>
+                <div class="flex-between mb-2">
+                    <span class="text-muted">Items (<span id="summary-count">0</span>)</span>
+                    <span id="summary-subtotal" style="font-weight:600;">$0.00</span>
+                </div>
+                <div class="flex-between mb-2">
+                    <span class="text-muted">Shipping</span>
+                    <span style="color:#16a34a;font-weight:600;">Free</span>
+                </div>
+                <hr style="margin:1rem 0;border:none;border-top:1px solid var(--border-light);">
+                <div class="flex-between mb-4">
+                    <span style="font-weight:700;font-size:1.1rem;">Total</span>
+                    <span id="summary-total" style="font-weight:800;font-size:1.25rem;color:var(--accent-red);">$0.00</span>
+                </div>
+                <a href="/checkout" class="btn" style="background:var(--accent-red);text-decoration:none;display:flex;align-items:center;justify-content:center;gap:0.5rem;">
+                    <i class="fa fa-lock"></i> Proceed to Checkout
+                </a>
+                <p class="text-muted small text-center" style="margin-top:0.75rem;">
+                    <i class="fa fa-shield-alt mr-2"></i>Secured by Markee Escrow
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function renderCart() {
+        const cart = MarkeeCart.getCart();
+        const emptyEl = document.getElementById('cart-empty');
+        const contentEl = document.getElementById('cart-content');
+
+        if (cart.length === 0) {
+            emptyEl.style.display = 'block';
+            contentEl.style.display = 'none';
+            return;
+        }
+
+        emptyEl.style.display = 'none';
+        contentEl.style.display = 'block';
+
+        const list = document.getElementById('cart-items-list');
+        list.innerHTML = cart.map(item => `
+            <div class="list-item" id="item-${item._id}">
+                <div style="display:flex;align-items:center;gap:1rem;flex:1;">
+                    <img src="${item.image || ''}"
+                         style="width:64px;height:64px;border-radius:8px;object-fit:cover;border:1px solid var(--border-light);background:var(--bg-secondary);"
+                         onerror="this.onerror=null; this.src=''">
+                    <div style="flex:1;">
+                        <p style="font-weight:600;margin-bottom:0.25rem;font-size:0.9rem;">${item.title}</p>
+                        <p class="text-muted small">$${(item.price / 100).toFixed(2)} each</p>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                    <div style="display:flex;align-items:center;gap:0.5rem;border:1px solid var(--border-light);border-radius:8px;overflow:hidden;">
+                        <button onclick="changeQty('${item._id}', ${item.qty - 1})" 
+                                style="padding:0.4rem 0.7rem;border:none;background:var(--bg-secondary);cursor:pointer;font-weight:700;">−</button>
+                        <span style="padding:0 0.5rem;font-weight:600;">${item.qty}</span>
+                        <button onclick="changeQty('${item._id}', ${item.qty + 1})" 
+                                style="padding:0.4rem 0.7rem;border:none;background:var(--bg-secondary);cursor:pointer;font-weight:700;">+</button>
+                    </div>
+                    <span style="font-weight:700;color:var(--accent-red);min-width:60px;text-align:right;">
+                        $${((item.price * item.qty) / 100).toFixed(2)}
+                    </span>
+                    <button onclick="removeItem('${item._id}')" 
+                            style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;padding:0.25rem;">
+                        <i class="fa fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        const count = MarkeeCart.getTotalCount();
+        const total = MarkeeCart.getTotalPrice();
+        document.getElementById('summary-count').textContent = count;
+        document.getElementById('summary-subtotal').textContent = `$${(total / 100).toFixed(2)}`;
+        document.getElementById('summary-total').textContent = `$${(total / 100).toFixed(2)}`;
+    }
+
+    function changeQty(id, qty) {
+        if (qty <= 0) {
+            removeItem(id);
+        } else {
+            MarkeeCart.updateQty(id, qty);
+            renderCart();
+        }
+    }
+
+    function removeItem(id) {
+        MarkeeCart.removeItem(id);
+        renderCart();
+        showToast('Item removed from cart', 'info');
+    }
+
+    function clearCartAndRefresh() {
+        MarkeeCart.clearCart();
+        renderCart();
+        showToast('Cart cleared', 'info');
+    }
+
+    window.onload = renderCart;
+</script>
+
+</body>
+</html>

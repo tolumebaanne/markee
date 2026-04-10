@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Details | Markee</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js"></script>
+    <script src="/js/cart.js"></script>
+    <script src="/js/telemetry.js" defer></script>
+    <style>
+        .product-detail-layout {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 2rem;
+            padding-top: 2rem;
+        }
+
+        @media (max-width: 860px) {
+            .product-detail-layout { grid-template-columns: 1fr; }
+        }
+
+        /* ── Gallery ─────────────────────────────────────────────────────────── */
+        .thumb-gallery {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .thumb-gallery img {
+            width: 72px;
+            height: 72px;
+            object-fit: cover;
+            border: 2px solid var(--border-light);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .thumb-gallery img:hover,
+        .thumb-gallery img.active { border-color: var(--accent-red); }
+
+        /* ── Contact box ─────────────────────────────────────────────────────── */
+        .contact-box-jiji {
+            background: white;
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            padding: 1.5rem;
+            position: sticky;
+            top: 80px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .price-box-jiji {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--accent-red);
+            margin-bottom: 1rem;
+        }
+
+        /* ── Avg rating display ──────────────────────────────────────────────── */
+        .avg-rating-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .star-display-lg { font-size: 1.1rem; color: #f59e0b; letter-spacing: 1px; }
+        .avg-rating-num  { font-weight: 700; font-size: 1.05rem; }
+        .avg-rating-count { font-size: 0.8rem; color: var(--text-muted); }
+
+        /* ── Reviews section ─────────────────────────────────────────────────── */
+        .reviews-section {
+            margin-top: 2rem;
+        }
+
+        .review-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 0.85rem;
+        }
+
+        .review-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .reviewer-name { font-weight: 600; font-size: 0.875rem; }
+        .review-date   { font-size: 0.75rem; color: var(--text-muted); }
+        .review-stars  { font-size: 0.9rem; color: #f59e0b; letter-spacing: 1px; }
+        .review-text   { font-size: 0.875rem; color: var(--text-main); line-height: 1.6; margin-top: 0.35rem; }
+
+        /* ── Write Review button (visible only when delivered) ───────────────── */
+        .write-review-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.55rem 1.1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border: 1.5px solid #bbf7d0;
+            background: #f0fdf4;
+            color: #15803d;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+            justify-content: center;
+            margin-top: 0.75rem;
+        }
+
+        .write-review-btn:hover { background: #dcfce7; }
+
+        /* ── Review modal ────────────────────────────────────────────────────── */
+        .review-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s;
+        }
+
+        .review-modal-overlay.open {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .review-modal {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+            transform: translateY(20px);
+            transition: transform 0.25s;
+        }
+
+        .review-modal-overlay.open .review-modal { transform: translateY(0); }
+
+        /* ── Star picker ─────────────────────────────────────────────────────── */
+        .star-picker { display: flex; gap: 0.35rem; }
+
+        .star-pick {
+            font-size: 2rem;
+            cursor: pointer;
+            color: #d1d5db;
+            transition: color 0.15s;
+            line-height: 1;
+            user-select: none;
+        }
+
+        .star-pick.filled { color: #f59e0b; }
+        .star-pick:hover  { color: #f59e0b; }
+
+        /* ── Section card ────────────────────────────────────────────────────── */
+        .section-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 1.25rem;
+        }
+
+        .section-card-header {
+            padding: 0.85rem 1.25rem;
+            border-bottom: 1px solid var(--border-light);
+            background: var(--bg-secondary);
+        }
+
+        .section-card-header h4 { margin: 0; font-size: 0.9rem; font-weight: 700; }
+        .section-card-body { padding: 1.25rem; }
+
+        /* skeleton */
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-secondary) 25%, #e9eaec 50%, var(--bg-secondary) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+            border-radius: 8px;
+        }
+        @keyframes shimmer { to { background-position: -200% 0; } }
+
+        /* ── S34 — confidence badge ──────────────────────────────────────────── */
+        .confidence-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.2rem 0.65rem;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+        }
+
+        /* ── S34 — Q&A ───────────────────────────────────────────────────────── */
+        .qa-item {
+            border-left: 3px solid #bfdbfe;
+            padding: 0.6rem 0.75rem;
+            margin-bottom: 0.75rem;
+            background: #f8faff;
+            border-radius: 0 8px 8px 0;
+        }
+        .qa-question { font-weight: 600; font-size: 0.875rem; }
+        .qa-answer   { font-size: 0.85rem; color: var(--text-main); margin-top: 0.4rem; line-height: 1.5; }
+        .qa-answer-label { font-weight: 700; color: #1d4ed8; font-size: 0.78rem; margin-right: 0.35rem; }
+    </style>
+</head>
+<body class="bg-light">
+
+<!-- ============ NAVBAR ============ -->
+<nav class="navbar">
+    <div class="brand-combo">
+        <a href="/"><span class="brand">Markee</span></a>
+    </div>
+    <%- include('_nav') %>
+</nav>
+
+<!-- ============ PRODUCT LAYOUT ============ -->
+<div class="container animate-fade">
+    <div class="product-detail-layout">
+
+        <!-- LEFT: Image + Description + Reviews -->
+        <div class="main-column">
+
+            <!-- Image hero -->
+            <div style="background:white; border:1px solid var(--border-light); border-radius:12px; height:460px; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                <img id="main-image" alt="Product Image"
+                     style="max-width:100%; max-height:100%; object-fit:contain; transition:opacity 0.2s;"
+                     onerror="this.onerror=null; this.style.display='none'">
+            </div>
+
+            <div class="thumb-gallery" id="gallery-container"></div>
+
+            <!-- Description card -->
+            <div class="section-card">
+                <div class="section-card-header">
+                    <h4 id="product-title">Loading...</h4>
+                    <!-- S34 — confidence badge -->
+                    <div id="confidence-badge-wrap" style="display:none; margin-top:0.35rem;"></div>
+                </div>
+                <div class="section-card-body">
+                    <p class="text-muted small mb-2" id="product-cat">Category: —</p>
+                    <!-- Avg rating inline -->
+                    <div class="avg-rating-row" id="avg-rating-row" style="display:none;">
+                        <span class="star-display-lg" id="avg-stars"></span>
+                        <span class="avg-rating-num" id="avg-num"></span>
+                        <span class="avg-rating-count" id="avg-count"></span>
+                    </div>
+                    <div style="border-top:1px solid var(--border-light); margin-top:0.75rem; padding-top:1rem;">
+                        <p id="product-desc" style="line-height:1.6; white-space:pre-wrap; font-size:0.9rem;">Loading description...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- About the Seller (populated after store load) -->
+            <div id="about-seller-section" style="display:none; margin-top:1.5rem;">
+                <div class="section-card">
+                    <div class="section-card-header">
+                        <h4 style="margin:0;"><i class="fa fa-store" style="margin-right:0.5rem; color:var(--accent-red);"></i> About the Seller</h4>
+                    </div>
+                    <div class="section-card-body" id="about-seller-body"></div>
+                </div>
+            </div>
+
+            <!-- S34 — Q&A section -->
+            <div id="qa-section" style="display:none; margin-top:1.5rem;">
+                <div class="section-card">
+                    <div class="section-card-header">
+                        <h4 style="margin:0;"><i class="fa fa-question-circle" style="margin-right:0.5rem; color:#1d4ed8;"></i> Questions &amp; Answers</h4>
+                    </div>
+                    <div class="section-card-body">
+                        <div id="qa-list"></div>
+                        <div id="qa-ask-wrap">
+                            <div style="border-top:1px solid var(--border-light); margin-top:0.75rem; padding-top:0.75rem;">
+                                <div style="font-size:0.8rem; font-weight:600; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase; letter-spacing:0.04em;">Ask a question</div>
+                                <div style="display:flex; gap:0.5rem; align-items:flex-end;">
+                                    <textarea id="qa-input" rows="2" placeholder="Ask the seller about this product…" style="flex:1; font-size:0.85rem; border-radius:8px; resize:vertical;"></textarea>
+                                    <button onclick="submitQuestion()" style="padding:0.5rem 1rem; border-radius:7px; background:#1d4ed8; color:white; font-size:0.82rem; font-weight:600; border:none; cursor:pointer; flex-shrink:0;">
+                                        <i class="fa fa-paper-plane" style="margin-right:0.35rem;"></i> Ask
+                                    </button>
+                                </div>
+                                <div id="qa-login-hint" style="display:none; font-size:0.78rem; color:var(--text-muted); margin-top:0.4rem;">
+                                    <a href="/login" style="color:var(--accent-red);">Log in</a> to ask a question.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reviews section -->
+            <div class="reviews-section">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                    <h3 style="margin:0; font-size:1.1rem;">Customer Reviews</h3>
+                    <span class="text-muted small" id="review-count-label"></span>
+                </div>
+
+                <!-- skeleton -->
+                <div id="reviews-skeleton">
+                    <div class="review-card"><div class="skeleton" style="height:12px; width:120px; margin-bottom:0.5rem;"></div><div class="skeleton" style="height:14px; width:80%;"></div></div>
+                    <div class="review-card"><div class="skeleton" style="height:12px; width:150px; margin-bottom:0.5rem;"></div><div class="skeleton" style="height:14px; width:65%;"></div></div>
+                </div>
+
+                <div id="reviews-list" style="display:none;"></div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT: Contact/CTA sidebar -->
+        <aside class="sidebar-column">
+            <div class="contact-box-jiji">
+                <div style="display:flex; align-items:baseline; gap:0.6rem; margin-bottom:1rem;">
+                    <div class="price-box-jiji" id="product-price" style="margin-bottom:0;">$0.00</div>
+                    <!-- S34 — price history indicator -->
+                    <div id="price-history-wrap" style="display:none; position:relative;">
+                        <button id="price-history-btn" onclick="togglePriceHistory(event)"
+                            style="background:none; border:1px solid var(--border-light); border-radius:6px; padding:0.15rem 0.5rem; font-size:0.72rem; font-weight:600; color:var(--text-muted); cursor:pointer; white-space:nowrap;">
+                            <i class="fa fa-chart-line" style="margin-right:0.25rem;"></i> History
+                        </button>
+                        <div id="price-history-popover" style="display:none; position:absolute; top:calc(100% + 6px); left:0; z-index:200; background:white; border:1px solid var(--border-light); border-radius:10px; box-shadow:0 4px 16px rgba(0,0,0,0.12); min-width:220px; padding:0.75rem;">
+                            <div style="font-size:0.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.5rem;">Recent Price Changes</div>
+                            <div id="price-history-list"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Avg rating (compact in sidebar) -->
+                <div class="avg-rating-row" id="sidebar-rating-row" style="display:none; margin-bottom:1rem;">
+                    <span style="font-size:0.95rem; color:#f59e0b;" id="sidebar-stars"></span>
+                    <span style="font-weight:600; font-size:0.9rem;" id="sidebar-avg"></span>
+                    <a href="#reviews-section-anchor" class="text-muted small" id="sidebar-count"></a>
+                </div>
+
+                <!-- Out of stock banner (shown when available=0) -->
+                <div id="oos-banner" style="display:none; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:0.65rem 1rem; margin-bottom:0.75rem; font-size:0.82rem; color:#b91c1c; font-weight:600;">
+                    <i class="fa fa-exclamation-triangle" style="margin-right:0.4rem;"></i> Out of Stock
+                </div>
+                <!-- S34 — low stock warning (shown when available is low but > 0) -->
+                <div id="low-stock-banner" style="display:none; background:#fefce8; border:1px solid #fef08a; border-radius:8px; padding:0.65rem 1rem; margin-bottom:0.75rem; font-size:0.82rem; color:#a16207; font-weight:600;">
+                    <i class="fa fa-exclamation-circle" style="margin-right:0.4rem;"></i> <span id="low-stock-text">Only a few left</span>
+                </div>
+
+                <!-- Store name bar (shown above CTA) — links to full storefront -->
+                <div id="store-name-bar" style="display:none; margin-bottom:0.85rem;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem;">
+                        <div style="font-size:0.78rem; color:var(--text-muted);">
+                            <i class="fa fa-store" style="margin-right:0.3rem;"></i>
+                            Sold by <strong id="store-name-label">—</strong>
+                            <span id="store-open-dot" style="margin-left:0.4rem;"></span>
+                        </div>
+                        <a id="visit-store-link" href="#" style="font-size:0.72rem; font-weight:700; color:var(--accent-red); text-decoration:none; white-space:nowrap;">
+                            Visit Store →
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Edit listing (own product) -->
+                <div id="edit-own-btn-wrap" style="display:none; margin-bottom:0.75rem;">
+                    <button class="btn w-100" style="background:#1d4ed8; color:white;" onclick="window.location='/dashboard'">
+                        <i class="fa fa-pen" style="margin-right:0.5rem;"></i> Edit This Listing
+                    </button>
+                </div>
+
+                <button class="btn w-100 mb-2" id="add-cart-btn" style="background:var(--accent-red); color:white; font-weight:bold;" onclick="addToCart()">
+                    <i class="fa fa-cart-plus" style="margin-right:0.5rem;"></i> Add to Cart
+                </button>
+
+                <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem;">
+                    <button class="btn btn-outline" style="flex:1;" onclick="handleBuyNow()">
+                        Buy Now
+                    </button>
+                    <button class="btn btn-outline" id="watchlist-btn" title="Save to Watchlist"
+                            style="width:44px; padding:0; display:flex; align-items:center; justify-content:center; font-size:1.1rem;"
+                            onclick="toggleWatchlist()">
+                        <i class="fa fa-heart" id="watchlist-icon" style="color:#d1d5db;"></i>
+                    </button>
+                </div>
+
+                <button class="btn w-100 mb-2" style="background:#22c55e; color:white; font-weight:600;" id="reveal-btn" onclick="revealContact()">
+                    <i class="fa fa-phone" style="margin-right:0.5rem;"></i> Show Contact
+                </button>
+
+                <button class="btn btn-outline w-100 mb-3" style="border-color:#22c55e; color:#22c55e;" id="chat-btn" onclick="handleStartChat()">
+                    <i class="fa fa-comment" style="margin-right:0.5rem;"></i> Start Chat
+                </button>
+
+                <div id="contact-info" style="display:none; padding:1rem; border:1px dashed #22c55e; border-radius:8px; margin-bottom:1rem; font-size:0.875rem;" class="animate-fade">
+                    <p style="margin-bottom:0.35rem;"><i class="fa fa-phone" style="color:#22c55e; margin-right:0.5rem;"></i> <span id="revealed-phone">—</span></p>
+                    <p><i class="fa fa-envelope" style="color:#22c55e; margin-right:0.5rem;"></i> <span id="revealed-email">—</span></p>
+                </div>
+
+                <!-- Write Review (only shown when delivered buyer) -->
+                <div id="write-review-wrapper" style="display:none;">
+                    <div style="border-top:1px solid var(--border-light); padding-top:1rem;">
+                        <button class="write-review-btn" onclick="openReviewModal()">
+                            <i class="fa fa-star"></i> Write a Review
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Safety tips -->
+            <div class="section-card" style="margin-top:1rem; padding:1.25rem;">
+                <h4 class="mb-2" style="font-size:0.875rem;"><i class="fa fa-shield-alt text-red" style="margin-right:0.5rem;"></i> Safety Tips</h4>
+                <ul class="text-muted small" style="padding-left:1.25rem; line-height:1.7;">
+                    <li>Avoid sending prepayments.</li>
+                    <li>Meet at a safe, public place.</li>
+                    <li>Inspect the item thoroughly before paying.</li>
+                    <li>Pay only after verifying the item.</li>
+                </ul>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Anchor for jump-to-reviews -->
+    <div id="reviews-section-anchor"></div>
+</div>
+
+<!-- ============ REVIEW MODAL ============ -->
+<div class="review-modal-overlay" id="review-modal" onclick="handleModalOutsideClick(event)">
+    <div class="review-modal">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+            <h4 style="margin:0;">Leave a Review</h4>
+            <button onclick="closeReviewModal()" style="background:none; border:none; cursor:pointer; font-size:1.25rem; color:var(--text-muted);">&times;</button>
+        </div>
+        <div style="font-size:0.875rem; color:var(--text-muted); margin-bottom:1rem;" id="modal-product-name"></div>
+        <div style="margin-bottom:1rem;">
+            <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.5rem;">Your Rating</label>
+            <div class="star-picker" id="star-picker">
+                <span class="star-pick" data-val="1" onclick="setRating(1)">&#9733;</span>
+                <span class="star-pick" data-val="2" onclick="setRating(2)">&#9733;</span>
+                <span class="star-pick" data-val="3" onclick="setRating(3)">&#9733;</span>
+                <span class="star-pick" data-val="4" onclick="setRating(4)">&#9733;</span>
+                <span class="star-pick" data-val="5" onclick="setRating(5)">&#9733;</span>
+            </div>
+            <div id="rating-hint" style="font-size:0.7rem; color:var(--text-muted); margin-top:0.3rem;">1 = Poor &nbsp;·&nbsp; 3 = Okay &nbsp;·&nbsp; 5 = Excellent</div>
+        </div>
+        <div class="form-group" style="margin-bottom:0.85rem;">
+            <label>Your Review</label>
+            <textarea id="review-body" placeholder="Share your experience with this product..." rows="4"
+                oninput="document.getElementById('body-char-counter').textContent = this.value.length + ' / 1000'"></textarea>
+            <div id="body-char-counter" style="font-size:0.7rem; color:var(--text-muted); text-align:right; margin-top:0.2rem;">0 / 1000</div>
+        </div>
+        <div class="form-group mb-4">
+            <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.4rem;">
+                Photo URL <span style="font-weight:400; color:var(--text-muted);">(optional)</span>
+            </label>
+            <input type="url" id="review-image-url" placeholder="https://..." style="width:100%; padding:0.5rem 0.75rem; border:1px solid var(--border-light); border-radius:8px; font-size:0.82rem; box-sizing:border-box;">
+            <div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.2rem;">Reviews with photos earn higher quality scores.</div>
+        </div>
+        <button id="review-submit-btn" class="btn" style="background:var(--accent-red); color:white; width:100%;" onclick="submitReview()">
+            Submit Review
+        </button>
+        <p class="text-muted small text-center" style="margin-top:0.75rem;">
+            Your review will appear immediately as a verified purchase.
+        </p>
+    </div>
+</div>
+
+<script>
+    const PRODUCT_ID = '<%- productId %>';
+    let sellerUserId = null;
+    let _selectedRating = 0;
+    let _deliveredOrderId = null; // set if buyer has a delivered order for this product
+
+    // ── Auth state ────────────────────────────────────────────────────────────
+    const token = localStorage.getItem('access_token');
+
+    function parseJwt(t) {
+        try { return JSON.parse(atob(t.split('.')[1])); }
+        catch { return null; }
+    }
+
+    const user = token ? parseJwt(token) : null;
+
+    // ── Load product ──────────────────────────────────────────────────────────
+    async function loadProduct() {
+        try {
+            const res = await fetch(`/api/catalog/products/${PRODUCT_ID}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+
+            document.title = `${data.title} | Markee`;
+            document.getElementById('product-title').textContent = data.title;
+            document.getElementById('product-cat').textContent = `Category: ${data.category || '—'}`;
+            document.getElementById('product-desc').textContent = data.description || 'No description provided.';
+            document.getElementById('product-price').textContent = `$${((data.price || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+            const imgs = data.images || [];
+            document.getElementById('main-image').src = imgs[0] || '';
+
+            sellerUserId = data.sellerId;
+            window.currentProduct = data;
+
+            if (imgs.length > 1) {
+                document.getElementById('gallery-container').innerHTML = imgs.map((img, i) => `
+                    <img src="${img}"
+                         class="${i === 0 ? 'active' : ''}"
+                         alt="Product image ${i+1}"
+                         onclick="switchImage(this, '${img}')">
+                `).join('');
+            }
+
+            // Show edit button if viewer owns this product
+            if (user && user.storeId && data.sellerId?.toString() === user.storeId?.toString()) {
+                document.getElementById('edit-own-btn-wrap').style.display = 'block';
+                document.getElementById('add-cart-btn').style.display = 'none';
+                document.getElementById('reveal-btn').style.display   = 'none';
+                document.getElementById('chat-btn').style.display     = 'none';
+            }
+
+            // Micro-FOMO Badge execution
+            if (data.smartMetrics && data.smartMetrics.activeCartCount >= 3) {
+                const fomo = document.createElement('div');
+                fomo.style = 'background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 8px; padding: 0.65rem 1rem; margin-bottom: 0.75rem; font-size: 0.82rem; font-weight: 600; display: flex; align-items: center; animation: pulse 2s infinite;';
+                fomo.innerHTML = '<i class="fa fa-fire text-red" style="margin-right:0.4rem;"></i> In high demand! In ' + data.smartMetrics.activeCartCount + ' carts right now.';
+                document.getElementById('oos-banner').before(fomo);
+            }
+
+            // Load store name
+            if (data.sellerId) loadStoreName(data.sellerId);
+
+            // Check watchlist state
+            updateWatchlistIcon();
+
+            // Load reviews now that we have the product
+            loadReviews(data.rating);
+
+            // Check review eligibility — any authenticated user (backend gate handles the rest)
+            if (user && user.sub) {
+                checkReviewEligibility();
+            }
+
+            // S34 — confidence badge, price history, stock status, Q&A
+            renderConfidenceBadge(data);
+            renderPriceHistory(data);
+            loadStockStatus();
+            renderQA(data);
+
+        } catch (err) {
+            document.getElementById('product-title').textContent = 'Product not found';
+            document.getElementById('product-desc').textContent = 'This listing may have been removed or the link is invalid.';
+            document.getElementById('product-price').textContent = '';
+            document.getElementById('reviews-skeleton').style.display = 'none';
+            document.getElementById('reviews-list').style.display = 'block';
+            document.getElementById('reviews-list').innerHTML = '';
+            if (window.showToast) showToast('Failed to load product.', 'error');
+        }
+    }
+
+    function switchImage(el, src) {
+        document.getElementById('main-image').style.opacity = '0';
+        setTimeout(() => {
+            document.getElementById('main-image').src = src;
+            document.getElementById('main-image').style.opacity = '1';
+        }, 150);
+        document.querySelectorAll('.thumb-gallery img').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+    }
+
+    // ── S34 — Confidence badge ────────────────────────────────────────────────
+    function renderConfidenceBadge(product) {
+        const wrap = document.getElementById('confidence-badge-wrap');
+        if (!wrap) return;
+        const ageDays  = (Date.now() - new Date(product.createdAt).getTime()) / 86400000;
+        const avgRating = product.avgRating || 0;
+        const qualScore = product.smartMetrics?.qualityScore || 0;
+        let label, bg, color, border, icon;
+        if (avgRating >= 4.5) {
+            label = 'Highly Rated'; bg = '#f0fdf4'; color = '#15803d'; border = '#bbf7d0'; icon = 'fa-star';
+        } else if (qualScore >= 80) {
+            label = 'Top Seller Item'; bg = '#eff6ff'; color = '#1d4ed8'; border = '#bfdbfe'; icon = 'fa-medal';
+        } else if (ageDays <= 30) {
+            label = 'New Listing'; bg = '#fefce8'; color = '#a16207'; border = '#fef08a'; icon = 'fa-certificate';
+        } else {
+            label = 'Established'; bg = '#f3f4f6'; color = '#6b7280'; border = '#e5e7eb'; icon = 'fa-shield-alt';
+        }
+        wrap.innerHTML = `<span class="confidence-badge" style="background:${bg}; color:${color}; border:1px solid ${border};">
+            <i class="fa ${icon}" style="font-size:0.65rem;"></i>${label}
+        </span>`;
+        wrap.style.display = 'block';
+    }
+
+    // ── S34 — Price history tooltip ───────────────────────────────────────────
+    function renderPriceHistory(product) {
+        const history = product.priceHistory;
+        if (!history || !history.length) return;
+        const wrap = document.getElementById('price-history-wrap');
+        if (!wrap) return;
+        const list = document.getElementById('price-history-list');
+        list.innerHTML = history.slice(0, 5).map(h => {
+            const d = new Date(h.changedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            const p = `$${((h.price || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            return `<div style="display:flex; justify-content:space-between; font-size:0.8rem; padding:0.25rem 0; border-bottom:1px solid var(--border-light);">
+                <span style="color:var(--text-muted);">${d}</span>
+                <span style="font-weight:600;">${p}</span>
+            </div>`;
+        }).join('');
+        wrap.style.display = 'block';
+    }
+
+    function togglePriceHistory(e) {
+        e.stopPropagation();
+        const pop = document.getElementById('price-history-popover');
+        pop.style.display = pop.style.display === 'none' ? 'block' : 'none';
+    }
+
+    document.addEventListener('click', () => {
+        const pop = document.getElementById('price-history-popover');
+        if (pop) pop.style.display = 'none';
+    });
+
+    // ── S34 — Stock status badge ──────────────────────────────────────────────
+    async function loadStockStatus() {
+        try {
+            const r = await fetch(`/api/inventory/stock?productId=${PRODUCT_ID}`);
+            if (!r.ok) return;
+            const inv = await r.json();
+            const available = inv.available ?? (inv.quantity - (inv.reserved || 0));
+            const threshold = inv.lowStockThreshold || 5;
+            if (available <= 0) {
+                document.getElementById('oos-banner').style.display = 'block';
+                document.getElementById('add-cart-btn').disabled = true;
+                document.getElementById('add-cart-btn').style.opacity = '0.5';
+            } else if (available <= threshold) {
+                const banner = document.getElementById('low-stock-banner');
+                document.getElementById('low-stock-text').textContent = `Only ${available} left in stock`;
+                banner.style.display = 'block';
+            }
+        } catch {}
+    }
+
+    // ── S34 — Q&A section ─────────────────────────────────────────────────────
+    function escHtml(s) {
+        return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function renderQA(product) {
+        const answered = (product.questions || []).filter(q => q.status === 'answered' && q.answer?.body);
+        const section  = document.getElementById('qa-section');
+        const list     = document.getElementById('qa-list');
+        if (!section || !list) return;
+
+        if (answered.length) {
+            list.innerHTML = answered.map(q => `
+                <div class="qa-item">
+                    <div class="qa-question"><i class="fa fa-question" style="color:#1d4ed8; margin-right:0.4rem; font-size:0.75rem;"></i>${escHtml(q.body)}</div>
+                    <div class="qa-answer"><span class="qa-answer-label">A:</span>${escHtml(q.answer.body)}</div>
+                </div>`).join('');
+        } else {
+            list.innerHTML = '<div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:0.75rem;">No answered questions yet. Be the first to ask!</div>';
+        }
+
+        // Show ask form only for authenticated non-seller visitors
+        const isOwner = user && user.storeId && product.sellerId?.toString() === user.storeId?.toString();
+        if (!user) {
+            document.getElementById('qa-login-hint').style.display = 'block';
+            document.querySelector('#qa-ask-wrap textarea').style.display = 'none';
+            document.querySelector('#qa-ask-wrap button').style.display = 'none';
+        } else if (isOwner) {
+            document.getElementById('qa-ask-wrap').style.display = 'none';
+        }
+
+        section.style.display = 'block';
+    }
+
+    async function submitQuestion() {
+        const input = document.getElementById('qa-input');
+        if (!input || !token) return;
+        const body = input.value.trim();
+        if (!body) return;
+        try {
+            const res = await fetch(`/api/catalog/products/${PRODUCT_ID}/questions`, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body:    JSON.stringify({ body })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            input.value = '';
+            if (window.showToast) showToast('Question submitted! The seller will be notified.', 'success');
+        } catch (err) {
+            if (window.showToast) showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    // ── Review state ──────────────────────────────────────────────────────────
+    let _reviewSort  = 'helpful';
+    let _reviewStars = '';
+    let _allReviewData = null; // cached full response
+
+    // ── Load reviews ──────────────────────────────────────────────────────────
+    async function loadReviews(existingRating, sort, stars) {
+        try {
+            let url = `/api/reviews/product/${PRODUCT_ID}`;
+            const params = [];
+            if (sort)  params.push(`sort=${sort}`);
+            if (stars) params.push(`stars=${stars}`);
+            if (params.length) url += '?' + params.join('&');
+
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            // API now returns {reviews, avgRating, totalCount, breakdown}
+            const reviews   = Array.isArray(data) ? data : (data.reviews || []);
+            const avg       = data.avgRating || existingRating || 0;
+            const total     = data.totalCount || reviews.length;
+            const breakdown = data.breakdown || null;
+
+            // Cache for re-renders
+            if (!sort && !stars) _allReviewData = data;
+
+            document.getElementById('reviews-skeleton').style.display = 'none';
+            document.getElementById('reviews-list').style.display = 'block';
+
+            if (avg > 0) {
+                const starsHtml  = renderStars(avg);
+                const countLabel = total ? `(${total} review${total !== 1 ? 's' : ''})` : '';
+
+                document.getElementById('avg-rating-row').style.display = 'flex';
+                document.getElementById('avg-stars').innerHTML = starsHtml;
+                document.getElementById('avg-num').textContent = avg.toFixed(1);
+                document.getElementById('avg-count').textContent = countLabel;
+
+                document.getElementById('sidebar-rating-row').style.display = 'flex';
+                document.getElementById('sidebar-stars').innerHTML = starsHtml;
+                document.getElementById('sidebar-avg').textContent = avg.toFixed(1);
+                document.getElementById('sidebar-count').textContent = countLabel;
+
+                // Breakdown bars (only on initial load, not filtered views)
+                if (breakdown && !sort && !stars) {
+                    renderBreakdown(breakdown, total);
+                }
+            }
+
+            const countText = total ? `${total} verified review${total !== 1 ? 's' : ''}` : '';
+            document.getElementById('review-count-label').textContent = countText;
+
+            // Controls (sort + star filter) — inject once
+            if (!document.getElementById('review-controls')) {
+                injectReviewControls();
+            }
+
+            if (!reviews.length) {
+                document.getElementById('reviews-list').innerHTML = `
+                    <div style="text-align:center; padding:2rem; color:var(--text-muted);">
+                        <i class="fa fa-star" style="font-size:1.75rem; margin-bottom:0.75rem; display:block; color:#d1d5db;"></i>
+                        <div style="font-weight:600; margin-bottom:0.25rem;">${stars ? 'No ' + stars + '-star reviews' : 'No reviews yet'}</div>
+                        <div class="small">Be the first to review this product after your purchase.</div>
+                    </div>
+                `;
+                return;
+            }
+
+            document.getElementById('reviews-list').innerHTML = reviews.map(r => renderReviewCard(r)).join('');
+
+        } catch (err) {
+            document.getElementById('reviews-skeleton').style.display = 'none';
+            document.getElementById('reviews-list').style.display = 'block';
+            document.getElementById('reviews-list').innerHTML = `
+                <div style="padding:1rem; color:#b91c1c; font-size:0.875rem;">Failed to load reviews.</div>
+            `;
+        }
+    }
+
+    function renderBreakdown(breakdown, total) {
+        const container = document.getElementById('avg-rating-row');
+        const existing  = document.getElementById('rating-breakdown');
+        if (existing) existing.remove();
+        if (!total) return;
+        const bars = [5,4,3,2,1].map(n => {
+            const count = breakdown[n] || 0;
+            const pct   = total ? Math.round((count / total) * 100) : 0;
+            return `
+            <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.75rem; margin-bottom:0.2rem;">
+                <span style="width:12px; text-align:right; color:var(--text-muted);">${n}</span>
+                <i class="fa fa-star" style="color:#f59e0b; font-size:0.65rem;"></i>
+                <div style="flex:1; height:6px; background:var(--bg-secondary); border-radius:3px; overflow:hidden;">
+                    <div style="height:100%; width:${pct}%; background:#f59e0b; border-radius:3px;"></div>
+                </div>
+                <span style="width:28px; color:var(--text-muted);">${pct}%</span>
+            </div>`;
+        }).join('');
+        const el = document.createElement('div');
+        el.id = 'rating-breakdown';
+        el.style.cssText = 'margin-top:0.75rem; width:100%;';
+        el.innerHTML = bars;
+        container.insertAdjacentElement('afterend', el);
+    }
+
+    function injectReviewControls() {
+        const section = document.querySelector('.reviews-section');
+        if (!section) return;
+        const ctrl = document.createElement('div');
+        ctrl.id = 'review-controls';
+        ctrl.style.cssText = 'display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; margin-bottom:1rem;';
+        ctrl.innerHTML = `
+            <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">
+                ${['','1','2','3','4','5'].map(s => `
+                <button onclick="filterReviews('${s}')"
+                    style="font-size:0.73rem; padding:0.25rem 0.6rem; border-radius:6px; border:1px solid var(--border-light); background:var(--bg-secondary); cursor:pointer;"
+                    id="star-tab-${s || 'all'}">
+                    ${s ? s + '★' : 'All'}
+                </button>`).join('')}
+            </div>
+            <select id="review-sort-sel" onchange="sortReviews(this.value)"
+                style="font-size:0.75rem; padding:0.25rem 0.5rem; border:1px solid var(--border-light); border-radius:6px; background:var(--bg-secondary); cursor:pointer; margin-left:auto;">
+                <option value="helpful">Most Helpful</option>
+                <option value="recent">Most Recent</option>
+                <option value="rating_desc">Highest Rated</option>
+                <option value="rating_asc">Lowest Rated</option>
+            </select>`;
+        // Insert before reviews-list
+        document.getElementById('reviews-list').before(ctrl);
+    }
+
+    function filterReviews(stars) {
+        _reviewStars = stars;
+        loadReviews(0, _reviewSort, stars || '');
+    }
+
+    function sortReviews(sort) {
+        _reviewSort = sort;
+        loadReviews(0, sort, _reviewStars);
+    }
+
+    function renderReviewCard(r) {
+        const isSeller = user && user.storeId && user.storeId === r.sellerId?.toString();
+        const buyerLabel = 'Buyer #' + (r.buyerId || '').toString().slice(-4).toUpperCase();
+
+        const imgHtml = r.imageUrl
+            ? `<div style="margin-top:0.5rem;">
+                   <img src="${r.imageUrl}" alt="Review photo"
+                        style="max-width:120px; max-height:100px; border-radius:6px; object-fit:cover; border:1px solid var(--border-light); cursor:pointer;"
+                        onclick="window.open('${r.imageUrl}','_blank')">
+               </div>` : '';
+
+        const helpfulBtn = user
+            ? `<button onclick="voteHelpful('${r._id}', this)" style="font-size:0.72rem; color:var(--text-muted); background:none; border:1px solid var(--border-light); border-radius:5px; padding:0.2rem 0.55rem; cursor:pointer;">
+                   <i class="fa fa-thumbs-up" style="margin-right:0.25rem;"></i> Helpful${r.helpfulCount > 0 ? ' (' + r.helpfulCount + ')' : ''}
+               </button>` : (r.helpfulCount > 0 ? `<span style="font-size:0.72rem; color:var(--text-muted);">${r.helpfulCount} found helpful</span>` : '');
+
+        const flagLink = user
+            ? `<button onclick="flagReview('${r._id}', this)" style="font-size:0.7rem; color:var(--text-muted); background:none; border:none; cursor:pointer; text-decoration:underline; padding:0;">Report</button>`
+            : '';
+
+        const replyHtml = r.sellerReply?.body
+            ? `<div style="margin-top:0.75rem; background:var(--bg-secondary); border-left:3px solid var(--accent-red); border-radius:0 8px 8px 0; padding:0.65rem 0.85rem;">
+                   <div style="font-size:0.72rem; font-weight:700; color:var(--accent-red); margin-bottom:0.25rem;">
+                       <i class="fa fa-store" style="margin-right:0.3rem;"></i> Seller Response
+                       ${r.sellerReply.addressed ? '<span style="margin-left:0.4rem; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; border-radius:4px; padding:0.05rem 0.35rem; font-size:0.65rem;">Addressed</span>' : ''}
+                   </div>
+                   <div style="font-size:0.82rem; color:var(--text-main); line-height:1.5;">${escapeHtml(r.sellerReply.body)}</div>
+                   <div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.25rem;">${formatDate(r.sellerReply.repliedAt)}</div>
+               </div>` : '';
+
+        const replyBtn = isSeller && !r.sellerReply?.body
+            ? `<button onclick="openReplyBox('${r._id}', this)"
+                   style="font-size:0.72rem; color:var(--accent-red); background:none; border:1px solid #fecaca; border-radius:5px; padding:0.2rem 0.55rem; cursor:pointer;">
+                   <i class="fa fa-reply" style="margin-right:0.25rem;"></i> Reply
+               </button>` : '';
+
+        const addressBtn = isSeller && r.sellerReply?.body
+            ? `<button onclick="toggleAddressed('${r._id}', this)"
+                   style="font-size:0.7rem; color:var(--text-muted); background:none; border:none; cursor:pointer; text-decoration:underline;">
+                   ${r.sellerReply.addressed ? 'Unmark Addressed' : 'Mark Addressed'}
+               </button>` : '';
+
+        return `
+        <div class="review-card" id="rcard-${r._id}">
+            <div class="review-card-header">
+                <div>
+                    <span class="reviewer-name">${buyerLabel}</span>
+                    <span style="margin-left:0.4rem; font-size:0.65rem; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; border-radius:4px; padding:0.05rem 0.35rem; font-weight:700;">Verified</span>
+                    <div class="review-stars">${renderStars(r.rating)}</div>
+                </div>
+                <span class="review-date">${formatDate(r.createdAt)}</span>
+            </div>
+            <div class="review-text">${escapeHtml(r.body || '')}</div>
+            ${imgHtml}
+            ${replyHtml}
+            <div id="reply-box-${r._id}" style="display:none; margin-top:0.75rem;">
+                <textarea id="reply-text-${r._id}" rows="3" placeholder="Write your reply..." style="width:100%; font-size:0.82rem; padding:0.5rem 0.75rem; border:1px solid var(--border-light); border-radius:8px; resize:vertical;"></textarea>
+                <div style="display:flex; gap:0.5rem; margin-top:0.4rem;">
+                    <button onclick="submitReply('${r._id}')" style="font-size:0.78rem; padding:0.35rem 0.85rem; background:var(--accent-red); color:white; border:none; border-radius:6px; cursor:pointer;">Post Reply</button>
+                    <button onclick="document.getElementById('reply-box-${r._id}').style.display='none'" style="font-size:0.78rem; padding:0.35rem 0.85rem; background:var(--bg-secondary); border:1px solid var(--border-light); border-radius:6px; cursor:pointer;">Cancel</button>
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.6rem; flex-wrap:wrap;">
+                ${helpfulBtn}
+                ${replyBtn}
+                ${addressBtn}
+                ${flagLink}
+            </div>
+        </div>`;
+    }
+
+    // ── Review interactions ───────────────────────────────────────────────────
+    async function voteHelpful(reviewId, btn) {
+        if (!token) { showToast('Sign in to vote.', 'info'); return; }
+        btn.disabled = true;
+        try {
+            const res = await fetch(`/api/reviews/${reviewId}/helpful`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.alreadyVoted) { showToast('Already voted.', 'info'); btn.disabled = false; return; }
+            btn.innerHTML = `<i class="fa fa-thumbs-up" style="margin-right:0.25rem;"></i> Helpful (${data.helpfulCount})`;
+            btn.style.color = '#15803d';
+        } catch { btn.disabled = false; }
+    }
+
+    async function flagReview(reviewId, btn) {
+        if (!token) { showToast('Sign in to report.', 'info'); return; }
+        if (!confirm('Report this review as inappropriate?')) return;
+        btn.disabled = true;
+        try {
+            const res = await fetch(`/api/reviews/${reviewId}/flag`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.alreadyFlagged) { showToast('Already reported.', 'info'); btn.disabled = false; return; }
+            btn.textContent = 'Reported';
+        } catch { btn.disabled = false; }
+    }
+
+    function openReplyBox(reviewId, btn) {
+        const box = document.getElementById(`reply-box-${reviewId}`);
+        if (box) { box.style.display = 'block'; btn.style.display = 'none'; }
+    }
+
+    async function submitReply(reviewId) {
+        const body = document.getElementById(`reply-text-${reviewId}`)?.value.trim();
+        if (!body) { showToast('Reply cannot be empty.', 'error'); return; }
+        try {
+            const res = await fetch(`/api/reviews/${reviewId}/reply`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ body })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            showToast('Reply posted.', 'success');
+            loadReviews(0, _reviewSort, _reviewStars);
+        } catch (err) { showToast('Error: ' + err.message, 'error'); }
+    }
+
+    async function toggleAddressed(reviewId, btn) {
+        try {
+            const res = await fetch(`/api/reviews/${reviewId}/reply/address`, {
+                method: 'PATCH',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error();
+            loadReviews(0, _reviewSort, _reviewStars);
+        } catch { showToast('Error updating reply.', 'error'); }
+    }
+
+    // ── Check review eligibility via targeted endpoint ────────────────────────
+    async function checkReviewEligibility() {
+        if (!token) return;
+        try {
+            const res = await fetch(`/api/reviews/check/${PRODUCT_ID}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) return;
+            const { canReview, alreadyReviewed, orderId } = await res.json();
+            const wrapper = document.getElementById('write-review-wrapper');
+            if (alreadyReviewed) {
+                wrapper.style.display = 'block';
+                wrapper.innerHTML = `
+                    <div style="border-top:1px solid var(--border-light); padding-top:1rem;">
+                        <div style="font-size:0.82rem; color:var(--text-muted); text-align:center; padding:0.6rem; background:var(--bg-secondary); border-radius:8px; border:1px solid var(--border-light);">
+                            <i class="fa fa-check-circle" style="color:#15803d; margin-right:0.35rem;"></i> You reviewed this product
+                        </div>
+                    </div>`;
+            } else if (canReview && orderId) {
+                _deliveredOrderId = orderId;
+                wrapper.style.display = 'block';
+            }
+        } catch {}
+    }
+
+    // ── Cart & buy ────────────────────────────────────────────────────────────
+    function addToCart() {
+        if (!window.currentProduct) return;
+        MarkeeCart.addItem(window.currentProduct);
+        if (window.sendTelemetry) {
+            window.sendTelemetry('cart_added', { 
+                qty: 1, 
+                priceAtAdd: window.currentProduct.price, 
+                sellerId: window.currentProduct.sellerId 
+            });
+        }
+        showToast('Added to cart!', 'success');
+    }
+
+    function handleBuyNow() {
+        if (!window.currentProduct) return;
+        MarkeeCart.addItem(window.currentProduct);
+        if (window.sendTelemetry) {
+            window.sendTelemetry('cart_added', { 
+                qty: 1, 
+                priceAtAdd: window.currentProduct.price, 
+                sellerId: window.currentProduct.sellerId 
+            });
+        }
+        window.location.href = '/cart';
+    }
+
+    // ── Reveal contact ────────────────────────────────────────────────────────
+    async function revealContact() {
+        if (!sellerUserId) return;
+        const btn = document.getElementById('reveal-btn');
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Retrieving...';
+        btn.disabled = true;
+
+        try {
+            const res = await fetch(`/api/public-seller/by-seller/${sellerUserId}`);
+            const data = await res.json();
+            document.getElementById('revealed-phone').textContent = data.phone || 'Not listed';
+            document.getElementById('revealed-email').textContent = data.email || 'Not listed';
+            document.getElementById('contact-info').style.display = 'block';
+            btn.style.display = 'none';
+        } catch {
+            showToast('Failed to load contact info.', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa fa-phone" style="margin-right:0.5rem;"></i> Show Contact';
+        }
+    }
+
+    // ── Start chat — context-aware (S29) ─────────────────────────────────────
+    function handleStartChat() {
+        if (!token) {
+            showToast('Sign in to message the seller.', 'info');
+            setTimeout(() => window.location.href = '/login', 1500);
+            return;
+        }
+        const p = window.currentProduct;
+        const ctx = {
+            recipientId: sellerUserId,
+            contextType: 'product',
+            refId:       window.PRODUCT_ID,
+            refTitle:    p?.title || 'Product',
+            refImage:    (p?.images && p.images[0]) || ''
+        };
+        window.location.href = `/messages?ctx=${encodeURIComponent(JSON.stringify(ctx))}`;
+    }
+
+    // ── Review modal ──────────────────────────────────────────────────────────
+    function openReviewModal() {
+        if (!token) {
+            showToast('Sign in to leave a review.', 'info');
+            return;
+        }
+        document.getElementById('modal-product-name').textContent =
+            window.currentProduct?.title || 'this product';
+        _selectedRating = 0;
+        updateStars(0);
+        document.getElementById('review-body').value = '';
+        document.getElementById('review-modal').classList.add('open');
+    }
+
+    function closeReviewModal() {
+        document.getElementById('review-modal').classList.remove('open');
+    }
+
+    function handleModalOutsideClick(e) {
+        if (e.target === document.getElementById('review-modal')) closeReviewModal();
+    }
+
+    function setRating(val) {
+        _selectedRating = val;
+        updateStars(val);
+    }
+
+    function updateStars(val) {
+        document.querySelectorAll('#star-picker .star-pick').forEach((s, i) => {
+            s.classList.toggle('filled', i < val);
+        });
+    }
+
+    async function submitReview() {
+        if (!_selectedRating) { showToast('Please select a star rating.', 'error'); return; }
+        const body = document.getElementById('review-body').value.trim();
+        if (!body) { showToast('Please write something.', 'error'); return; }
+        if (!_deliveredOrderId) { showToast('A delivered order is required to leave a review.', 'error'); return; }
+
+        const imageUrl = (document.getElementById('review-image-url')?.value || '').trim();
+        const sellerId = window.currentProduct?.sellerId;
+
+        const btn = document.getElementById('review-submit-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Submitting...';
+
+        try {
+            const res = await fetch('/api/reviews', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    orderId:   _deliveredOrderId,
+                    productId: PRODUCT_ID,
+                    sellerId,
+                    rating:    _selectedRating,
+                    body,
+                    ...(imageUrl ? { imageUrl } : {})
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+            closeReviewModal();
+            showToast('Review submitted! Your review is now live.', 'success');
+            // Replace button with "already reviewed" label
+            document.getElementById('write-review-wrapper').innerHTML = `
+                <div style="border-top:1px solid var(--border-light); padding-top:1rem;">
+                    <div style="font-size:0.82rem; color:var(--text-muted); text-align:center; padding:0.6rem; background:var(--bg-secondary); border-radius:8px; border:1px solid var(--border-light);">
+                        <i class="fa fa-check-circle" style="color:#15803d; margin-right:0.35rem;"></i> You reviewed this product
+                    </div>
+                </div>`;
+            loadReviews(0, _reviewSort, _reviewStars);
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = 'Submit Review';
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function renderStars(rating) {
+        const full  = Math.floor(rating);
+        const half  = rating - full >= 0.5;
+        const empty = 5 - full - (half ? 1 : 0);
+        return [
+            ...Array(full).fill('<i class="fa fa-star" style="color:#f59e0b;"></i>'),
+            ...(half ? ['<i class="fa fa-star-half-alt" style="color:#f59e0b;"></i>'] : []),
+            ...Array(empty).fill('<i class="fa fa-star" style="color:#d1d5db;"></i>')
+        ].join('');
+    }
+
+    function formatDate(iso) {
+        return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function escapeHtml(str) {
+        const d = document.createElement('div');
+        d.appendChild(document.createTextNode(str));
+        return d.innerHTML;
+    }
+
+    // ── Store name + seller about section ────────────────────────────────────
+    async function loadStoreName(sellerId) {
+        try {
+            const res = await fetch(`/api/public-seller/by-seller/${sellerId}`);
+            if (!res.ok) return;
+            const store = await res.json();
+            document.getElementById('store-name-label').textContent = store.name || 'Unknown Store';
+            const dot = document.getElementById('store-open-dot');
+            dot.innerHTML = store.isOpen
+                ? '<span style="color:#15803d; font-size:0.72rem; font-weight:700;">● Open</span>'
+                : (store.nextOpen
+                    ? `<span style="color:#b91c1c; font-size:0.72rem; font-weight:700;">● Closed · Opens ${store.nextOpen}</span>`
+                    : '<span style="color:#b91c1c; font-size:0.72rem; font-weight:700;">● Closed</span>');
+            // Wire "Visit Store →" link using the store's _id (which is the storeId)
+            if (store._id) {
+                document.getElementById('visit-store-link').href = `/store/${store._id}`;
+                loadSellerAbout(store._id, store.name);
+            }
+            document.getElementById('store-name-bar').style.display = 'block';
+        } catch {}
+    }
+
+    async function loadSellerAbout(storeId, storeName) {
+        try {
+            const res = await fetch(`/api/reviews/seller/${storeId}/stats`);
+            if (!res.ok) return;
+            const stats = await res.json();
+            if (!stats.totalCount) return; // no reviews yet — don't show section
+            const starsHtml = renderStars(stats.avgRating || 0);
+            const replyPct  = stats.replyRate != null ? Math.round(stats.replyRate * 100) : null;
+            document.getElementById('about-seller-body').innerHTML = `
+                <div style="display:flex; align-items:center; gap:0.65rem; margin-bottom:0.75rem; flex-wrap:wrap;">
+                    <div style="font-size:1.5rem; font-weight:800; color:var(--text-main);">${(stats.avgRating || 0).toFixed(1)}</div>
+                    <div>
+                        <div style="font-size:0.85rem;">${starsHtml}</div>
+                        <div style="font-size:0.72rem; color:var(--text-muted);">${stats.totalCount} seller review${stats.totalCount !== 1 ? 's' : ''}</div>
+                    </div>
+                    ${replyPct != null ? `<div style="margin-left:auto; font-size:0.78rem; color:var(--text-muted);">Responds to <strong>${replyPct}%</strong> of reviews</div>` : ''}
+                </div>
+                <a href="/store/${storeId}" style="display:inline-block; font-size:0.82rem; font-weight:700; color:var(--accent-red); text-decoration:none;">
+                    View all reviews on ${escapeHtml(storeName || 'Store')} →
+                </a>`;
+            document.getElementById('about-seller-section').style.display = 'block';
+        } catch {}
+    }
+
+    // ── Watchlist ─────────────────────────────────────────────────────────────
+    const _wlKey = user ? `markee_wl_${user.email}` : 'markee_wl_guest';
+
+    function getWatchlist() {
+        try { return JSON.parse(localStorage.getItem(_wlKey) || '[]'); }
+        catch { return []; }
+    }
+
+    function isWatched() {
+        return getWatchlist().some(i => i.productId === PRODUCT_ID);
+    }
+
+    function updateWatchlistIcon() {
+        const icon = document.getElementById('watchlist-icon');
+        if (icon) icon.style.color = isWatched() ? '#e11d48' : '#d1d5db';
+    }
+
+    function toggleWatchlist() {
+        const wl  = getWatchlist();
+        const idx = wl.findIndex(i => i.productId === PRODUCT_ID);
+        const tok = localStorage.getItem('access_token');
+
+        if (idx >= 0) {
+            wl.splice(idx, 1);
+            showToast('Removed from watchlist.', 'info');
+            // Sync removal to user-service DB so price-drop notifications work
+            if (tok) {
+                fetch(`/api/users/me/watchlist/${PRODUCT_ID}`, {
+                    method: 'DELETE',
+                    headers: { Authorization: `Bearer ${tok}` }
+                }).catch(() => {}); // best-effort; local state already updated
+            }
+        } else {
+            const p = window.currentProduct || {};
+            wl.push({
+                productId: PRODUCT_ID,
+                title:     p.title          || '—',
+                price:     p.price          || 0,
+                image:     (p.images || [])[0] || '',
+                savedAt:   new Date().toISOString()
+            });
+            showToast('Saved to watchlist!', 'success');
+            // Sync add to user-service DB so price-drop notifications work
+            if (tok) {
+                fetch(`/api/users/me/watchlist/${PRODUCT_ID}`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${tok}` }
+                }).catch(() => {}); // best-effort
+            }
+        }
+        localStorage.setItem(_wlKey, JSON.stringify(wl));
+        updateWatchlistIcon();
+    }
+
+    window.addEventListener('load', () => {
+        loadProduct();
+        if (window.MarkeeCart) MarkeeCart.updateAllCartBadges();
+    });
+</script>
+</body>
+</html>

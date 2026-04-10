@@ -1,0 +1,274 @@
+<!-- Payments Tab: escrows, disputes, payout holds, payment summary -->
+<div class="tab-panel" id="tab-payments">
+  <div class="page-header">
+    <h2>Payments</h2>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="stats-grid" id="pay-stats">
+    <div class="stat-card"><div class="stat-label">Total Held</div><div class="stat-value" id="pay-held">—</div></div>
+    <div class="stat-card"><div class="stat-label">Total Released</div><div class="stat-value" id="pay-released">—</div></div>
+    <div class="stat-card"><div class="stat-label">Total Refunded</div><div class="stat-value" id="pay-refunded">—</div></div>
+    <div class="stat-card"><div class="stat-label">Platform Revenue</div><div class="stat-value" id="pay-revenue">—</div></div>
+    <div class="stat-card"><div class="stat-label">Active Disputes</div><div class="stat-value" id="pay-disputes-count">—</div></div>
+  </div>
+
+  <!-- Sub-tabs -->
+  <div class="sub-tabs" style="margin-top:1rem">
+    <button class="sub-tab active" onclick="switchSubTab('pay','escrows',this);loadEscrows()">Escrows</button>
+    <button class="sub-tab" onclick="switchSubTab('pay','disputes',this);if(!this.dataset.loaded){this.dataset.loaded=1;loadDisputes();}">Disputes</button>
+    <button class="sub-tab" onclick="switchSubTab('pay','holds',this);if(!this.dataset.loaded){this.dataset.loaded=1;loadPayoutHolds();}">Payout Holds</button>
+  </div>
+
+  <!-- Sub-panel: Escrows -->
+  <div id="pay-escrows" class="sub-panel" style="display:block">
+    <div id="esc-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Order ID</th><th>Amount</th><th>Method</th><th>Status</th><th>Buyer</th><th>Created</th><th>Actions</th></tr></thead>
+        <tbody id="esc-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Sub-panel: Disputes -->
+  <div id="pay-disputes" class="sub-panel" style="display:none">
+    <div id="disputes-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="disputes-list"></div>
+  </div>
+
+  <!-- Sub-panel: Payout Holds -->
+  <div id="pay-holds" class="sub-panel" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+      <span style="color:var(--muted);font-size:.85rem">Active payout holds on seller accounts</span>
+      <button class="btn btn-sm btn-warn" onclick="placePayoutHold()"><i class="fas fa-hand-paper"></i> Place Hold</button>
+    </div>
+    <div id="holds-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Seller ID</th><th>Reason</th><th>Held At</th><th>Held By</th><th>Actions</th></tr></thead>
+        <tbody id="holds-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadPayments() {
+  loadPaymentSummary();
+  loadEscrows();
+}
+
+async function loadPaymentSummary() {
+  try {
+    const data = await adminApi('GET', '/proxy/payments/summary');
+    const s = data || {};
+    const el = (id, val) => { const e = document.getElementById(id); if(e) e.textContent = val; };
+    el('pay-held', fmt$(s.totalHeldCents||0));
+    el('pay-released', fmt$(s.totalReleasedCents||0));
+    el('pay-refunded', fmt$(s.totalRefundedCents||0));
+    el('pay-revenue', fmt$(s.platformRevenueCents||0));
+    el('pay-disputes-count', s.disputeCount!=null ? s.disputeCount : '—');
+  } catch(err) { toast('Summary error: ' + err.message, 'warn'); }
+}
+
+async function loadEscrows() {
+  hideErr('esc-error');
+  const tbody = document.getElementById('esc-body');
+  tbody.innerHTML = '<tr><td colspan="7" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
+  try {
+    const data = await adminApi('GET', '/proxy/payments/admin?limit=30');
+    const escrows = data.escrows || [];
+    if (!escrows.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No escrow records found.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = escrows.map(e => `
+      <tr>
+        <td style="font-family:monospace;font-size:.74rem">${trunc(e.orderId,18)}</td>
+        <td><b>${fmt$(e.amountCents)}</b></td>
+        <td><span style="background:${e.paymentMethod==='escrow'?'#6366f1':'#64748b'};color:#fff;padding:2px 7px;border-radius:9999px;font-size:.7rem;text-transform:uppercase">${e.paymentMethod||'—'}</span></td>
+        <td>${badge(e.status)}</td>
+        <td style="font-family:monospace;font-size:.74rem">${trunc(e.buyerId,16)}</td>
+        <td>${fmtDate(e.createdAt)}</td>
+        <td class="btn-gap">
+          <button class="btn btn-xs btn-success" onclick="releaseEscrow('${e.orderId}')"><i class="fas fa-unlock"></i></button>
+          <button class="btn btn-xs btn-warn" onclick="freezeEscrow('${e.orderId}')"><i class="fas fa-snowflake"></i></button>
+          <button class="btn btn-xs btn-danger" onclick="refundEscrow('${e.orderId}')"><i class="fas fa-rotate-left"></i></button>
+          <button class="btn btn-xs btn-purple" onclick="splitRefund('${e.orderId}')"><i class="fas fa-scissors"></i></button>
+        </td>
+      </tr>`).join('');
+  } catch(err) {
+    showErr('esc-error', err.message);
+    tbody.innerHTML = '';
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+async function loadDisputes() {
+  hideErr('disputes-error');
+  const list = document.getElementById('disputes-list');
+  list.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading disputes…</div>';
+  try {
+    const data = await adminApi('GET', '/proxy/payments/disputes');
+    const disputes = data.disputes || (Array.isArray(data) ? data : []);
+    if (!disputes.length) {
+      list.innerHTML = '<div class="empty-state"><i class="fas fa-balance-scale"></i><p>No active disputes.</p></div>';
+      return;
+    }
+    list.innerHTML = disputes.map(d => `
+      <div class="dispute-card">
+        <div class="dispute-header">
+          <span class="dispute-amount">${fmt$(d.amountCents)}</span>
+          <span style="font-family:monospace;font-size:.8rem;color:var(--muted)">${trunc(d.orderId,20)}</span>
+        </div>
+        <div class="dispute-meta">
+          Buyer: <b>${trunc(d.buyerId,18)}</b> &nbsp;·&nbsp;
+          Filed: <b>${d.disputeInfo ? fmtDate(d.disputeInfo.filedAt) : fmtDate(d.createdAt)}</b>
+        </div>
+        ${d.disputeInfo && d.disputeInfo.reason ? `<div class="dispute-reason">"${d.disputeInfo.reason}"</div>` : ''}
+        <div class="dispute-actions btn-gap">
+          <button class="btn btn-xs btn-success" onclick="releaseEscrow('${d.orderId}')"><i class="fas fa-unlock"></i> Release to Seller</button>
+          <button class="btn btn-xs btn-danger" onclick="refundEscrow('${d.orderId}')"><i class="fas fa-rotate-left"></i> Refund Buyer</button>
+          <button class="btn btn-xs btn-warn" onclick="freezeEscrow('${d.orderId}')"><i class="fas fa-snowflake"></i> Freeze</button>
+          <button class="btn btn-xs btn-purple" onclick="splitRefund('${d.orderId}')"><i class="fas fa-scissors"></i> Split</button>
+          <button class="btn btn-xs btn-info" onclick="extendDispute('${d.orderId}')"><i class="fas fa-clock"></i> Extend</button>
+        </div>
+      </div>`).join('');
+  } catch(err) {
+    showErr('disputes-error', err.message);
+    list.innerHTML = '';
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+async function loadPayoutHolds() {
+  hideErr('holds-error');
+  const tbody = document.getElementById('holds-body');
+  tbody.innerHTML = '<tr><td colspan="5" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
+  try {
+    const data = await adminApi('GET', '/proxy/payments/payout-holds');
+    const holds = data.holds || [];
+    if (!holds.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No active payout holds.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = holds.map(h => `
+      <tr>
+        <td style="font-family:monospace;font-size:.74rem">${trunc(h.sellerId,20)}</td>
+        <td>${trunc(h.reason||'—',30)}</td>
+        <td>${fmtDate(h.heldAt)}</td>
+        <td>${trunc(h.heldBy||'—',18)}</td>
+        <td><button class="btn btn-xs btn-success" onclick="liftPayoutHold('${h.sellerId}')"><i class="fas fa-unlock"></i> Lift Hold</button></td>
+      </tr>`).join('');
+  } catch(err) {
+    showErr('holds-error', err.message);
+    tbody.innerHTML = '';
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+async function releaseEscrow(orderId) {
+  const {confirmed, reason} = await showConfirm({title:'Force Release to Seller?', body:'Funds will be released to the seller immediately.', withReason:true});
+  if (!confirmed) return;
+  try {
+    await adminApi('POST', `/proxy/payments/${orderId}/force-release`, {reason: reason||'Admin override'});
+    toast('Escrow released to seller', 'success');
+    loadEscrows();
+    loadPaymentSummary();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function freezeEscrow(orderId) {
+  const {confirmed} = await showConfirm({title:'Freeze Escrow?', body:'The escrow for this order will be frozen pending review.', danger:true});
+  if (!confirmed) return;
+  try {
+    await adminApi('PATCH', `/proxy/payments/${orderId}/freeze`);
+    toast('Escrow frozen', 'warn');
+    loadEscrows();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function refundEscrow(orderId) {
+  const {confirmed, reason} = await showConfirm({title:'Full Refund to Buyer?', body:'Full amount will be refunded to the buyer.', withReason:true, danger:true});
+  if (!confirmed) return;
+  try {
+    await adminApi('POST', `/proxy/payments/${orderId}/refund`, {reason: reason||'Admin override'});
+    toast('Refund issued to buyer', 'success');
+    loadEscrows();
+    loadPaymentSummary();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function splitRefund(orderId) {
+  const {confirmed, reason, selected} = await showConfirm({
+    title: 'Split Refund',
+    body: 'Enter buyer percentage (seller gets the remainder):',
+    withSelect: true,
+    selectLabel: 'Buyer %',
+    selectOptions: [10,20,25,30,40,50,60,70,75,80,90].map(v=>({value:String(v),label:`Buyer ${v}% / Seller ${100-v}%`})),
+    withReason: true
+  });
+  if (!confirmed || !selected) return;
+  const buyerPct = parseInt(selected);
+  const sellerPct = 100 - buyerPct;
+  try {
+    await adminApi('PATCH', `/proxy/payments/${orderId}/split-refund`, {buyerPct, sellerPct, reason: reason||'Split resolution'});
+    toast(`Split refund: Buyer ${buyerPct}% / Seller ${sellerPct}%`, 'success');
+    loadEscrows();
+    loadPaymentSummary();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function extendDispute(orderId) {
+  const {confirmed, selected} = await showConfirm({
+    title: 'Extend Dispute Window',
+    body: 'Select how many hours to extend the dispute window:',
+    withSelect: true,
+    selectLabel: 'Hours',
+    selectOptions: [
+      {value:'24',label:'24 hours'},
+      {value:'48',label:'48 hours'},
+      {value:'72',label:'72 hours'},
+      {value:'168',label:'1 week'}
+    ]
+  });
+  if (!confirmed || !selected) return;
+  try {
+    await adminApi('PATCH', `/proxy/payments/${orderId}/extend-dispute`, {hours: parseInt(selected)});
+    toast(`Dispute extended by ${selected} hours`, 'info');
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function placePayoutHold() {
+  const {confirmed, selected, reason} = await showConfirm({
+    title: 'Place Payout Hold',
+    body: 'Enter the Seller ID to place a payout hold on:',
+    withSelect: false,
+    withInput: true,
+    inputLabel: 'Seller ID',
+    withReason: true,
+    danger: true
+  });
+  if (!confirmed) return;
+  const sellerId = selected || (document.getElementById('confirm-input-val') ? document.getElementById('confirm-input-val').value.trim() : '');
+  if (!sellerId) { toast('Seller ID is required', 'warn'); return; }
+  if (!reason) { toast('Reason is required', 'warn'); return; }
+  try {
+    await adminApi('POST', `/proxy/payments/hold-payouts/${sellerId}`, {reason});
+    toast('Payout hold placed on ' + sellerId, 'warn');
+    loadPayoutHolds();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function liftPayoutHold(sellerId) {
+  const {confirmed} = await showConfirm({title:'Lift Payout Hold?', body:`Remove the payout hold for seller: ${sellerId}`});
+  if (!confirmed) return;
+  try {
+    await adminApi('DELETE', `/proxy/payments/hold-payouts/${sellerId}`);
+    toast('Payout hold lifted', 'success');
+    loadPayoutHolds();
+    loadPaymentSummary();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+</script>

@@ -1,0 +1,245 @@
+<!-- tab-shipping.ejs: Shipping management panel -->
+<div class="tab-panel" id="tab-shipping">
+  <div class="page-header">
+    <h2><i class="fas fa-truck"></i> Shipping Management</h2>
+    <button class="btn btn-sm btn-ghost" onclick="loadShipping()"><i class="fas fa-refresh"></i> Refresh</button>
+  </div>
+
+  <div class="sub-tabs" id="shp-tabs">
+    <button class="sub-tab active" onclick="switchSubTab('shp','all',this)">All Shipments</button>
+    <button class="sub-tab" onclick="switchSubTab('shp','unshipped',this);loadUnshipped()">Unshipped Orders</button>
+    <button class="sub-tab" onclick="switchSubTab('shp','stuck',this);loadStuck()">Stuck In Transit</button>
+  </div>
+
+  <!-- All Shipments -->
+  <div class="sub-panel" id="shp-all" style="display:block">
+    <div class="card">
+      <div class="filter-bar">
+        <input type="text" id="shp-search" placeholder="Search by Order ID…" oninput="debounce(()=>loadAllShipments(1),350)()">
+      </div>
+      <div id="shp-all-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+      <div id="shp-all-loading" class="loading" style="display:none"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Shipment ID</th><th>Order ID</th><th>Status</th><th>Carrier</th><th>Tracking #</th><th>Seller</th><th>Updated</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="shp-all-body"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="shp-all-pagination"></div>
+    </div>
+  </div>
+
+  <!-- Unshipped Orders -->
+  <div class="sub-panel" id="shp-unshipped" style="display:none">
+    <div class="card">
+      <div id="shp-unshipped-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+      <div id="shp-unshipped-loading" class="loading" style="display:none"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Order ID</th><th>Seller ID</th><th>Created At</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="shp-unshipped-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stuck In Transit -->
+  <div class="sub-panel" id="shp-stuck" style="display:none">
+    <div class="card">
+      <div id="shp-stuck-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+      <div id="shp-stuck-loading" class="loading" style="display:none"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Shipment ID</th><th>Order ID</th><th>Carrier</th><th>Days Stuck</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="shp-stuck-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let _shpPage = 1;
+
+  async function loadShipping() {
+    await loadAllShipments(1);
+  }
+
+  async function loadAllShipments(page) {
+    _shpPage = page || 1;
+    const search = document.getElementById('shp-search').value.trim();
+    const body = document.getElementById('shp-all-body');
+    const loading = document.getElementById('shp-all-loading');
+    const errEl = document.getElementById('shp-all-error');
+    hideErr('shp-all-error');
+    loading.style.display = 'block';
+    body.innerHTML = '';
+    try {
+      let url = `/proxy/shipping?page=${_shpPage}&limit=20`;
+      if (search) url += `&orderId=${encodeURIComponent(search)}`;
+      const data = await adminApi('GET', url);
+      const shipments = data.shipments || [];
+      const total = data.total || 0;
+      loading.style.display = 'none';
+      if (!shipments.length) {
+        body.innerHTML = '<tr><td colspan="8"><div class="empty-state">No shipments found.</div></td></tr>';
+        return;
+      }
+      body.innerHTML = shipments.map(s => `
+        <tr>
+          <td class="mono">${trunc(s._id,12)}</td>
+          <td class="mono">${trunc(s.orderId||'—',14)}</td>
+          <td>${badge(s.status)}</td>
+          <td>${s.carrier||'—'}</td>
+          <td class="mono">${s.trackingNumber||'—'}</td>
+          <td class="mono">${trunc(s.sellerId||'—',12)}</td>
+          <td>${fmtDate(s.updatedAt)}</td>
+          <td>
+            <div class="btn-gap">
+              <button class="btn btn-xs btn-warn" onclick="forceShipmentStatus('${s._id}')">Force Status</button>
+              <button class="btn btn-xs btn-danger" onclick="markDelivered('${s._id}')">Mark Delivered</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      renderShpPagination(total, _shpPage);
+    } catch (err) {
+      loading.style.display = 'none';
+      showErr('shp-all-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  function renderShpPagination(total, page) {
+    const el = document.getElementById('shp-all-pagination');
+    const pages = Math.ceil(total / 20);
+    if (pages <= 1) { el.innerHTML = ''; return; }
+    let html = '';
+    if (page > 1) html += `<button class="btn btn-xs btn-ghost" onclick="loadAllShipments(${page-1})">&#8249; Prev</button>`;
+    html += `<span style="padding:0 0.75rem;color:#94a3b8">Page ${page} of ${pages}</span>`;
+    if (page < pages) html += `<button class="btn btn-xs btn-ghost" onclick="loadAllShipments(${page+1})">Next &#8250;</button>`;
+    el.innerHTML = html;
+  }
+
+  async function loadUnshipped() {
+    const body = document.getElementById('shp-unshipped-body');
+    const loading = document.getElementById('shp-unshipped-loading');
+    hideErr('shp-unshipped-error');
+    loading.style.display = 'block';
+    body.innerHTML = '';
+    try {
+      const data = await adminApi('GET', '/proxy/shipping/unshipped');
+      const shipments = data.shipments || data || [];
+      loading.style.display = 'none';
+      if (!shipments.length) {
+        body.innerHTML = '<tr><td colspan="4"><div class="empty-state">No unshipped orders found.</div></td></tr>';
+        return;
+      }
+      const now = Date.now();
+      body.innerHTML = shipments.map(s => {
+        const age = Math.floor((now - new Date(s.createdAt)) / 3600000);
+        const highlight = age > 48 ? 'style="color:#f87171;font-weight:600"' : '';
+        return `
+          <tr>
+            <td class="mono">${trunc(s.orderId||s._id,14)}</td>
+            <td class="mono">${trunc(s.sellerId||'—',12)}</td>
+            <td ${highlight}>${fmtDate(s.createdAt)}${age>48?' ⚠ >48h':''}</td>
+            <td>
+              <button class="btn btn-xs btn-warn" onclick="toast('Seller notification is handled via the notification system. Flag this order manually if needed.','warn',5000)">
+                <i class="fas fa-bell"></i> Notify/Flag
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    } catch (err) {
+      loading.style.display = 'none';
+      showErr('shp-unshipped-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  async function loadStuck() {
+    const body = document.getElementById('shp-stuck-body');
+    const loading = document.getElementById('shp-stuck-loading');
+    hideErr('shp-stuck-error');
+    loading.style.display = 'block';
+    body.innerHTML = '';
+    try {
+      const data = await adminApi('GET', '/proxy/shipping/stuck');
+      const shipments = data.shipments || data || [];
+      loading.style.display = 'none';
+      if (!shipments.length) {
+        body.innerHTML = '<tr><td colspan="5"><div class="empty-state">No stuck shipments found.</div></td></tr>';
+        return;
+      }
+      body.innerHTML = shipments.map(s => {
+        const days = Math.floor((Date.now() - new Date(s.updatedAt)) / 86400000);
+        const daysColor = days > 14 ? '#f87171' : days > 10 ? '#fbbf24' : '#94a3b8';
+        return `
+          <tr>
+            <td class="mono">${trunc(s._id,12)}</td>
+            <td class="mono">${trunc(s.orderId||'—',14)}</td>
+            <td>${s.carrier||'—'}</td>
+            <td style="color:${daysColor};font-weight:600">${days} days</td>
+            <td>
+              <div class="btn-gap">
+                <button class="btn btn-xs btn-warn" onclick="forceShipmentStatus('${s._id}')">Force Status</button>
+                <button class="btn btn-xs btn-danger" onclick="markDelivered('${s._id}')">Mark Delivered</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    } catch (err) {
+      loading.style.display = 'none';
+      showErr('shp-stuck-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  async function forceShipmentStatus(id) {
+    const statuses = ['created','picked_up','in_transit','out_for_delivery','delivered','failed','returned'];
+    const result = await showConfirm({
+      title: 'Force Shipment Status',
+      body: `Force a new status for shipment <code>${trunc(id,12)}</code>. This overrides the carrier's tracking data.`,
+      withSelect: true,
+      selectLabel: 'New Status',
+      withReason: true,
+      danger: false,
+      _selectOptions: statuses
+    });
+    if (!result.confirmed) return;
+    try {
+      await adminApi('PATCH', `/proxy/shipping/${id}/force-status`, { status: result.selected, reason: result.reason });
+      toast('Shipment status forced successfully.', 'success');
+      loadAllShipments(_shpPage);
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  async function markDelivered(id) {
+    const result = await showConfirm({
+      title: 'Mark as Delivered',
+      body: `Mark shipment <code>${trunc(id,12)}</code> as delivered? This is an admin override and bypasses carrier confirmation.`,
+      withReason: true,
+      danger: true
+    });
+    if (!result.confirmed) return;
+    try {
+      await adminApi('PATCH', `/proxy/shipping/${id}/mark-delivered`, { reason: result.reason });
+      toast('Shipment marked as delivered.', 'success');
+      loadAllShipments(_shpPage);
+      if (document.getElementById('shp-stuck').style.display !== 'none') loadStuck();
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+</script>

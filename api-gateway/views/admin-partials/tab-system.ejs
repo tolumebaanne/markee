@@ -1,0 +1,192 @@
+<!-- ══════════════════════ TAB: SYSTEM CONTROLS ══════════════════════ -->
+<div class="tab-panel" id="tab-system">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-sliders" style="color:var(--accent);margin-right:0.4rem;font-size:1.1rem"></i> System Controls</h1>
+      <p>Platform-wide switches, feature flags, and emergency controls</p>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="loadSystem()"><i class="fas fa-rotate-right"></i> Refresh</button>
+  </div>
+
+  <div id="sys-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+
+  <div class="grid-2 section-gap">
+    <!-- Platform mode -->
+    <div class="card">
+      <div class="card-title"><i class="fas fa-power-off"></i> Platform Mode</div>
+      <div class="flag-row">
+        <div>
+          <div class="flag-name">Maintenance Mode</div>
+          <div class="flag-desc">All buyer/seller routes return 503. Admin panel unaffected.</div>
+        </div>
+        <label class="toggle" id="maintenance-toggle-wrap">
+          <input type="checkbox" id="sys-maintenance" onchange="toggleMaintenance(this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="flag-row">
+        <div>
+          <div class="flag-name" style="color:#f87171">Lockdown Mode</div>
+          <div class="flag-desc">Full platform lockdown — all traffic blocked. Superuser only.</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="sys-lockdown" onchange="toggleLockdown(this.checked)" ${!window._isSuperuser ? 'disabled' : ''}>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Feature flags -->
+    <div class="card">
+      <div class="card-title"><i class="fas fa-flag"></i> Feature Flags</div>
+      <div id="sys-flags"><div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading flags...</div></div>
+    </div>
+  </div>
+
+  <!-- Platform config (superuser only) -->
+  <div class="card section-gap" id="sys-config-card" style="display:none">
+    <div class="card-title"><i class="fas fa-coins"></i> Platform Configuration — Superuser Only</div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Platform Fee % (applies to new escrows)</label>
+        <div style="display:flex;gap:0.5rem">
+          <input type="number" id="sys-fee-input" min="0" max="50" step="0.1" placeholder="e.g. 5">
+          <button class="btn btn-warn btn-sm" onclick="updatePlatformFee()"><i class="fas fa-floppy-disk"></i> Save</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Dispute Window (hours)</label>
+        <div style="display:flex;gap:0.5rem">
+          <input type="number" id="sys-dispute-input" min="1" max="720" placeholder="e.g. 72">
+          <button class="btn btn-warn btn-sm" onclick="updateDisputeWindow()"><i class="fas fa-floppy-disk"></i> Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Emergency actions (superuser only) -->
+  <div class="card" id="sys-emergency-card" style="display:none">
+    <div class="card-title"><i class="fas fa-skull-crossbones" style="color:var(--accent)"></i> Emergency Actions — Superuser Only</div>
+    <div class="btn-gap">
+      <button class="btn btn-danger btn-sm" onclick="nukeTokens()">
+        <i class="fas fa-bolt"></i> Revoke ALL Platform Tokens
+      </button>
+    </div>
+    <p style="font-size:0.72rem;color:var(--muted);margin-top:0.75rem">Revoke all tokens forces every user — buyer, seller, admin — to log in again. Use only in security emergencies.</p>
+  </div>
+</div>
+
+<script>
+async function loadSystem() {
+  hideErr('sys-error');
+  if (window._isSuperuser) {
+    document.getElementById('sys-config-card').style.display = 'block';
+    document.getElementById('sys-emergency-card').style.display = 'block';
+  }
+  try {
+    const data = await adminApi('GET', '/system/status');
+    document.getElementById('sys-maintenance').checked = !!data.maintenanceMode;
+    document.getElementById('sys-lockdown').checked    = !!data.lockdownMode;
+
+    if (data.limits) {
+      if (data.limits.platformFeePercent != null) document.getElementById('sys-fee-input').value = data.limits.platformFeePercent;
+      if (data.limits.disputeWindowHours  != null) document.getElementById('sys-dispute-input').value = data.limits.disputeWindowHours;
+    }
+
+    renderFlags(data.flags || {});
+  } catch (err) {
+    showErr('sys-error', 'System status unavailable: ' + err.message);
+  }
+}
+
+const FLAG_DESCRIPTIONS = {
+  PRODUCT_REVIEW_ENABLED: 'New products go to pending_review before going live',
+  SELLER_REGISTRATION_APPROVAL_ENABLED: 'New seller registrations require admin approval',
+  COD_ENABLED: 'Cash On Delivery payment method available to buyers',
+  REVIEWS_ENABLED: 'Buyers can submit product reviews',
+  SEARCH_ENABLED: 'Search service active and indexing products',
+  NOTIFICATIONS_ENABLED: 'Email and in-app notification delivery active',
+  MESSAGING_ENABLED: 'Buyer-seller messaging system enabled'
+};
+
+function renderFlags(flags) {
+  const el = document.getElementById('sys-flags');
+  const entries = Object.entries(flags);
+  if (!entries.length) { el.innerHTML = `<div style="color:var(--muted);font-size:0.8rem">No flags configured</div>`; return; }
+  el.innerHTML = entries.map(([flag, enabled]) => `
+    <div class="flag-row">
+      <div>
+        <div class="flag-name">${flag}</div>
+        <div class="flag-desc">${FLAG_DESCRIPTIONS[flag] || ''}</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" ${enabled?'checked':''} onchange="toggleFlag('${flag}', this.checked)">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>`).join('');
+}
+
+async function toggleMaintenance(enabled) {
+  if (enabled) {
+    const r = await showConfirm({ title: 'Enable Maintenance Mode', body: 'All buyer and seller routes will return 503. The admin panel stays accessible.', withReason: true, danger: true });
+    if (!r.confirmed) { document.getElementById('sys-maintenance').checked = false; return; }
+  }
+  try {
+    await adminApi('POST', '/system/maintenance', { enabled, reason: '' });
+    toast(`Maintenance mode ${enabled ? 'ENABLED' : 'disabled'}.`, enabled ? 'warn' : 'success');
+  } catch (err) { toast('Error: ' + err.message, 'error'); document.getElementById('sys-maintenance').checked = !enabled; }
+}
+
+async function toggleLockdown(enabled) {
+  if (enabled) {
+    const r = await showConfirm({ title: '⚠ FULL PLATFORM LOCKDOWN', body: 'ALL traffic — buyers, sellers, admins — will be blocked. Only the Superuser can lift this. Are you certain?', withReason: true, danger: true });
+    if (!r.confirmed) { document.getElementById('sys-lockdown').checked = false; return; }
+  }
+  try {
+    await adminApi('POST', '/system/lockdown', { enabled, reason: '' });
+    toast(`Platform lockdown ${enabled ? 'ACTIVATED' : 'lifted'}.`, enabled ? 'error' : 'success');
+  } catch (err) { toast('Error: ' + err.message, 'error'); document.getElementById('sys-lockdown').checked = !enabled; }
+}
+
+async function toggleFlag(flag, enabled) {
+  try {
+    await adminApi('POST', '/system/flags', { flag, enabled });
+    toast(`Flag ${flag} ${enabled ? 'enabled' : 'disabled'}.`, 'info');
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
+    loadSystem();
+  }
+}
+
+async function updatePlatformFee() {
+  const val = parseFloat(document.getElementById('sys-fee-input').value);
+  if (isNaN(val) || val < 0 || val > 50) { toast('Invalid fee value (0–50)', 'error'); return; }
+  const r = await showConfirm({ title: 'Update Platform Fee', body: `Set platform fee to ${val}%? Applies to all NEW escrows only — existing escrows are unaffected.`, danger: true });
+  if (!r.confirmed) return;
+  try {
+    await adminApi('PATCH', '/system/config/platform-fee', { fee: val });
+    toast(`Platform fee updated to ${val}%.`, 'success');
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function updateDisputeWindow() {
+  const val = parseInt(document.getElementById('sys-dispute-input').value);
+  if (isNaN(val) || val < 1 || val > 720) { toast('Dispute window must be 1–720 hours', 'error'); return; }
+  const r = await showConfirm({ title: 'Update Dispute Window', body: `Set dispute window to ${val} hours? Applies to all new escrows.`, danger: true });
+  if (!r.confirmed) return;
+  try {
+    await adminApi('PATCH', '/system/config/dispute-window', { hours: val });
+    toast(`Dispute window updated to ${val} hours.`, 'success');
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function nukeTokens() {
+  const r = await showConfirm({ title: '☢ REVOKE ALL PLATFORM TOKENS', body: 'This will force EVERY user on the platform to log in again — buyers, sellers, and all admins including yourself. Only use in a security emergency. You WILL be logged out.', withReason: true, danger: true });
+  if (!r.confirmed) return;
+  try {
+    await adminApi('POST', '/system/nuke-tokens/all', { reason: r.reason });
+    toast('All tokens revoked. Logging you out...', 'warn');
+    setTimeout(doLogout, 2000);
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+</script>

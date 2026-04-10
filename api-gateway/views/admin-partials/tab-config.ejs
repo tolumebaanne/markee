@@ -1,0 +1,135 @@
+<!-- ══════════════════════ TAB: CONFIG ══════════════════════ -->
+<div class="tab-panel" id="tab-config">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-gear" style="color:var(--accent);margin-right:0.4rem;font-size:1.1rem"></i> Config</h1>
+      <p>Feature flags, platform limits, and runtime configuration</p>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="loadConfig()"><i class="fas fa-rotate-right"></i> Refresh</button>
+  </div>
+
+  <div id="cfg-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+
+  <div class="grid-2 section-gap">
+    <!-- Feature Flags -->
+    <div class="card">
+      <div class="card-title"><i class="fas fa-flag"></i> Feature Flags</div>
+      <div id="cfg-flags"><div class="loading"><i class="fas fa-spinner fa-spin"></i></div></div>
+    </div>
+
+    <!-- Platform Limits -->
+    <div class="card">
+      <div class="card-title"><i class="fas fa-sliders"></i> Platform Limits</div>
+      <div id="cfg-limits"><div class="loading"><i class="fas fa-spinner fa-spin"></i></div></div>
+      <div id="cfg-limits-edit" style="display:none;margin-top:1rem;border-top:1px solid var(--border);padding-top:1rem">
+        <div style="font-size:0.7rem;font-weight:700;color:var(--purple);text-transform:uppercase;margin-bottom:0.75rem"><i class="fas fa-bolt"></i> Superuser Controls</div>
+        <div class="form-group">
+          <label>Platform Fee %</label>
+          <div style="display:flex;gap:0.5rem">
+            <input type="number" id="cfg-fee" min="0" max="50" step="0.1" placeholder="e.g. 5" style="max-width:120px">
+            <button class="btn btn-warn btn-sm" onclick="saveConfigFee()"><i class="fas fa-floppy-disk"></i> Save</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Dispute Window (hours)</label>
+          <div style="display:flex;gap:0.5rem">
+            <input type="number" id="cfg-dispute" min="1" max="720" placeholder="e.g. 72" style="max-width:120px">
+            <button class="btn btn-warn btn-sm" onclick="saveConfigDisputeWindow()"><i class="fas fa-floppy-disk"></i> Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flag change note -->
+  <div class="card">
+    <div class="card-title"><i class="fas fa-history"></i> Flag Change History</div>
+    <p style="font-size:0.82rem;color:var(--muted2);margin-bottom:0.75rem">All configuration changes are recorded in the Audit Log with actor, timestamp, and previous/new values.</p>
+    <button class="btn btn-ghost btn-sm" onclick="switchTab('audit',document.querySelectorAll('.sidebar-link')[22])"><i class="fas fa-scroll"></i> Open Audit Log</button>
+  </div>
+</div>
+
+<script>
+const _FLAG_META = {
+  PRODUCT_REVIEW_ENABLED:               'New products go to pending_review before going live',
+  SELLER_REGISTRATION_APPROVAL_ENABLED: 'New seller registrations require admin approval',
+  COD_ENABLED:                          'Cash On Delivery available to buyers',
+  REVIEWS_ENABLED:                      'Buyers can submit product reviews',
+  SEARCH_ENABLED:                       'Search service active and indexing products',
+  NOTIFICATIONS_ENABLED:                'Email and in-app notification delivery active',
+  MESSAGING_ENABLED:                    'Buyer-seller messaging enabled',
+  buyerReviewsEnabled:                  'Buyer reviews visible on product pages',
+  sellerRegistrationOpen:               'New seller registrations accepted',
+  codEnabled:                           'COD payment method enabled',
+  messagingEnabled:                     'Messaging system enabled',
+  notificationsEnabled:                 'Notification delivery enabled'
+};
+
+async function loadConfig() {
+  hideErr('cfg-error');
+  if (window._isSuperuser) document.getElementById('cfg-limits-edit').style.display = 'block';
+  try {
+    const data = await adminApi('GET', '/system/status');
+    renderConfigFlags(data.flags || {});
+    renderConfigLimits(data.limits || {});
+  } catch (err) { showErr('cfg-error', 'Could not load config: ' + err.message); }
+}
+
+function renderConfigFlags(flags) {
+  const el = document.getElementById('cfg-flags');
+  const entries = Object.entries(flags);
+  if (!entries.length) { el.innerHTML = `<div style="color:var(--muted);font-size:0.8rem">No flags configured</div>`; return; }
+  el.innerHTML = entries.map(([flag, enabled]) => `
+    <div class="flag-row">
+      <div>
+        <div class="flag-name">${flag}</div>
+        <div class="flag-desc">${_FLAG_META[flag] || ''}</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" ${enabled?'checked':''} onchange="toggleConfigFlag('${flag}', this.checked)">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>`).join('');
+}
+
+function renderConfigLimits(limits) {
+  const el = document.getElementById('cfg-limits');
+  const rows = [
+    ['Platform Fee %', limits.platformFeePercent != null ? limits.platformFeePercent + '%' : '—'],
+    ['Dispute Window', limits.disputeWindowHours != null ? limits.disputeWindowHours + ' hours' : '—'],
+    ['COD Expiry',     limits.codExpiryDays != null ? limits.codExpiryDays + ' days' : '—']
+  ];
+  el.innerHTML = rows.map(([label, val]) => `
+    <div class="flag-row">
+      <div class="flag-name">${label}</div>
+      <span style="font-weight:700;color:var(--text)">${val}</span>
+    </div>`).join('');
+  if (limits.platformFeePercent != null) document.getElementById('cfg-fee').value = limits.platformFeePercent;
+  if (limits.disputeWindowHours  != null) document.getElementById('cfg-dispute').value = limits.disputeWindowHours;
+}
+
+async function toggleConfigFlag(flag, enabled) {
+  try {
+    await adminApi('POST', '/system/flags', { flag, enabled });
+    toast(`${flag} ${enabled ? 'enabled' : 'disabled'}.`, 'info');
+  } catch (err) { toast('Error: ' + err.message, 'error'); loadConfig(); }
+}
+
+async function saveConfigFee() {
+  const val = parseFloat(document.getElementById('cfg-fee').value);
+  if (isNaN(val) || val < 0 || val > 50) { toast('Fee must be 0–50', 'error'); return; }
+  const r = await showConfirm({ title: 'Update Platform Fee', body: `Set platform fee to ${val}%? Applies to new escrows only.`, danger: true });
+  if (!r.confirmed) return;
+  try { await adminApi('PATCH', '/system/config/platform-fee', { fee: val }); toast(`Platform fee → ${val}%.`, 'success'); loadConfig(); }
+  catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function saveConfigDisputeWindow() {
+  const val = parseInt(document.getElementById('cfg-dispute').value);
+  if (isNaN(val) || val < 1 || val > 720) { toast('Dispute window must be 1–720 hours', 'error'); return; }
+  const r = await showConfirm({ title: 'Update Dispute Window', body: `Set dispute window to ${val} hours?`, danger: true });
+  if (!r.confirmed) return;
+  try { await adminApi('PATCH', '/system/config/dispute-window', { hours: val }); toast(`Dispute window → ${val}h.`, 'success'); loadConfig(); }
+  catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+</script>

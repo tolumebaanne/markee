@@ -1,0 +1,200 @@
+<!-- Orders Tab: order oversight, force status, cancel -->
+<div class="tab-panel" id="tab-orders">
+  <div class="page-header">
+    <h2>Orders</h2>
+    <span id="orders-count" style="color:var(--muted);font-size:.85rem"></span>
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="filter-bar">
+    <select id="ord-status-filter" onchange="loadOrders(1)">
+      <option value="">All Status</option>
+      <option value="pending">Pending</option>
+      <option value="paid">Paid</option>
+      <option value="processing">Processing</option>
+      <option value="shipped">Shipped</option>
+      <option value="delivered">Delivered</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+    <select id="ord-method-filter" onchange="loadOrders(1)">
+      <option value="">All Methods</option>
+      <option value="escrow">Escrow</option>
+      <option value="cod">COD</option>
+    </select>
+    <input type="text" id="ord-buyer-filter" placeholder="Buyer ID…" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text)" oninput="debounce(()=>loadOrders(1),400)()" />
+    <button class="btn btn-sm btn-ghost" onclick="loadOrders(1)"><i class="fas fa-rotate-right"></i> Refresh</button>
+  </div>
+
+  <div id="ord-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Order ID</th>
+          <th>Buyer ID</th>
+          <th>Items</th>
+          <th>Total</th>
+          <th>Method</th>
+          <th>Status</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="orders-body"></tbody>
+    </table>
+  </div>
+
+  <div id="orders-pagination" style="display:flex;align-items:center;gap:10px;margin-top:1rem;font-size:.85rem"></div>
+</div>
+
+<!-- Order Detail Modal (uses shell-defined orderModal / orderModalBody if available, else own) -->
+<div class="modal-overlay" id="ordDetailModal" onclick="if(event.target===this)closeModal('ordDetailModal')">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>Order Detail</h3>
+      <button class="modal-close" onclick="closeModal('ordDetailModal')">&times;</button>
+    </div>
+    <div id="ordDetailBody" style="padding:1.25rem;max-height:70vh;overflow-y:auto"></div>
+    <div class="modal-footer" id="ordDetailFooter">
+      <button class="btn btn-sm btn-ghost" onclick="closeModal('ordDetailModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let _ordPage = 1;
+const _ordLimit = 25;
+let _ordTotal = 0;
+
+async function loadOrders(page) {
+  _ordPage = page || _ordPage || 1;
+  hideErr('ord-error');
+  const tbody = document.getElementById('orders-body');
+  tbody.innerHTML = '<tr><td colspan="8" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading orders…</td></tr>';
+  const status = document.getElementById('ord-status-filter').value;
+  const method = document.getElementById('ord-method-filter').value;
+  const buyer = document.getElementById('ord-buyer-filter').value.trim();
+  let qs = `page=${_ordPage}&limit=${_ordLimit}`;
+  if (status) qs += `&status=${status}`;
+  if (method) qs += `&paymentMethod=${method}`;
+  if (buyer) qs += `&buyerId=${encodeURIComponent(buyer)}`;
+  try {
+    const data = await adminApi('GET', `/proxy/orders?${qs}`);
+    const orders = data.orders || [];
+    _ordTotal = data.total || orders.length;
+    document.getElementById('orders-count').textContent = `${_ordTotal} orders`;
+    if (!orders.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No orders found.</td></tr>';
+      document.getElementById('orders-pagination').innerHTML = '';
+      return;
+    }
+    tbody.innerHTML = orders.map(o => `
+      <tr>
+        <td style="font-family:monospace;font-size:.75rem">${trunc(o._id,18)}</td>
+        <td style="font-family:monospace;font-size:.75rem">${trunc(o.buyerId,16)}</td>
+        <td>${(o.items||[]).length}</td>
+        <td>${fmt$(o.totalAmount)}</td>
+        <td><span style="background:${o.paymentMethod==='escrow'?'#6366f1':'#64748b'};color:#fff;padding:2px 7px;border-radius:9999px;font-size:.7rem;text-transform:uppercase">${o.paymentMethod||'—'}</span></td>
+        <td>${badge(o.status)}</td>
+        <td>${fmtDate(o.createdAt)}</td>
+        <td class="btn-gap">
+          <button class="btn btn-xs btn-info" onclick="viewOrder('${o._id}')"><i class="fas fa-eye"></i></button>
+          <button class="btn btn-xs btn-warn" onclick="forceOrderStatus('${o._id}')"><i class="fas fa-wrench"></i></button>
+          <button class="btn btn-xs btn-danger" onclick="cancelOrder('${o._id}')"><i class="fas fa-ban"></i></button>
+        </td>
+      </tr>`).join('');
+    const totalPages = Math.ceil(_ordTotal / _ordLimit);
+    const start = (_ordPage - 1) * _ordLimit + 1;
+    const end = Math.min(_ordPage * _ordLimit, _ordTotal);
+    document.getElementById('orders-pagination').innerHTML = `
+      <span>Showing ${start}–${end} of ${_ordTotal}</span>
+      <button class="btn btn-xs btn-ghost" onclick="loadOrders(${_ordPage-1})" ${_ordPage<=1?'disabled':''}>‹ Prev</button>
+      <span>Page ${_ordPage}/${totalPages}</span>
+      <button class="btn btn-xs btn-ghost" onclick="loadOrders(${_ordPage+1})" ${_ordPage>=totalPages?'disabled':''}>Next ›</button>`;
+  } catch(err) {
+    showErr('ord-error', err.message);
+    tbody.innerHTML = '';
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+async function viewOrder(id) {
+  const body = document.getElementById('ordDetailBody');
+  const footer = document.getElementById('ordDetailFooter');
+  body.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading order…</div>';
+  openModal('ordDetailModal');
+  try {
+    const data = await adminApi('GET', `/proxy/orders/${id}`);
+    const o = data.order || data;
+    const items = o.items || [];
+    body.innerHTML = `
+      <div class="grid-2" style="gap:1rem;margin-bottom:1rem">
+        <div><b>Order ID:</b> <span style="font-family:monospace;font-size:.8rem">${o._id||id}</span></div>
+        <div><b>Buyer ID:</b> <span style="font-family:monospace;font-size:.8rem">${o.buyerId||'—'}</span></div>
+        <div><b>Status:</b> ${badge(o.status)}</div>
+        <div><b>Payment:</b> ${o.paymentMethod||'—'}</div>
+        <div><b>Total:</b> <b style="color:var(--accent)">${fmt$(o.totalAmount)}</b></div>
+        <div><b>Date:</b> ${fmtDate(o.createdAt)}</div>
+        ${o.shippingAddress ? `<div style="grid-column:1/-1"><b>Ship To:</b> ${JSON.stringify(o.shippingAddress)}</div>` : ''}
+      </div>
+      <h4 style="margin-bottom:.5rem">Line Items (${items.length})</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Product ID</th><th>Title</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr></thead>
+          <tbody>${items.map(i=>`
+            <tr>
+              <td style="font-family:monospace;font-size:.74rem">${trunc(i.productId||i._id,18)}</td>
+              <td>${trunc(i.title||'—',26)}</td>
+              <td>${i.quantity||1}</td>
+              <td>${fmt$(i.price||i.unitPrice)}</td>
+              <td>${fmt$((i.price||i.unitPrice)*(i.quantity||1))}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    footer.innerHTML = `
+      <button class="btn btn-sm btn-warn" onclick="forceOrderStatus('${o._id||id}')"><i class="fas fa-wrench"></i> Force Status</button>
+      <button class="btn btn-sm btn-danger" onclick="cancelOrder('${o._id||id}')"><i class="fas fa-ban"></i> Cancel Order</button>
+      <button class="btn btn-sm btn-ghost" onclick="closeModal('ordDetailModal')">Close</button>`;
+  } catch(err) {
+    body.innerHTML = `<div class="error-banner" style="display:flex"><i class="fas fa-triangle-exclamation"></i><span>${err.message}</span></div>`;
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+async function forceOrderStatus(id) {
+  const {confirmed, selected, reason} = await showConfirm({
+    title: 'Force Order Status',
+    body: 'Select the new status to force on this order:',
+    withSelect: true,
+    selectLabel: 'Status',
+    selectOptions: [
+      {value:'pending',label:'Pending'},
+      {value:'paid',label:'Paid'},
+      {value:'processing',label:'Processing'},
+      {value:'shipped',label:'Shipped'},
+      {value:'delivered',label:'Delivered'},
+      {value:'cancelled',label:'Cancelled'}
+    ],
+    withReason: true
+  });
+  if (!confirmed || !selected) return;
+  try {
+    await adminApi('POST', `/proxy/orders/${id}/force-status`, {status: selected, reason: reason||'Admin override'});
+    toast(`Order status forced to ${selected}`, 'success');
+    loadOrders(_ordPage);
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function cancelOrder(id) {
+  const {confirmed, reason} = await showConfirm({title:'Cancel Order?', body:'This will cancel the order and may trigger a refund.', withReason:true, danger:true});
+  if (!confirmed || !reason) return;
+  try {
+    await adminApi('POST', `/proxy/orders/${id}/cancel`, {reason});
+    toast('Order cancelled', 'warn');
+    loadOrders(_ordPage);
+    closeModal('ordDetailModal');
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+</script>

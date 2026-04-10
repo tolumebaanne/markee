@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messages | Markee Marketplace</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js"></script>
+    <script src="/js/cart.js"></script>
+    <script src="<%- messagingUrl %>/socket.io/socket.io.js"></script>
+    <style>
+        .messages-layout {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 0;
+            height: calc(100vh - 80px - 2rem);
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        @media (max-width: 720px) {
+            .messages-layout { grid-template-columns: 1fr; }
+            .threads-panel { display: none; }
+            .threads-panel.mobile-show { display: flex; }
+        }
+
+        /* ── Threads panel ──────────────────────────────────────────────────── */
+        .threads-panel { border-right: 1px solid var(--border-light); display: flex; flex-direction: column; overflow: hidden; }
+        .threads-header {
+            padding: 0.85rem 1.1rem;
+            border-bottom: 1px solid var(--border-light);
+            background: var(--bg-secondary);
+            display: flex; justify-content: space-between; align-items: center;
+            flex-shrink: 0; gap: 0.5rem;
+        }
+        .threads-header h4 { margin: 0; font-size: 0.88rem; }
+        .tabs-row { display: flex; border-bottom: 1px solid var(--border-light); flex-shrink: 0; }
+        .tab-btn {
+            flex: 1; padding: 0.5rem; font-size: 0.78rem; font-weight: 600;
+            background: none; border: none; cursor: pointer; color: var(--text-muted);
+            border-bottom: 2px solid transparent; transition: all 0.15s;
+        }
+        .tab-btn.active { color: var(--accent-red); border-bottom-color: var(--accent-red); }
+        .thread-list { overflow-y: auto; flex-grow: 1; }
+
+        .thread-item {
+            padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-light);
+            cursor: pointer; transition: background 0.15s;
+            display: flex; align-items: flex-start; gap: 0.65rem;
+            position: relative;
+        }
+        .thread-item:hover { background: var(--bg-secondary); }
+        .thread-item.active { background: #eff6ff; border-left: 3px solid var(--accent-red); }
+        .thread-item.urgent { border-left: 3px solid #d97706; }
+        .thread-item.pinned .thread-name::before {
+            content: '📌 '; font-size: 0.7rem;
+        }
+
+        .thread-avatar {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: var(--bg-secondary); border: 1px solid var(--border-light);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8rem; font-weight: 700; color: var(--text-muted); flex-shrink: 0;
+            position: relative;
+        }
+        .online-dot {
+            position: absolute; bottom: 1px; right: 1px;
+            width: 9px; height: 9px; border-radius: 50%;
+            background: #22c55e; border: 1.5px solid white;
+        }
+        .thread-meta { flex-grow: 1; min-width: 0; }
+        .thread-name { font-weight: 600; font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .thread-subtitle { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.05rem; }
+        .thread-preview { font-size: 0.73rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.15rem; }
+        .thread-preview.system-preview { font-style: italic; }
+        .context-badge {
+            display: inline-block; font-size: 0.6rem; font-weight: 700; padding: 0.1rem 0.35rem;
+            border-radius: 4px; margin-bottom: 0.2rem; text-transform: uppercase; letter-spacing: 0.03em;
+        }
+        .badge-product { background: #dbeafe; color: #1d4ed8; }
+        .badge-order   { background: #dcfce7; color: #15803d; }
+        .badge-general { background: #f3f4f6; color: #6b7280; }
+
+        .unread-badge {
+            background: var(--accent-red); color: white; font-size: 0.62rem;
+            font-weight: 700; border-radius: 10px; padding: 0.1rem 0.4rem;
+            flex-shrink: 0; align-self: flex-start; margin-top: 0.1rem; min-width: 18px; text-align: center;
+        }
+        .thread-actions {
+            display: none; position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%);
+            gap: 0.3rem;
+        }
+        .thread-item:hover .thread-actions { display: flex; }
+        .thread-action-btn {
+            background: var(--bg-primary); border: 1px solid var(--border-light); border-radius: 6px;
+            padding: 0.2rem 0.4rem; font-size: 0.65rem; cursor: pointer; color: var(--text-muted);
+            transition: all 0.15s;
+        }
+        .thread-action-btn:hover { background: var(--accent-red); color: white; border-color: var(--accent-red); }
+
+        /* ── Chat panel ─────────────────────────────────────────────────────── */
+        .chat-panel { display: flex; flex-direction: column; overflow: hidden; }
+        .chat-header {
+            padding: 0.85rem 1.1rem; border-bottom: 1px solid var(--border-light);
+            background: var(--bg-secondary); display: flex; align-items: center;
+            gap: 0.75rem; flex-shrink: 0; min-height: 56px;
+        }
+        .chat-header h4 { margin: 0; font-size: 0.88rem; flex-grow: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .header-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
+        .header-btn {
+            background: none; border: 1px solid var(--border-light); border-radius: 6px;
+            padding: 0.25rem 0.55rem; font-size: 0.72rem; cursor: pointer;
+            color: var(--text-muted); transition: all 0.15s;
+        }
+        .header-btn:hover { background: var(--bg-primary); }
+        .context-card {
+            background: var(--bg-primary); border: 1px solid var(--border-light);
+            border-radius: 8px; padding: 0.5rem 0.75rem; display: flex;
+            align-items: center; gap: 0.5rem; font-size: 0.75rem; cursor: pointer;
+            text-decoration: none; color: var(--text-main); max-width: 240px;
+        }
+        .context-card img { width: 32px; height: 32px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+        .context-card-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* Search bar */
+        .search-bar {
+            padding: 0.5rem 1rem; border-bottom: 1px solid var(--border-light);
+            background: var(--bg-secondary); display: none; gap: 0.5rem; align-items: center;
+        }
+        .search-bar.visible { display: flex; }
+        .search-bar input { flex-grow: 1; padding: 0.4rem 0.75rem; border: 1px solid var(--border-light); border-radius: 8px; font-size: 0.8rem; outline: none; }
+        .search-results { padding: 0.5rem 1rem; background: #fffbeb; border-bottom: 1px solid var(--border-light); font-size: 0.78rem; display: none; }
+        .search-results.visible { display: block; }
+
+        .chat-body {
+            flex-grow: 1; overflow-y: auto; padding: 1rem 1.25rem;
+            background: var(--bg-secondary); display: flex; flex-direction: column; gap: 0.6rem;
+        }
+
+        /* ── Bubbles ─────────────────────────────────────────────────────────── */
+        .bubble-row { display: flex; align-items: flex-end; gap: 0.5rem; }
+        .bubble-row.sent { justify-content: flex-end; }
+        .bubble-row.received { justify-content: flex-start; }
+
+        .bubble {
+            max-width: 70%; padding: 0.6rem 0.85rem; border-radius: 14px;
+            font-size: 0.875rem; line-height: 1.5; word-break: break-word; position: relative;
+        }
+        .bubble.sent {
+            background: var(--accent-red); color: white;
+            border-radius: 14px 14px 3px 14px;
+        }
+        .bubble.received {
+            background: var(--bg-primary); border: 1px solid var(--border-light);
+            color: var(--text-main); border-radius: 14px 14px 14px 3px;
+        }
+        .bubble.deleted { font-style: italic; color: var(--text-muted); background: #f9fafb; border-color: #e5e7eb; }
+
+        /* System messages */
+        .system-msg {
+            text-align: center; padding: 0.3rem 1rem;
+            font-size: 0.72rem; color: var(--text-muted); font-style: italic;
+        }
+        .system-msg span {
+            background: var(--bg-primary); border: 1px solid var(--border-light);
+            border-radius: 20px; padding: 0.2rem 0.75rem; display: inline-block;
+        }
+
+        /* Load more */
+        .load-more-btn {
+            text-align: center; padding: 0.5rem;
+            font-size: 0.75rem; color: var(--accent-red); cursor: pointer; background: none;
+            border: none; width: 100%; border-bottom: 1px solid var(--border-light);
+        }
+
+        /* Status indicators */
+        .msg-status { font-size: 0.65rem; margin-left: 4px; }
+        .msg-edited { font-size: 0.65rem; color: var(--text-muted); margin-left: 4px; font-style: italic; }
+        .bubble-time { font-size: 0.65rem; color: var(--text-muted); flex-shrink: 0; padding-bottom: 2px; }
+
+        /* Reactions */
+        .msg-reactions { display: flex; flex-wrap: wrap; gap: 0.2rem; margin-top: 0.3rem; }
+        .reaction-chip {
+            background: var(--bg-primary); border: 1px solid var(--border-light);
+            border-radius: 12px; padding: 0.1rem 0.4rem; font-size: 0.75rem; cursor: pointer;
+            display: flex; align-items: center; gap: 0.2rem; transition: all 0.15s;
+        }
+        .reaction-chip:hover { border-color: var(--accent-red); }
+        .reaction-chip.own { background: #fef2f2; border-color: #fecaca; }
+
+        /* Hover actions on bubble */
+        .bubble-group { display: flex; flex-direction: column; max-width: 72%; }
+        .bubble-group.sent { align-items: flex-end; }
+        .bubble-group.received { align-items: flex-start; }
+        .bubble-actions {
+            display: none; gap: 0.25rem; margin-top: 0.2rem;
+        }
+        .bubble-group:hover .bubble-actions { display: flex; }
+        .bubble-act-btn {
+            background: var(--bg-primary); border: 1px solid var(--border-light);
+            border-radius: 6px; padding: 0.15rem 0.4rem; font-size: 0.65rem;
+            cursor: pointer; color: var(--text-muted); transition: all 0.15s;
+        }
+        .bubble-act-btn:hover { background: var(--accent-red); color: white; border-color: var(--accent-red); }
+
+        /* Inline images */
+        .msg-image { max-width: 240px; border-radius: 8px; cursor: pointer; display: block; margin-top: 0.35rem; }
+
+        /* Typing indicator */
+        .typing-indicator {
+            display: none; font-size: 0.73rem; color: var(--text-muted);
+            font-style: italic; padding: 0.2rem 0;
+        }
+        .typing-indicator.visible { display: flex; align-items: center; gap: 0.4rem; }
+        .typing-dots span {
+            display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+            background: var(--text-muted); animation: bounce 1.2s infinite;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-5px); } }
+
+        /* ── Composer area ───────────────────────────────────────────────────── */
+        .starter-suggestions {
+            padding: 0.5rem 1rem; border-top: 1px solid var(--border-light);
+            display: flex; flex-wrap: wrap; gap: 0.4rem; background: var(--bg-secondary);
+        }
+        .starter-chip {
+            background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 16px;
+            padding: 0.3rem 0.75rem; font-size: 0.72rem; cursor: pointer; color: #1d4ed8;
+            transition: all 0.15s;
+        }
+        .starter-chip:hover { background: #dbeafe; }
+
+        .upload-preview-bar {
+            padding: 0.5rem 1rem; border-top: 1px solid var(--border-light);
+            background: var(--bg-secondary); display: none; align-items: center; gap: 0.75rem;
+        }
+        .upload-preview-bar.visible { display: flex; }
+        .upload-preview-bar img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; }
+        .upload-status { font-size: 0.75rem; color: var(--text-muted); flex-grow: 1; }
+        .remove-upload-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 0.9rem; }
+
+        .templates-dropdown {
+            position: absolute; bottom: calc(100% + 4px); right: 0;
+            background: var(--bg-primary); border: 1px solid var(--border-light);
+            border-radius: 10px; box-shadow: var(--shadow-md); min-width: 220px;
+            z-index: 100; display: none; max-height: 200px; overflow-y: auto;
+        }
+        .templates-dropdown.open { display: block; }
+        .template-item {
+            padding: 0.55rem 0.9rem; cursor: pointer; font-size: 0.78rem;
+            border-bottom: 1px solid var(--border-light); transition: background 0.15s;
+        }
+        .template-item:last-child { border-bottom: none; }
+        .template-item:hover { background: var(--bg-secondary); }
+        .template-item .t-label { font-weight: 600; color: var(--text-main); }
+        .template-item .t-body  { color: var(--text-muted); font-size: 0.72rem; margin-top: 0.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .char-counter { font-size: 0.68rem; color: var(--text-muted); align-self: flex-end; margin-bottom: 0.2rem; flex-shrink: 0; }
+        .char-counter.warn { color: #d97706; }
+        .char-counter.over { color: #dc2626; }
+
+        .chat-input-bar {
+            padding: 0.75rem 1rem; border-top: 1px solid var(--border-light);
+            background: var(--bg-primary); display: flex; gap: 0.6rem; align-items: center;
+            flex-shrink: 0;
+        }
+        .chat-input-bar input {
+            flex-grow: 1; padding: 0.6rem 1rem; border: 1.5px solid var(--border-light);
+            border-radius: 20px; font-size: 0.875rem; outline: none; transition: border-color 0.2s;
+        }
+        .chat-input-bar input:focus { border-color: var(--accent-red); }
+        .icon-btn {
+            width: 36px; height: 36px; border-radius: 50%; background: var(--bg-secondary);
+            border: 1px solid var(--border-light); cursor: pointer; display: flex;
+            align-items: center; justify-content: center; color: var(--text-muted);
+            font-size: 0.85rem; flex-shrink: 0; transition: all 0.15s; position: relative;
+        }
+        .icon-btn:hover { background: var(--accent-red); color: white; border-color: var(--accent-red); }
+        .send-btn {
+            width: 38px; height: 38px; border-radius: 50%; background: var(--accent-red);
+            border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 0.88rem; flex-shrink: 0; transition: background 0.2s;
+        }
+        .send-btn:hover { background: var(--accent-red-hover, #990000); }
+        .send-btn:disabled { background: #d1d5db; cursor: not-allowed; }
+
+        /* ── Empty / status ─────────────────────────────────────────────────── */
+        .chat-empty {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            flex-grow: 1; color: var(--text-muted); padding: 2rem; text-align: center;
+        }
+        .chat-empty i { font-size: 2.5rem; margin-bottom: 0.75rem; color: #d1d5db; }
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-secondary) 25%, #e9eaec 50%, var(--bg-secondary) 75%);
+            background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 8px;
+        }
+        @keyframes shimmer { to { background-position: -200% 0; } }
+        .conn-status { font-size: 0.68rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 10px; }
+        .conn-online  { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
+        .conn-offline { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+    </style>
+</head>
+<body class="bg-light">
+
+<nav class="navbar">
+    <div class="brand-combo">
+        <a href="/"><span class="brand">Markee</span></a>
+    </div>
+    <%- include('_nav') %>
+</nav>
+
+<div style="padding: 1rem 5%;">
+<div class="messages-layout">
+
+    <!-- ── Threads panel ─────────────────────────────────────────────────────── -->
+    <div class="threads-panel">
+        <div class="threads-header">
+            <h4><i class="fa fa-comments" style="margin-right:0.4rem; color:var(--accent-red);"></i> Messages</h4>
+            <span class="conn-status conn-offline" id="conn-badge">Connecting...</span>
+        </div>
+        <div class="tabs-row">
+            <button class="tab-btn active" id="tab-active"   onclick="switchTab('active')">Inbox</button>
+            <button class="tab-btn"        id="tab-archived" onclick="switchTab('archived')">Archived</button>
+        </div>
+        <div class="thread-list" id="thread-list">
+            <div id="thread-skeleton">
+                <% for(let i=0;i<5;i++) { %>
+                <div style="padding:0.75rem 1rem; border-bottom:1px solid var(--border-light); display:flex; gap:0.65rem; align-items:center;">
+                    <div class="skeleton" style="width:36px; height:36px; border-radius:50%; flex-shrink:0;"></div>
+                    <div style="flex-grow:1;">
+                        <div class="skeleton" style="height:11px; width:90px; margin-bottom:0.3rem;"></div>
+                        <div class="skeleton" style="height:9px; width:140px;"></div>
+                    </div>
+                </div>
+                <% } %>
+            </div>
+            <div id="thread-content" style="display:none;"></div>
+        </div>
+    </div>
+
+    <!-- ── Chat panel ────────────────────────────────────────────────────────── -->
+    <div class="chat-panel" id="chat-panel">
+
+        <div class="chat-header" id="chat-header">
+            <div class="thread-avatar" id="chat-avatar" style="background:var(--bg-secondary);">
+                <i class="fa fa-user"></i>
+            </div>
+            <h4 id="chat-title">Select a conversation</h4>
+            <div class="header-actions" id="header-actions" style="display:none;">
+                <button class="header-btn" onclick="toggleSearch()" title="Search messages"><i class="fa fa-search"></i></button>
+                <button class="header-btn" onclick="exportThread()" title="Export conversation"><i class="fa fa-download"></i></button>
+                <button class="header-btn" onclick="archiveThread()" id="archive-btn" title="Archive thread"><i class="fa fa-archive"></i></button>
+                <button class="header-btn" onclick="pinThread()" id="pin-btn" title="Pin thread"><i class="fa fa-thumbtack"></i></button>
+            </div>
+        </div>
+
+        <!-- Context card (product/order reference) -->
+        <div id="context-card-container" style="padding: 0.5rem 1rem; border-bottom: 1px solid var(--border-light); background: var(--bg-secondary); display: none;"></div>
+
+        <!-- In-thread search bar -->
+        <div class="search-bar" id="search-bar">
+            <i class="fa fa-search" style="color:var(--text-muted); font-size:0.8rem;"></i>
+            <input type="text" id="search-input" placeholder="Search messages..." oninput="debounceSearch()" onkeydown="if(event.key==='Escape') toggleSearch()">
+            <button class="header-btn" onclick="toggleSearch()"><i class="fa fa-times"></i></button>
+        </div>
+        <div class="search-results" id="search-results"></div>
+
+        <!-- Load earlier messages -->
+        <button class="load-more-btn" id="load-more-btn" style="display:none;" onclick="loadMoreMessages()">
+            <i class="fa fa-chevron-up" style="margin-right:0.3rem;"></i> Load earlier messages
+        </button>
+
+        <div class="chat-body" id="chat-body">
+            <div class="chat-empty" id="chat-empty">
+                <i class="fa fa-comment-dots"></i>
+                <div style="font-weight:600; margin-bottom:0.35rem;">No conversation open</div>
+                <div class="small">Select a thread or start one from a product page.</div>
+            </div>
+        </div>
+
+        <!-- Typing indicator -->
+        <div class="typing-indicator" id="typing-indicator">
+            <div class="typing-dots"><span></span><span></span><span></span></div>
+            <span id="typing-label">typing...</span>
+        </div>
+
+        <!-- Starter suggestions (shown when thread has 0 messages) -->
+        <div class="starter-suggestions" id="starter-suggestions" style="display:none;"></div>
+
+        <!-- Image upload preview -->
+        <div class="upload-preview-bar" id="upload-preview-bar">
+            <img id="upload-preview-img" src="" alt="Preview">
+            <div class="upload-status" id="upload-status">Ready to send</div>
+            <button class="remove-upload-btn" onclick="removeUpload()" title="Remove image"><i class="fa fa-times"></i></button>
+        </div>
+
+        <!-- Quick-reply templates (sellers only) -->
+        <div style="position:relative; display:none;" id="templates-wrapper">
+            <div class="templates-dropdown" id="templates-dropdown"></div>
+        </div>
+
+        <div class="chat-input-bar">
+            <div id="char-counter" class="char-counter" style="display:none;"></div>
+
+            <!-- Attachment button -->
+            <button class="icon-btn" id="attach-btn" onclick="document.getElementById('file-input').click()" title="Attach image" disabled>
+                <i class="fa fa-paperclip"></i>
+            </button>
+            <input type="file" id="file-input" accept="image/*" style="display:none;" onchange="handleFileSelect(event)">
+
+            <!-- Templates button (sellers only) -->
+            <button class="icon-btn" id="templates-btn" style="display:none;" onclick="toggleTemplates()" title="Quick replies">
+                <i class="fa fa-bolt"></i>
+            </button>
+
+            <input type="text" id="msg-input" placeholder="Type a message..." maxlength="1001" disabled
+                   onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendMessage(); }"
+                   oninput="onInputChange()">
+
+            <button class="send-btn" id="send-btn" onclick="sendMessage()" disabled title="Send">
+                <i class="fa fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+</div>
+</div>
+
+<script>
+// ── Auth ──────────────────────────────────────────────────────────────────────
+const token = localStorage.getItem('access_token');
+if (!token) window.location.replace('/login');
+
+function parseJwt(t) {
+    try { return JSON.parse(atob(t.split('.')[1])); } catch { return null; }
+}
+const user = parseJwt(token);
+if (!user) window.location.replace('/login');
+
+function handleLogout() {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    window.location.replace('/');
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let socket           = null;
+let currentThreadId  = null;
+let currentThread    = null;
+let isConnected      = false;
+let activeTab        = 'active';
+let pendingUploadUrl = null;
+let uploadInProgress = false;
+let typingTimer      = null;
+let typingActive     = false;
+let typingHideTimer  = null;
+let reconnectTs      = null;
+let oldestMsgTs      = null;
+let templates        = [];
+
+// ── Socket ────────────────────────────────────────────────────────────────────
+function connectSocket() {
+    if (typeof io === 'undefined') { updateConnBadge(false, 'Socket unavailable'); return; }
+
+    socket = io('<%- messagingUrl %>', {
+        auth: { token },
+        transports: ['websocket', 'polling']
+    });
+
+    socket.on('connect', () => {
+        isConnected = true;
+        updateConnBadge(true, 'Online');
+        enableInput(true);
+        if (currentThreadId && reconnectTs) fetchMissedMessages();
+    });
+
+    socket.on('disconnect', () => {
+        isConnected = false;
+        reconnectTs = new Date().toISOString();
+        updateConnBadge(false, 'Offline');
+        enableInput(false);
+    });
+
+    socket.on('connect_error', () => updateConnBadge(false, 'Offline'));
+
+    socket.on('message_sent', (msg) => { appendBubble(msg, true); scrollToBottom(); });
+
+    socket.on('new_message', (msg) => {
+        if (msg.threadId === currentThreadId) {
+            appendBubble(msg, false);
+            scrollToBottom();
+            markRead(currentThreadId);
+        } else {
+            showToast('New message received!', 'info');
+            loadThreads();
+        }
+        refreshUnreadBadge();
+    });
+
+    socket.on('system_message', (msg) => {
+        if (msg.threadId === currentThreadId) {
+            appendSystemMsg(msg.body);
+            scrollToBottom();
+        }
+        loadThreads();
+    });
+
+    socket.on('message_delivered', () => { /* delivery receipt — future: update checkmarks */ });
+
+    socket.on('typing_start', (data) => {
+        if (data.threadId === currentThreadId) showTyping(true);
+    });
+
+    socket.on('typing_stop', (data) => {
+        if (data.threadId === currentThreadId) showTyping(false);
+    });
+
+    socket.on('message_edited', (msg) => {
+        if (msg.threadId === currentThreadId) updateBubbleEdited(msg);
+    });
+
+    socket.on('message_deleted', ({ messageId }) => {
+        updateBubbleDeleted(messageId);
+    });
+
+    socket.on('reaction_added', ({ messageId, reactions }) => {
+        updateBubbleReactions(messageId, reactions);
+    });
+
+    socket.on('unread_count_update', ({ total }) => {
+        updateMsgNavBadge(total);
+    });
+
+    socket.on('rate_limited', () => showToast('Sending too fast — slow down.', 'error'));
+    socket.on('message_error', (err) => showToast('Message failed: ' + err.error, 'error'));
+}
+
+async function fetchMissedMessages() {
+    if (!currentThreadId || !reconnectTs) return;
+    try {
+        const res = await apiFetch(`/api/messages/thread/${currentThreadId}/since?timestamp=${encodeURIComponent(reconnectTs)}`);
+        if (!res.ok) return;
+        const msgs = await res.json();
+        msgs.forEach(m => appendBubble(m, m.senderId?.toString() === user.sub));
+        if (msgs.length) scrollToBottom();
+    } catch (_) {}
+    reconnectTs = null;
+}
+
+// ── API helper ────────────────────────────────────────────────────────────────
+function apiFetch(url, opts = {}) {
+    return fetch(url, {
+        ...opts,
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers || {}) }
+    });
+}
+
+// ── Load threads ──────────────────────────────────────────────────────────────
+async function loadThreads() {
+    try {
+        const isArchived = activeTab === 'archived';
+        const res = await apiFetch(`/api/messages/threads?archived=${isArchived}`);
+        if (res.status === 401) { window.location.replace('/login'); return; }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const threads = data.threads || data;
+
+        document.getElementById('thread-skeleton').style.display = 'none';
+        const content = document.getElementById('thread-content');
+        content.style.display = 'block';
+
+        if (!threads.length) {
+            content.innerHTML = `
+                <div style="padding:2rem; text-align:center; color:var(--text-muted);">
+                    <i class="fa fa-comment-slash" style="font-size:1.5rem; margin-bottom:0.5rem; display:block;"></i>
+                    <div class="small">${isArchived ? 'No archived conversations.' : 'No conversations yet.'}</div>
+                    ${!isArchived ? '<div class="small">Start one from a product page.</div>' : ''}
+                </div>`;
+            return;
+        }
+
+        content.innerHTML = threads.map(t => renderThreadItem(t)).join('');
+    } catch {
+        document.getElementById('thread-skeleton').style.display = 'none';
+        document.getElementById('thread-content').innerHTML =
+            '<div class="text-center p-4 text-muted small">Failed to load threads.</div>';
+    }
+}
+
+function renderThreadItem(t) {
+    const ctx = t.context || {};
+    const contextType = ctx.type || 'general';
+    const badgeClass  = `badge-${contextType}`;
+    const badgeLabel  = contextType;
+
+    // Participant display name: the "other" participant
+    const otherMeta = (t.participantMeta || []).find(m => m.userId?.toString() !== user.sub);
+    const displayName = otherMeta?.displayName || ('…' + (t.threadId || '').slice(-6));
+
+    const isActive  = t.threadId === currentThreadId;
+    const isUrgent  = t.priority === 'urgent';
+    const isPinned  = t.pinned;
+    const unread    = t.unreadCount || 0;
+    const preview   = t.lastMessage || '—';
+    const isSystem  = t.lastMessageType === 'system';
+    const subtitle  = ctx.refTitle || '';
+
+    const cls = `thread-item${isActive ? ' active' : ''}${isUrgent ? ' urgent' : ''}${isPinned ? ' pinned' : ''}`;
+
+    return `
+    <div class="${cls}" id="thread-item-${t.threadId}"
+         onclick="openThread('${t.threadId}')">
+        <div class="thread-avatar" style="background:${stringToColor(t.threadId)}; color:white;">
+            ${escapeHtml(displayName.slice(0,2).toUpperCase())}
+        </div>
+        <div class="thread-meta">
+            <div style="display:flex; align-items:center; gap:0.3rem;">
+                <span class="context-badge ${badgeClass}">${badgeLabel}</span>
+            </div>
+            <div class="thread-name">${escapeHtml(displayName)}</div>
+            ${subtitle ? `<div class="thread-subtitle">${escapeHtml(subtitle)}</div>` : ''}
+            <div class="thread-preview ${isSystem ? 'system-preview' : ''}">${escapeHtml(preview)}</div>
+        </div>
+        ${unread > 0 ? `<div class="unread-badge">${unread > 99 ? '99+' : unread}</div>` : ''}
+        <div class="thread-actions">
+            <button class="thread-action-btn" onclick="event.stopPropagation(); archiveThreadId('${t.threadId}')" title="Archive">
+                <i class="fa fa-archive"></i>
+            </button>
+            <button class="thread-action-btn" onclick="event.stopPropagation(); pinThreadId('${t.threadId}')" title="Pin">
+                <i class="fa fa-thumbtack"></i>
+            </button>
+        </div>
+    </div>`;
+}
+
+// ── Switch tabs ───────────────────────────────────────────────────────────────
+function switchTab(tab) {
+    activeTab = tab;
+    document.getElementById('tab-active').classList.toggle('active', tab === 'active');
+    document.getElementById('tab-archived').classList.toggle('active', tab === 'archived');
+    loadThreads();
+}
+
+// ── Open thread ───────────────────────────────────────────────────────────────
+async function openThread(threadId) {
+    document.querySelectorAll('.thread-item').forEach(el => el.classList.remove('active'));
+    const ti = document.getElementById(`thread-item-${threadId}`);
+    if (ti) ti.classList.add('active');
+
+    currentThreadId = threadId;
+    document.getElementById('header-actions').style.display = 'flex';
+    document.getElementById('chat-empty').style.display = 'none';
+    enableInput(isConnected);
+
+    // Join thread room for reactions/edits
+    if (socket) socket.emit('join_thread', threadId);
+
+    // Reset state
+    pendingUploadUrl = null;
+    oldestMsgTs      = null;
+    hideUploadPreview();
+    document.getElementById('starter-suggestions').style.display = 'none';
+    document.getElementById('search-bar').classList.remove('visible');
+    document.getElementById('search-results').classList.remove('visible');
+
+    document.getElementById('chat-body').innerHTML = `
+        <div class="chat-empty">
+            <i class="fa fa-spinner fa-spin"></i>
+            <div class="small" style="margin-top:0.5rem;">Loading messages...</div>
+        </div>`;
+
+    try {
+        const res = await apiFetch(`/api/messages/thread/${threadId}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const { thread, messages, hasMore } = await res.json();
+
+        currentThread = thread;
+        renderThreadHeader(thread);
+        renderContextCard(thread);
+
+        // Load templates for sellers
+        if (user.storeId) loadTemplates();
+
+        const chatBody = document.getElementById('chat-body');
+        chatBody.innerHTML = '';
+
+        if (hasMore) {
+            document.getElementById('load-more-btn').style.display = 'block';
+        } else {
+            document.getElementById('load-more-btn').style.display = 'none';
+        }
+
+        if (!messages.length) {
+            const sug = (thread.context?.type && STARTER_SUGGESTIONS[thread.context.type]) || [];
+            if (sug.length) renderStarterSuggestions(sug);
+        } else {
+            messages.forEach(m => {
+                if (m.type === 'system') appendSystemMsg(m.body);
+                else appendBubble(m, m.senderId?.toString() === user.sub);
+            });
+            if (messages.length) oldestMsgTs = messages[0].createdAt;
+        }
+
+        scrollToBottom();
+        markRead(threadId);
+        refreshUnreadBadge();
+
+        // Load presence
+        loadPresence(thread);
+
+    } catch (err) {
+        document.getElementById('chat-body').innerHTML = `
+            <div class="chat-empty">
+                <i class="fa fa-exclamation-triangle" style="color:var(--accent-red);"></i>
+                <div class="small">Failed to load messages.</div>
+            </div>`;
+    }
+}
+
+const STARTER_SUGGESTIONS = {
+    product: ["Is this available in a different size?", "What is the shipping time?", "Do you offer bulk pricing?"],
+    order:   ["I have a question about my order.", "Can I modify my order?", "I'd like to request a return."],
+    general: []
+};
+
+function renderStarterSuggestions(suggestions) {
+    const container = document.getElementById('starter-suggestions');
+    container.innerHTML = suggestions.map(s =>
+        `<button class="starter-chip" onclick="pasteToComposer(${JSON.stringify(s)})">${escapeHtml(s)}</button>`
+    ).join('');
+    container.style.display = 'flex';
+}
+
+function renderThreadHeader(thread) {
+    const otherMeta   = (thread.participantMeta || []).find(m => m.userId?.toString() !== user.sub);
+    const displayName = otherMeta?.displayName || '…' + (thread._id || '').slice(-6);
+    const avatar      = document.getElementById('chat-avatar');
+    avatar.style.background = stringToColor(thread._id);
+    avatar.style.color      = 'white';
+    avatar.textContent      = displayName.slice(0,2).toUpperCase();
+    document.getElementById('chat-title').textContent = displayName;
+
+    // Pin/archive button state
+    const isPinned   = (thread.pinnedBy   || []).some(p => p.toString() === user.sub);
+    const isArchived = (thread.archivedBy || []).some(p => p.toString() === user.sub);
+    document.getElementById('pin-btn').title    = isPinned   ? 'Unpin thread' : 'Pin thread';
+    document.getElementById('archive-btn').title = isArchived ? 'Unarchive'    : 'Archive thread';
+}
+
+function renderContextCard(thread) {
+    const container = document.getElementById('context-card-container');
+    const ctx = thread.context;
+    if (!ctx || ctx.type === 'general') { container.style.display = 'none'; return; }
+
+    const link  = ctx.type === 'order'   ? `/orders/${ctx.refId}` : `/product/${ctx.refId}`;
+    const label = ctx.refTitle || (ctx.type === 'order' ? 'Order' : 'Product');
+    const imgHtml = ctx.refImage
+        ? `<img src="${escapeHtml(ctx.refImage)}" alt="" onerror="this.style.display='none'">`
+        : `<i class="fa fa-${ctx.type === 'order' ? 'shopping-bag' : 'box'}" style="color:var(--accent-red);"></i>`;
+
+    container.innerHTML = `
+        <a href="${escapeHtml(link)}" class="context-card" target="_blank">
+            ${imgHtml}
+            <div>
+                <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase;">${ctx.type}</div>
+                <div class="context-card-title">${escapeHtml(label)}</div>
+            </div>
+            <i class="fa fa-external-link-alt" style="font-size:0.65rem; color:var(--text-muted); margin-left:auto;"></i>
+        </a>`;
+    container.style.display = 'block';
+}
+
+async function loadPresence(thread) {
+    const otherMeta = (thread.participantMeta || []).find(m => m.userId?.toString() !== user.sub);
+    if (!otherMeta) return;
+    try {
+        const res = await apiFetch(`/api/messages/presence/${otherMeta.userId}`);
+        if (!res.ok) return;
+        const { online } = await res.json();
+        const avatar = document.getElementById('chat-avatar');
+        const dot    = avatar.querySelector('.online-dot');
+        if (online && !dot) {
+            const d = document.createElement('div');
+            d.className = 'online-dot';
+            avatar.appendChild(d);
+        } else if (!online && dot) {
+            dot.remove();
+        }
+    } catch (_) {}
+}
+
+// ── Load more (backward pagination) ──────────────────────────────────────────
+async function loadMoreMessages() {
+    if (!currentThreadId || !oldestMsgTs) return;
+    const btn = document.getElementById('load-more-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
+    try {
+        const res = await apiFetch(`/api/messages/thread/${currentThreadId}?before=${encodeURIComponent(oldestMsgTs)}`);
+        if (!res.ok) return;
+        const { messages, hasMore } = await res.json();
+        const chatBody = document.getElementById('chat-body');
+        const prevScrollH = chatBody.scrollHeight;
+        messages.reverse().forEach(m => {
+            const el = m.type === 'system' ? makeSystemEl(m.body) : makeBubbleEl(m, m.senderId?.toString() === user.sub);
+            chatBody.insertBefore(el, chatBody.firstChild);
+        });
+        if (messages.length) oldestMsgTs = messages[0].createdAt;
+        chatBody.scrollTop = chatBody.scrollHeight - prevScrollH;
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa fa-chevron-up" style="margin-right:0.3rem;"></i> Load earlier messages';
+        if (!hasMore) btn.style.display = 'none';
+    } catch (_) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa fa-chevron-up" style="margin-right:0.3rem;"></i> Load earlier messages';
+    }
+}
+
+// ── Open thread with ?target= (backward compat, no context) ──────────────────
+async function openThreadWithUser(targetId) {
+    try {
+        const res = await apiFetch('/api/messages/thread', {
+            method: 'POST',
+            body: JSON.stringify({ recipientId: targetId })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const { threadId } = await res.json();
+        await openThread(threadId);
+    } catch { showToast('Failed to open conversation.', 'error'); }
+}
+
+// Open thread with full context (from product / order pages)
+async function openThreadWithContext({ recipientId, contextType, refId, refTitle, refImage }) {
+    try {
+        const res = await apiFetch('/api/messages/thread', {
+            method: 'POST',
+            body: JSON.stringify({ recipientId, contextType, refId, refTitle, refImage })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const { threadId } = await res.json();
+        await openThread(threadId);
+    } catch { showToast('Failed to open conversation.', 'error'); }
+}
+
+// ── Send message ──────────────────────────────────────────────────────────────
+function sendMessage() {
+    if (!socket || !isConnected) { showToast('Not connected.', 'error'); return; }
+    if (!currentThread) { showToast('Open a conversation first.', 'error'); return; }
+    if (uploadInProgress) { showToast('Wait for upload to finish.', 'error'); return; }
+
+    const input  = document.getElementById('msg-input');
+    const body   = input.value.trim();
+    if (!body && !pendingUploadUrl) return;
+    if (body.length > 1000) { showToast('Message too long (max 1000 characters).', 'error'); return; }
+
+    const otherMeta   = (currentThread.participantMeta || []).find(m => m.userId?.toString() !== user.sub);
+    const recipientId = otherMeta?.userId;
+    if (!recipientId) { showToast('Cannot determine recipient.', 'error'); return; }
+
+    const ctx = currentThread.context;
+    socket.emit('send_message', {
+        recipientId,
+        body,
+        contextType:   ctx?.type     || 'general',
+        refId:         ctx?.refId    || '',
+        refTitle:      ctx?.refTitle || '',
+        attachmentUrl: pendingUploadUrl || '',
+        attachmentType: pendingUploadUrl ? 'image' : ''
+    });
+
+    input.value = '';
+    onInputChange();
+    removeUpload();
+    stopTypingEmit();
+    document.getElementById('starter-suggestions').style.display = 'none';
+}
+
+// ── Typing emit ───────────────────────────────────────────────────────────────
+function onInputChange() {
+    const body    = document.getElementById('msg-input').value;
+    const len     = body.length;
+    const counter = document.getElementById('char-counter');
+    if (len >= 800) {
+        counter.style.display = 'block';
+        counter.textContent   = `${len}/1000`;
+        counter.className     = `char-counter ${len > 1000 ? 'over' : 'warn'}`;
+    } else {
+        counter.style.display = 'none';
+    }
+
+    if (!socket || !currentThread) return;
+    const otherMeta = (currentThread.participantMeta || []).find(m => m.userId?.toString() !== user.sub);
+    if (!otherMeta) return;
+
+    if (!typingActive) {
+        typingActive = true;
+        socket.emit('typing_start', { recipientId: otherMeta.userId, threadId: currentThreadId });
+    }
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => stopTypingEmit(), 3000);
+}
+
+function stopTypingEmit() {
+    if (!typingActive) return;
+    typingActive = false;
+    if (!socket || !currentThread) return;
+    const otherMeta = (currentThread.participantMeta || []).find(m => m.userId?.toString() !== user.sub);
+    if (otherMeta) socket.emit('typing_stop', { recipientId: otherMeta.userId, threadId: currentThreadId });
+    clearTimeout(typingTimer);
+}
+
+function showTyping(visible) {
+    const el = document.getElementById('typing-indicator');
+    el.classList.toggle('visible', visible);
+    if (visible) {
+        clearTimeout(typingHideTimer);
+        typingHideTimer = setTimeout(() => showTyping(false), 4000);
+    }
+}
+
+// ── Image upload ──────────────────────────────────────────────────────────────
+function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    // Preview locally first (FileReader)
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        document.getElementById('upload-preview-img').src = e.target.result;
+        document.getElementById('upload-preview-bar').classList.add('visible');
+        document.getElementById('upload-status').textContent = 'Uploading...';
+        document.getElementById('send-btn').disabled = true;
+    };
+    reader.readAsDataURL(file);
+    uploadImage(file);
+}
+
+async function uploadImage(file) {
+    uploadInProgress = true;
+    try {
+        const formData = new FormData();
+        formData.append('image', file);
+        const res = await fetch('/api/messages/upload', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || `HTTP ${res.status}`);
+        }
+        const { url, sizeKb } = await res.json();
+        pendingUploadUrl = url;
+        document.getElementById('upload-status').textContent = `Ready (${sizeKb}KB)`;
+        document.getElementById('send-btn').disabled = !isConnected;
+    } catch (err) {
+        showToast('Upload failed: ' + err.message, 'error');
+        removeUpload();
+    } finally {
+        uploadInProgress = false;
+        document.getElementById('file-input').value = '';
+    }
+}
+
+function removeUpload() {
+    pendingUploadUrl = null;
+    document.getElementById('upload-preview-bar').classList.remove('visible');
+    document.getElementById('upload-preview-img').src = '';
+    document.getElementById('file-input').value = '';
+}
+
+function hideUploadPreview() { removeUpload(); }
+
+// ── Templates ─────────────────────────────────────────────────────────────────
+async function loadTemplates() {
+    try {
+        const res = await apiFetch('/api/messages/templates');
+        if (!res.ok) return;
+        const { templates: tpls } = await res.json();
+        templates = tpls || [];
+        if (templates.length) {
+            document.getElementById('templates-wrapper').style.display = 'block';
+            document.getElementById('templates-btn').style.display = 'flex';
+        }
+    } catch (_) {}
+}
+
+function toggleTemplates() {
+    const dd = document.getElementById('templates-dropdown');
+    if (dd.classList.contains('open')) {
+        dd.classList.remove('open');
+        return;
+    }
+    dd.innerHTML = templates.map(t =>
+        `<div class="template-item" onclick="pasteToComposer(${JSON.stringify(t.body)}); toggleTemplates();">
+            <div class="t-label">${escapeHtml(t.label)}</div>
+            <div class="t-body">${escapeHtml(t.body)}</div>
+        </div>`
+    ).join('') || '<div class="template-item" style="color:var(--text-muted);">No templates yet.</div>';
+    dd.classList.add('open');
+}
+
+function pasteToComposer(text) {
+    const input = document.getElementById('msg-input');
+    input.value = text;
+    input.focus();
+    onInputChange();
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+let searchDebounce = null;
+function toggleSearch() {
+    const bar = document.getElementById('search-bar');
+    const results = document.getElementById('search-results');
+    const visible = bar.classList.contains('visible');
+    bar.classList.toggle('visible', !visible);
+    if (visible) { results.classList.remove('visible'); }
+    else { document.getElementById('search-input').focus(); }
+}
+
+function debounceSearch() {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(runSearch, 300);
+}
+
+async function runSearch() {
+    const q = document.getElementById('search-input').value.trim();
+    const results = document.getElementById('search-results');
+    if (!q || !currentThreadId) { results.classList.remove('visible'); return; }
+    try {
+        const res = await apiFetch(`/api/messages/thread/${currentThreadId}/search?q=${encodeURIComponent(q)}`);
+        if (!res.ok) return;
+        const items = await res.json();
+        if (!items.length) {
+            results.innerHTML = '<span style="color:var(--text-muted);">No results.</span>';
+        } else {
+            results.innerHTML = items.map(({ match }) =>
+                `<div style="margin-bottom:0.25rem;">
+                    <span style="color:var(--text-muted); font-size:0.68rem;">${formatTime(match.createdAt)}</span>
+                    <span style="margin-left:0.5rem;">${escapeHtml((match.body||'').slice(0, 100))}</span>
+                </div>`
+            ).join('');
+        }
+        results.classList.add('visible');
+    } catch (_) {}
+}
+
+// ── Archive / Pin ─────────────────────────────────────────────────────────────
+async function archiveThread() { if (currentThreadId) await archiveThreadId(currentThreadId); }
+async function archiveThreadId(threadId) {
+    try {
+        const res = await apiFetch(`/api/messages/thread/${threadId}/archive`, { method: 'POST' });
+        if (!res.ok) throw new Error();
+        const { archived } = await res.json();
+        showToast(archived ? 'Thread archived.' : 'Thread unarchived.', 'success');
+        loadThreads();
+    } catch { showToast('Failed to update archive state.', 'error'); }
+}
+
+async function pinThread() { if (currentThreadId) await pinThreadId(currentThreadId); }
+async function pinThreadId(threadId) {
+    try {
+        const res = await apiFetch(`/api/messages/thread/${threadId}/pin`, { method: 'POST' });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Failed');
+        }
+        const { pinned } = await res.json();
+        showToast(pinned ? 'Thread pinned.' : 'Thread unpinned.', 'success');
+        loadThreads();
+    } catch (err) { showToast(err.message || 'Failed to pin thread.', 'error'); }
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+async function exportThread() {
+    if (!currentThreadId) return;
+    try {
+        const res = await apiFetch(`/api/messages/thread/${currentThreadId}/export`);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const a    = document.createElement('a');
+        a.href     = URL.createObjectURL(blob);
+        a.download = `thread-export-${currentThreadId.slice(-8)}.json`;
+        a.click();
+    } catch { showToast('Export failed.', 'error'); }
+}
+
+// ── Mark read ─────────────────────────────────────────────────────────────────
+async function markRead(threadId) {
+    try {
+        await apiFetch(`/api/messages/thread/${threadId}/read`, { method: 'POST' });
+    } catch (_) {}
+}
+
+// ── Render bubbles ────────────────────────────────────────────────────────────
+function appendBubble(msg, isSent) {
+    const chatBody = document.getElementById('chat-body');
+    const empty    = chatBody.querySelector('.chat-empty');
+    if (empty) empty.remove();
+    chatBody.appendChild(makeBubbleEl(msg, isSent));
+}
+
+function makeBubbleEl(msg, isSent) {
+    const row = document.createElement('div');
+    row.className = `bubble-row ${isSent ? 'sent' : 'received'}`;
+    row.setAttribute('data-msg-id', msg._id);
+
+    const group = document.createElement('div');
+    group.className = `bubble-group ${isSent ? 'sent' : 'received'}`;
+    group.setAttribute('data-msg-id', msg._id);
+
+    const bubble = document.createElement('div');
+    const isDeleted = msg.deleted;
+
+    if (isDeleted) {
+        bubble.className = 'bubble deleted';
+        bubble.innerHTML = '<i class="fa fa-ban" style="margin-right:0.3rem;font-size:0.75rem;"></i>This message was removed.';
+    } else {
+        bubble.className = `bubble ${isSent ? 'sent' : 'received'}`;
+        let innerHtml = '';
+        if (msg.attachmentUrl && msg.attachmentType === 'image') {
+            innerHtml += `<img src="${escapeHtml(msg.attachmentUrl)}" class="msg-image" onclick="window.open('${escapeHtml(msg.attachmentUrl)}','_blank')" alt="Image">`;
+        } else if (msg.attachmentUrl) {
+            innerHtml += `<a href="${escapeHtml(msg.attachmentUrl)}" target="_blank" style="color:inherit;">Attachment</a>`;
+        }
+        if (msg.body) innerHtml += escapeHtml(msg.body);
+        if (msg.edited) innerHtml += `<span class="msg-edited"> (edited)</span>`;
+        bubble.innerHTML = innerHtml;
+    }
+
+    group.appendChild(bubble);
+
+    // Reactions
+    const reactionDiv = document.createElement('div');
+    reactionDiv.className = 'msg-reactions';
+    reactionDiv.setAttribute('data-msg-id', msg._id);
+    if (msg.reactions && msg.reactions.length) {
+        renderReactionsInto(reactionDiv, msg._id, msg.reactions);
+    }
+    group.appendChild(reactionDiv);
+
+    // Hover actions (non-deleted messages)
+    if (!isDeleted) {
+        const actions = document.createElement('div');
+        actions.className = 'bubble-actions';
+        const EMOJIS = ['👍','❤️','😮'];
+        actions.innerHTML = EMOJIS.map(e =>
+            `<button class="bubble-act-btn" onclick="reactToMessage('${msg._id}', '${e}')">${e}</button>`
+        ).join('');
+        if (isSent) {
+            actions.innerHTML += `<button class="bubble-act-btn" onclick="editMessage('${msg._id}')"><i class="fa fa-pen"></i></button>`;
+            actions.innerHTML += `<button class="bubble-act-btn" onclick="deleteMessage('${msg._id}')" style="color:#dc2626;"><i class="fa fa-trash"></i></button>`;
+        }
+        group.appendChild(actions);
+    }
+
+    const time = document.createElement('span');
+    time.className = 'bubble-time';
+    time.textContent = formatTime(msg.createdAt);
+
+    if (isSent) {
+        row.appendChild(time);
+        row.appendChild(group);
+    } else {
+        row.appendChild(group);
+        row.appendChild(time);
+    }
+
+    return row;
+}
+
+function appendSystemMsg(body) {
+    const chatBody = document.getElementById('chat-body');
+    chatBody.appendChild(makeSystemEl(body));
+}
+
+function makeSystemEl(body) {
+    const el = document.createElement('div');
+    el.className = 'system-msg';
+    el.innerHTML = `<span>${escapeHtml(body)}</span>`;
+    return el;
+}
+
+// ── Reaction UI ───────────────────────────────────────────────────────────────
+function renderReactionsInto(container, msgId, reactions) {
+    const groups = {};
+    reactions.forEach(r => {
+        if (!groups[r.emoji]) groups[r.emoji] = { count: 0, mine: false };
+        groups[r.emoji].count++;
+        if (r.userId?.toString() === user.sub) groups[r.emoji].mine = true;
+    });
+    container.innerHTML = Object.entries(groups).map(([emoji, { count, mine }]) =>
+        `<span class="reaction-chip${mine ? ' own' : ''}" onclick="reactToMessage('${msgId}','${emoji}')">
+            ${emoji} ${count > 1 ? count : ''}
+        </span>`
+    ).join('');
+}
+
+function updateBubbleReactions(msgId, reactions) {
+    const containers = document.querySelectorAll(`.msg-reactions[data-msg-id="${msgId}"]`);
+    containers.forEach(c => renderReactionsInto(c, msgId, reactions));
+}
+
+async function reactToMessage(msgId, emoji) {
+    try {
+        const res = await apiFetch(`/api/messages/${msgId}/react`, {
+            method: 'POST',
+            body: JSON.stringify({ emoji })
+        });
+        if (!res.ok) throw new Error();
+        const reactions = await res.json();
+        updateBubbleReactions(msgId, reactions);
+    } catch { showToast('Failed to react.', 'error'); }
+}
+
+// ── Edit / delete ─────────────────────────────────────────────────────────────
+async function editMessage(msgId) {
+    const newBody = prompt('Edit message (within 5 minutes of sending):');
+    if (!newBody) return;
+    try {
+        const res = await apiFetch(`/api/messages/${msgId}`, {
+            method: 'PUT',
+            body: JSON.stringify({ body: newBody })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Failed');
+        }
+    } catch (err) { showToast(err.message || 'Edit failed.', 'error'); }
+}
+
+async function deleteMessage(msgId) {
+    if (!confirm('Remove this message?')) return;
+    try {
+        const res = await apiFetch(`/api/messages/${msgId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error();
+        updateBubbleDeleted(msgId);
+    } catch { showToast('Delete failed.', 'error'); }
+}
+
+function updateBubbleEdited(msg) {
+    const groups = document.querySelectorAll(`.bubble-group[data-msg-id="${msg._id}"]`);
+    groups.forEach(g => {
+        const bubble = g.querySelector('.bubble');
+        if (!bubble) return;
+        bubble.innerHTML = escapeHtml(msg.body) + '<span class="msg-edited"> (edited)</span>';
+    });
+}
+
+function updateBubbleDeleted(msgId) {
+    const groups = document.querySelectorAll(`.bubble-group[data-msg-id="${msgId}"]`);
+    groups.forEach(g => {
+        const bubble = g.querySelector('.bubble');
+        if (!bubble) return;
+        bubble.className = 'bubble deleted';
+        bubble.innerHTML = '<i class="fa fa-ban" style="margin-right:0.3rem;font-size:0.75rem;"></i>This message was removed.';
+        const actions = g.querySelector('.bubble-actions');
+        if (actions) actions.remove();
+    });
+}
+
+// ── Nav badge ─────────────────────────────────────────────────────────────────
+function updateMsgNavBadge(count) {
+    let badge = document.getElementById('msg-nav-badge');
+    if (!badge) return;
+    if (count > 0) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.style.display = 'flex';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+async function refreshUnreadBadge() {
+    try {
+        const res = await apiFetch('/api/messages/unread-count');
+        if (!res.ok) return;
+        const { total } = await res.json();
+        updateMsgNavBadge(total);
+    } catch (_) {}
+}
+
+// Poll unread count every 30s
+setInterval(refreshUnreadBadge, 30000);
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function updateConnBadge(online, label) {
+    const b = document.getElementById('conn-badge');
+    b.textContent = label;
+    b.className   = `conn-status ${online ? 'conn-online' : 'conn-offline'}`;
+}
+
+function enableInput(on) {
+    const disabled = !on || !currentThread;
+    document.getElementById('msg-input').disabled  = disabled;
+    document.getElementById('send-btn').disabled   = disabled;
+    document.getElementById('attach-btn').disabled = disabled;
+}
+
+function scrollToBottom() {
+    const b = document.getElementById('chat-body');
+    b.scrollTop = b.scrollHeight;
+}
+
+function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(str || ''));
+    return d.innerHTML;
+}
+
+function formatTime(ts) {
+    if (!ts) return '';
+    return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function stringToColor(str) {
+    let hash = 0;
+    for (let i = 0; i < (str || '').length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const colors = ['#cc0000','#1d4ed8','#15803d','#6d28d9','#0e7490','#b45309'];
+    return colors[Math.abs(hash) % colors.length];
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+connectSocket();
+loadThreads().then(() => {
+    const params  = new URLSearchParams(window.location.search);
+    const target  = params.get('target');
+    const threadP = params.get('thread');
+
+    if (threadP) {
+        openThread(threadP);
+    } else if (target) {
+        openThreadWithUser(target);
+    }
+
+    // Context-aware open from product/order pages
+    const ctxStr = params.get('ctx');
+    if (ctxStr) {
+        try {
+            const ctx = JSON.parse(decodeURIComponent(ctxStr));
+            openThreadWithContext(ctx);
+        } catch (_) {}
+    }
+});
+
+MarkeeCart.updateAllCartBadges();
+refreshUnreadBadge();
+</script>
+</body>
+</html>

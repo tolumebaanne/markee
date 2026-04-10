@@ -1,0 +1,95 @@
+<!-- ══════════════════════ TAB: AUDIT LOG ══════════════════════ -->
+<div class="tab-panel" id="tab-audit">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-scroll" style="color:var(--accent);margin-right:0.4rem;font-size:1.1rem"></i> Audit Log</h1>
+      <p>Every admin action — who did what, when, to what</p>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="loadAudit()"><i class="fas fa-rotate-right"></i> Refresh</button>
+  </div>
+
+  <div class="filter-bar">
+    <input id="audit-action-filter" type="text" placeholder="Filter by action..." style="min-width:180px" oninput="debounce(loadAudit,400)()">
+    <input id="audit-actor-filter"  type="text" placeholder="Filter by actor email..." style="min-width:200px" oninput="debounce(loadAudit,400)()">
+    <input id="audit-from-filter"   type="date" oninput="loadAudit()">
+    <input id="audit-to-filter"     type="date" oninput="loadAudit()">
+    <button class="btn btn-ghost btn-sm" onclick="clearAuditFilters()"><i class="fas fa-xmark"></i> Clear</button>
+  </div>
+
+  <div id="audit-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+  <div id="audit-table"><div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading audit log...</div></div>
+  <div class="pagination" id="audit-pagination"></div>
+</div>
+
+<script>
+let _auditPage = 1;
+
+function auditActionColor(a) {
+  if (!a) return '#94a3b8';
+  if (/delete|revoke|ban|lockdown|nuke/.test(a)) return '#f87171';
+  if (/approve|release|restore|unban|reactivate/.test(a)) return '#4ade80';
+  if (/suspend|freeze|force|hold|reject/.test(a)) return '#fbbf24';
+  return '#94a3b8';
+}
+
+function clearAuditFilters() {
+  ['audit-action-filter','audit-actor-filter','audit-from-filter','audit-to-filter'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  loadAudit();
+}
+
+async function loadAudit(page) {
+  if (page != null) _auditPage = page; else _auditPage = 1;
+  hideErr('audit-error');
+  const el = document.getElementById('audit-table');
+  el.innerHTML = `<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
+
+  const action = document.getElementById('audit-action-filter')?.value.trim() || '';
+  const actor  = document.getElementById('audit-actor-filter')?.value.trim()  || '';
+  const from   = document.getElementById('audit-from-filter')?.value           || '';
+  const to     = document.getElementById('audit-to-filter')?.value             || '';
+  const qs     = new URLSearchParams({ page: _auditPage, limit: 25 });
+  if (action) qs.set('action', action);
+  if (actor)  qs.set('actor',  actor);
+  if (from)   qs.set('from',   from);
+  if (to)     qs.set('to',     to);
+
+  try {
+    const data = await adminApi('GET', `/proxy/audit?${qs}`);
+    const logs  = data.logs || [];
+    const total = data.total || 0;
+
+    if (!logs.length) {
+      el.innerHTML = `<div class="empty-state"><i class="fas fa-scroll"></i>No audit entries match your filters</div>`;
+      document.getElementById('audit-pagination').innerHTML = '';
+      return;
+    }
+
+    el.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>Timestamp</th><th>Actor</th><th>Action</th><th>Target</th><th>Target ID</th><th>Details</th></tr></thead>
+      <tbody>${logs.map(log => `<tr>
+        <td style="color:var(--muted);font-size:0.7rem;white-space:nowrap">${fmtTime(log.timestamp)}</td>
+        <td style="font-size:0.75rem;color:var(--muted2)">${trunc(log.actor||log.adminEmail||log.adminId,22)}</td>
+        <td>
+          <span style="font-family:monospace;font-size:0.72rem;font-weight:700;color:${auditActionColor(log.action)}">${log.action||'—'}</span>
+        </td>
+        <td style="font-size:0.75rem;color:var(--muted2)">${log.targetType||log.resourceType||'—'}</td>
+        <td class="mono">${trunc(log.targetId||log.resourceId||log.target,16)}</td>
+        <td style="font-size:0.75rem;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(log.details||'').toString().replace(/"/g,'&quot;')}">${trunc(typeof log.details==='object'?JSON.stringify(log.details):log.details||'',60)}</td>
+      </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+
+    const pages = Math.ceil(total / 25);
+    document.getElementById('audit-pagination').innerHTML =
+      `<span style="margin-right:auto">Showing ${logs.length} of ${total.toLocaleString()} entries</span>` +
+      (_auditPage > 1 ? `<button class="btn btn-ghost btn-xs" onclick="loadAudit(${_auditPage-1})">← Prev</button>` : '') +
+      `<span style="color:var(--text);font-weight:600">Page ${_auditPage} / ${pages}</span>` +
+      (_auditPage < pages ? `<button class="btn btn-ghost btn-xs" onclick="loadAudit(${_auditPage+1})">Next →</button>` : '');
+  } catch (err) {
+    showErr('audit-error', err.message);
+    el.innerHTML = '';
+  }
+}
+</script>

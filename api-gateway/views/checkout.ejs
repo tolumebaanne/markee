@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout | Markee</title>
+    <meta name="description" content="Complete your purchase securely on Markee.">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js"></script>
+    <script src="/js/cart.js"></script>
+    <style>
+        .checkout-grid { display: grid; grid-template-columns: 1fr 380px; gap: 2rem; align-items: start; }
+        @media (max-width: 860px) { .checkout-grid { grid-template-columns: 1fr; } }
+
+        .step-badge {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 28px; height: 28px; border-radius: 50%;
+            background: var(--accent-red); color: white;
+            font-size: 0.8rem; font-weight: 700; margin-right: 0.6rem; flex-shrink: 0;
+        }
+        .section-heading { display: flex; align-items: center; font-size: 1rem; font-weight: 700; margin-bottom: 1.25rem; }
+
+        .order-item-row { display: flex; gap: 0.75rem; align-items: center; padding: 0.85rem 0; border-bottom: 1px solid var(--border-light); }
+        .order-item-row:last-child { border-bottom: none; }
+        .order-item-img { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border-light); flex-shrink: 0; }
+
+        .confirm-screen { display: none; text-align: center; padding: 3rem 0; }
+        .confirm-icon { font-size: 3.5rem; color: #22c55e; margin-bottom: 1rem; }
+
+        input.error-field, select.error-field { border-color: var(--accent-red) !important; }
+
+        /* Saved address chips */
+        .addr-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+        .addr-chip {
+            border: 1.5px solid var(--border-light); border-radius: 8px;
+            padding: 0.5rem 0.75rem; font-size: 0.8rem; cursor: pointer;
+            background: var(--bg-secondary); transition: border-color 0.15s, background 0.15s;
+            line-height: 1.4;
+        }
+        .addr-chip.selected { border-color: var(--accent-red); background: #fff5f5; }
+
+        /* Delivery options */
+        .delivery-option {
+            display: flex; align-items: center; gap: 0.75rem;
+            border: 1.5px solid var(--border-light); border-radius: 8px;
+            padding: 0.85rem 1rem; cursor: pointer; transition: border-color 0.15s, background 0.15s;
+            margin-bottom: 0.6rem;
+        }
+        .delivery-option.selected { border-color: var(--accent-red); background: #fff5f5; }
+        .delivery-option input[type="radio"] { width: auto; flex-shrink: 0; }
+        .delivery-option .d-label { font-weight: 600; font-size: 0.9rem; }
+        .delivery-option .d-detail { font-size: 0.8rem; color: var(--text-muted); }
+        .delivery-option .d-price { margin-left: auto; font-weight: 700; white-space: nowrap; }
+
+        /* Same-as billing toggle */
+        .same-billing-row {
+            display: flex; align-items: center; gap: 0.6rem;
+            padding: 0.75rem; background: var(--bg-secondary); border-radius: 8px;
+            margin-bottom: 1rem; cursor: pointer;
+        }
+        .same-billing-row input[type="checkbox"] { width: auto; }
+    </style>
+</head>
+<body class="bg-light">
+
+<nav class="navbar">
+    <div class="brand-combo">
+        <a href="/"><span class="brand">Markee</span></a>
+    </div>
+    <%- include('_nav') %>
+</nav>
+
+<div class="container py-4 animate-fade">
+
+    <!-- Auth guard notice -->
+    <div id="auth-guard" style="display:none; text-align:center; padding:4rem 0;">
+        <i class="fa fa-lock" style="font-size:3rem; color:var(--border-light); margin-bottom:1rem; display:block;"></i>
+        <h3>Sign in to Checkout</h3>
+        <p class="text-muted mb-4">You need to be signed in to place an order.</p>
+        <a href="/login" class="nav-pill nav-pill-red" style="text-decoration:none;">Sign In</a>
+        <a href="/register" class="nav-pill nav-pill-outline" style="text-decoration:none; margin-left:0.5rem;">Register</a>
+    </div>
+
+    <!-- Order Confirmed screen -->
+    <div class="confirm-screen" id="confirm-screen">
+        <div class="confirm-icon"><i class="fa fa-check-circle"></i></div>
+        <h2 style="margin-bottom:0.5rem;">Order Confirmed!</h2>
+        <p class="text-muted mb-2">Order <strong id="confirm-order-id" style="color:var(--text-main);"></strong></p>
+        <p class="text-muted mb-4">You'll receive updates as your order is processed.</p>
+        <a href="/dashboard" class="nav-pill nav-pill-red" style="text-decoration:none; margin-right:0.5rem;">Go to Dashboard</a>
+        <a href="/" class="nav-pill nav-pill-outline" style="text-decoration:none;">Keep Shopping</a>
+    </div>
+
+    <!-- Main checkout form -->
+    <div id="checkout-main">
+        <h2 class="mb-4">Secure Checkout</h2>
+        <div class="checkout-grid">
+
+            <!-- LEFT: Billing → Shipping → Delivery → Payment -->
+            <div>
+
+                <!-- Step 1: Billing Address -->
+                <div class="card p-4 mb-3">
+                    <div class="section-heading">
+                        <span class="step-badge">1</span> Billing Address
+                    </div>
+
+                    <!-- Saved address chips (hidden until loaded) -->
+                    <div id="billing-saved-addrs" class="addr-chips" style="display:none;"></div>
+
+                    <div class="form-group mb-3">
+                        <label>Street Address</label>
+                        <input type="text" id="bill-street" placeholder="123 Main Street" autocomplete="billing street-address">
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem;">
+                        <div class="form-group">
+                            <label>City</label>
+                            <input type="text" id="bill-city" placeholder="Toronto" autocomplete="billing address-level2">
+                        </div>
+                        <div class="form-group">
+                            <label>Province / State</label>
+                            <input type="text" id="bill-zip" placeholder="ON M5V 2T6" autocomplete="billing postal-code">
+                        </div>
+                        <div class="form-group">
+                            <label>Country</label>
+                            <input type="text" id="bill-country" value="Canada" autocomplete="billing country">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Shipping Address -->
+                <div class="card p-4 mb-3">
+                    <div class="section-heading">
+                        <span class="step-badge">2</span> Shipping Address
+                    </div>
+
+                    <!-- Same as billing toggle -->
+                    <label class="same-billing-row" for="same-as-billing">
+                        <input type="checkbox" id="same-as-billing" checked onchange="toggleShippingFields()">
+                        <span style="font-weight:600; font-size:0.9rem;">Same as billing address</span>
+                    </label>
+
+                    <!-- Shipping fields — hidden by default when "same as billing" is checked -->
+                    <div id="shipping-fields" style="display:none;">
+                        <!-- Saved address chips for shipping -->
+                        <div id="shipping-saved-addrs" class="addr-chips" style="display:none;"></div>
+
+                        <div class="form-group mb-3">
+                            <label>Street Address</label>
+                            <input type="text" id="ship-street" placeholder="456 Delivery Ave" autocomplete="shipping street-address">
+                        </div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem;">
+                            <div class="form-group">
+                                <label>City</label>
+                                <input type="text" id="ship-city" placeholder="Toronto" autocomplete="shipping address-level2">
+                            </div>
+                            <div class="form-group">
+                                <label>Province / State</label>
+                                <input type="text" id="ship-zip" placeholder="ON M5V 2T6" autocomplete="shipping postal-code">
+                            </div>
+                            <div class="form-group">
+                                <label>Country</label>
+                                <input type="text" id="ship-country" value="Canada" autocomplete="shipping country">
+                            </div>
+                        </div>
+                    </div>
+
+                    <p id="shipping-same-note" class="text-muted small" style="margin:0.25rem 0 0;">
+                        <i class="fa fa-check-circle" style="color:#22c55e; margin-right:0.3rem;"></i>
+                        Shipping to the same address as billing.
+                    </p>
+                </div>
+
+                <!-- Step 3: Delivery Speed -->
+                <div class="card p-4 mb-3">
+                    <div class="section-heading">
+                        <span class="step-badge">3</span> Delivery Speed
+                    </div>
+
+                    <label class="delivery-option selected" id="delivery-standard-label">
+                        <input type="radio" name="delivery" value="standard" checked
+                               onchange="selectDelivery('standard')">
+                        <div>
+                            <div class="d-label">Standard Delivery</div>
+                            <div class="d-detail">5–10 business days</div>
+                        </div>
+                        <div class="d-price" style="color:#16a34a;">Free</div>
+                    </label>
+
+                    <label class="delivery-option" id="delivery-fast-label">
+                        <input type="radio" name="delivery" value="fast"
+                               onchange="selectDelivery('fast')">
+                        <div>
+                            <div class="d-label"><i class="fa fa-bolt" style="color:#f59e0b; margin-right:0.3rem;"></i> Fast Delivery</div>
+                            <div class="d-detail">1–3 business days — priority handling</div>
+                        </div>
+                        <div class="d-price" id="fast-delivery-price" style="color:var(--accent-red);">+$9.99</div>
+                    </label>
+                </div>
+
+                <!-- Step 4: Payment -->
+                <div class="card p-4 mb-3">
+                    <div class="section-heading">
+                        <span class="step-badge">4</span> Payment Method
+                    </div>
+
+                    <!-- Saved payment methods placeholder -->
+                    <div id="saved-payments-section" style="display:none; margin-bottom:1rem;">
+                        <p style="font-size:0.85rem; font-weight:600; margin-bottom:0.5rem;">Saved payment methods</p>
+                        <div id="saved-payments-list"></div>
+                        <button type="button" class="btn btn-outline mt-2" style="font-size:0.8rem; padding:0.4rem 0.8rem; width:auto;"
+                                onclick="useNewCard()">
+                            <i class="fa fa-plus mr-2"></i> Use a different card
+                        </button>
+                    </div>
+
+                    <div id="payment-type-row" style="display:flex; gap:0.75rem; margin-bottom:1rem;">
+                        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;flex:1;border:1.5px solid var(--border-light);border-radius:8px;padding:0.75rem;font-weight:600;">
+                            <input type="radio" name="payment" value="card" checked style="width:auto;" onchange="togglePaymentMethod()"> Credit / Debit Card
+                        </label>
+                        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;flex:1;border:1.5px solid var(--border-light);border-radius:8px;padding:0.75rem;font-weight:600;">
+                            <input type="radio" name="payment" value="cod" style="width:auto;" onchange="togglePaymentMethod()"> Cash on Delivery
+                        </label>
+                    </div>
+
+                    <div id="card-fields">
+                        <div class="form-group mb-3">
+                            <label>Card Number</label>
+                            <input type="text" id="card-number" placeholder="4242 4242 4242 4242" maxlength="19" oninput="formatCard(this)">
+                        </div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                            <div class="form-group">
+                                <label>Expiry</label>
+                                <input type="text" id="card-expiry" placeholder="MM / YY" maxlength="7" oninput="formatExpiry(this)">
+                            </div>
+                            <div class="form-group">
+                                <label>CVC</label>
+                                <input type="text" id="card-cvc" placeholder="123" maxlength="4">
+                            </div>
+                        </div>
+                        <p class="text-muted small" style="margin-top:0.5rem;">
+                            <i class="fa fa-lock mr-2" style="color:#22c55e;"></i>
+                            Mock payment — no real charges. Use any test card number.
+                        </p>
+                    </div>
+
+                    <div id="cod-note" style="display:none;" class="alert alert-info">
+                        <i class="fa fa-info-circle mr-2"></i>
+                        Pay in cash when your order is delivered.
+                    </div>
+                </div>
+
+                <button id="place-order-btn" onclick="placeOrder()"
+                    class="btn w-100" style="background:var(--accent-red); padding:1rem; font-size:1rem;">
+                    <i class="fa fa-lock" style="margin-right:0.5rem;"></i> Place Order
+                </button>
+                <p class="text-muted small text-center" style="margin-top:0.75rem;">
+                    By placing this order you agree to Markee's <a href="#">Terms of Service</a>.
+                </p>
+            </div>
+
+            <!-- RIGHT: Order Summary -->
+            <div>
+                <div class="card p-4" style="position:sticky; top:5rem;">
+                    <h4 class="mb-3">Order Summary</h4>
+                    <div id="order-items-list"></div>
+
+                    <hr style="margin:1rem 0; border:none; border-top:1px solid var(--border-light);">
+
+                    <div class="flex-between mb-2">
+                        <span class="text-muted">Subtotal (<span id="item-count">0</span> items)</span>
+                        <span id="summary-subtotal" style="font-weight:600;">$0.00</span>
+                    </div>
+                    <div class="flex-between mb-2" id="summary-delivery-row">
+                        <span class="text-muted">Delivery</span>
+                        <span id="summary-delivery" style="color:#16a34a; font-weight:600;">Free</span>
+                    </div>
+                    <div class="flex-between mb-3">
+                        <span class="text-muted">Tax (13% HST)</span>
+                        <span id="summary-tax" style="font-weight:600;">$0.00</span>
+                    </div>
+                    <hr style="margin:0 0 1rem; border:none; border-top:1px solid var(--border-light);">
+                    <div class="flex-between">
+                        <span style="font-weight:700; font-size:1.1rem;">Total</span>
+                        <span id="summary-total" style="font-weight:800; font-size:1.3rem; color:var(--accent-red);">$0.00</span>
+                    </div>
+
+                    <div style="border:1px solid #bbf7d0; border-radius:8px; padding:0.75rem; background:#f0fdf4; margin-top:1.25rem;">
+                        <p class="small" style="color:#166534; margin:0;">
+                            <i class="fa fa-shield-alt mr-2"></i>
+                            <strong>Markee Buyer Protection</strong> — If your item doesn't arrive, we'll refund you.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+// ── Constants ─────────────────────────────────────────────────────────
+const FAST_DELIVERY_DEFAULT_CENTS = 999; // $9.99 fallback when no seller has set a fee
+
+// ── Auth helpers ──────────────────────────────────────────────────────
+function getToken() {
+    const t = localStorage.getItem('access_token');
+    if (!t) return null;
+    try {
+        const payload = JSON.parse(atob(t.split('.')[1]));
+        if (payload.exp * 1000 < Date.now()) { localStorage.removeItem('access_token'); return null; }
+        return t;
+    } catch { return null; }
+}
+function getUser() {
+    const t = getToken();
+    if (!t) return null;
+    try { return JSON.parse(atob(t.split('.')[1])); } catch { return null; }
+}
+
+// ── State ─────────────────────────────────────────────────────────────
+let checkoutItems = [];
+let savedAddresses = [];   // from User Service
+let selectedDelivery = 'standard';
+
+// ── Saved addresses ───────────────────────────────────────────────────
+async function loadSavedAddresses() {
+    const token = getToken();
+    if (!token) return;
+    try {
+        const res = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const profile = await res.json();
+        savedAddresses = (profile.addresses || []);
+        renderAddressChips('billing-saved-addrs',  'billing');
+        renderAddressChips('shipping-saved-addrs', 'shipping');
+    } catch {}
+}
+
+function renderAddressChips(containerId, type) {
+    if (savedAddresses.length === 0) return;
+    const container = document.getElementById(containerId);
+    container.style.display = 'flex';
+    container.innerHTML = savedAddresses.map((a, idx) => `
+        <div class="addr-chip" onclick="fillAddress('${type}', ${idx})" id="${type}-chip-${idx}">
+            <strong>${a.label || 'Address ' + (idx + 1)}</strong><br>
+            ${a.street}, ${a.city}
+        </div>
+    `).join('') + `
+        <div class="addr-chip" onclick="clearAddressChips('${type}')">
+            <i class="fa fa-pen" style="margin-right:0.3rem; opacity:0.5;"></i> Enter manually
+        </div>
+    `;
+}
+
+function fillAddress(type, idx) {
+    const a = savedAddresses[idx];
+    if (!a) return;
+    const prefix = type === 'billing' ? 'bill' : 'ship';
+    document.getElementById(`${prefix}-street`).value  = a.street  || '';
+    document.getElementById(`${prefix}-city`).value    = a.city    || '';
+    document.getElementById(`${prefix}-zip`).value     = a.postalCode || a.zip || a.postal || '';
+    document.getElementById(`${prefix}-country`).value = a.country || 'Canada';
+
+    // Highlight selected chip
+    clearAddressChips(type, false);
+    const chip = document.getElementById(`${type}-chip-${idx}`);
+    if (chip) chip.classList.add('selected');
+}
+
+function clearAddressChips(type, clearFields = true) {
+    document.querySelectorAll(`#${type}-saved-addrs .addr-chip`).forEach(c => c.classList.remove('selected'));
+    if (clearFields) {
+        const prefix = type === 'billing' ? 'bill' : 'ship';
+        ['street','city','zip','country'].forEach(f => {
+            const el = document.getElementById(`${prefix}-${f}`);
+            if (el) el.value = f === 'country' ? 'Canada' : '';
+        });
+    }
+}
+
+// ── Shipping address toggle ───────────────────────────────────────────
+function toggleShippingFields() {
+    const sameAsBilling = document.getElementById('same-as-billing').checked;
+    document.getElementById('shipping-fields').style.display  = sameAsBilling ? 'none' : 'block';
+    document.getElementById('shipping-same-note').style.display = sameAsBilling ? 'block' : 'none';
+    updateTotals();
+}
+
+function getShippingAddress() {
+    if (document.getElementById('same-as-billing').checked) {
+        return {
+            street:  document.getElementById('bill-street').value.trim(),
+            city:    document.getElementById('bill-city').value.trim(),
+            zip:     document.getElementById('bill-zip').value.trim(),
+            country: document.getElementById('bill-country').value.trim(),
+        };
+    }
+    return {
+        street:  document.getElementById('ship-street').value.trim(),
+        city:    document.getElementById('ship-city').value.trim(),
+        zip:     document.getElementById('ship-zip').value.trim(),
+        country: document.getElementById('ship-country').value.trim(),
+    };
+}
+
+// ── Delivery speed ────────────────────────────────────────────────────
+function selectDelivery(speed) {
+    selectedDelivery = speed;
+    document.getElementById('delivery-standard-label').classList.toggle('selected', speed === 'standard');
+    document.getElementById('delivery-fast-label').classList.toggle('selected', speed === 'fast');
+    updateTotals();
+}
+
+function deliveryCents() {
+    if (selectedDelivery !== 'fast') return 0;
+    // Use the max fastDeliveryFee set by any seller in the cart; fall back to default
+    const maxFee = checkoutItems.reduce((m, i) => Math.max(m, i.fastDeliveryFee || 0), 0);
+    return maxFee > 0 ? maxFee : FAST_DELIVERY_DEFAULT_CENTS;
+}
+
+function updateFastDeliveryLabel() {
+    const fee = checkoutItems.reduce((m, i) => Math.max(m, i.fastDeliveryFee || 0), 0);
+    const cents = fee > 0 ? fee : FAST_DELIVERY_DEFAULT_CENTS;
+    const el = document.getElementById('fast-delivery-price');
+    if (el) el.textContent = `+$${(cents / 100).toFixed(2)}`;
+}
+
+// ── Payment toggle ────────────────────────────────────────────────────
+function togglePaymentMethod() {
+    const isCod = document.querySelector('input[name="payment"]:checked').value === 'cod';
+    document.getElementById('card-fields').style.display = isCod ? 'none' : 'block';
+    document.getElementById('cod-note').style.display    = isCod ? 'block' : 'none';
+}
+
+function useNewCard() {
+    document.getElementById('saved-payments-section').style.display = 'none';
+    document.getElementById('payment-type-row').style.display = 'flex';
+    document.getElementById('card-fields').style.display = 'block';
+}
+
+// ── Cart / product loading ────────────────────────────────────────────
+function loadCheckoutItems() {
+    const params = new URLSearchParams(window.location.search);
+    const productId = params.get('productId');
+
+    if (productId) {
+        fetch(`/api/catalog/products/${productId}`)
+            .then(r => r.json())
+            .then(p => {
+                checkoutItems = [{
+                    _id: p._id, productId: p._id, sellerId: p.sellerId,
+                    title: p.title, price: p.price, qty: 1,
+                    image: (p.images||[])[0],
+                    fastDeliveryFee: p.fastDeliveryFee || 0
+                }];
+                renderSummary();
+                updateFastDeliveryLabel();
+            })
+            .catch(() => showToast('Failed to load product details.', 'error'));
+    } else {
+        checkoutItems = MarkeeCart.getCart().map(i => ({
+            _id: i._id, productId: i._id, sellerId: i.sellerId,
+            title: i.title, price: i.price, qty: i.qty, image: i.image,
+            fastDeliveryFee: i.fastDeliveryFee || 0
+        }));
+        if (checkoutItems.length === 0) {
+            document.getElementById('checkout-main').innerHTML =
+                `<div style="text-align:center;padding:4rem 0;">
+                    <p class="text-muted mb-4">Your cart is empty.</p>
+                    <a href="/" class="nav-pill nav-pill-red" style="text-decoration:none;">Browse Marketplace</a>
+                </div>`;
+            return;
+        }
+        renderSummary();
+        updateFastDeliveryLabel();
+    }
+}
+
+function updateTotals() {
+    const subtotalCents  = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
+    const deliveryCost   = deliveryCents();
+    const taxCents       = Math.round(subtotalCents * 0.13);
+    const totalCents     = subtotalCents + taxCents + deliveryCost;
+    const totalCount     = checkoutItems.reduce((s, i) => s + i.qty, 0);
+
+    document.getElementById('item-count').textContent      = totalCount;
+    document.getElementById('summary-subtotal').textContent = `$${(subtotalCents / 100).toFixed(2)}`;
+    document.getElementById('summary-tax').textContent      = `$${(taxCents / 100).toFixed(2)}`;
+    document.getElementById('summary-total').textContent    = `$${(totalCents / 100).toFixed(2)}`;
+
+    const delivEl = document.getElementById('summary-delivery');
+    if (deliveryCost > 0) {
+        delivEl.textContent = `+$${(deliveryCost / 100).toFixed(2)}`;
+        delivEl.style.color = 'var(--accent-red)';
+    } else {
+        delivEl.textContent = 'Free';
+        delivEl.style.color = '#16a34a';
+    }
+}
+
+function renderSummary() {
+    const list = document.getElementById('order-items-list');
+    list.innerHTML = checkoutItems.map(item => `
+        <div class="order-item-row">
+            <img src="${item.image || ''}" class="order-item-img"
+                 style="background:var(--bg-secondary);"
+                 onerror="this.onerror=null; this.src=''">
+            <div style="flex:1; min-width:0;">
+                <p style="font-weight:600; font-size:0.85rem; line-height:1.3; margin:0; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">
+                    ${item.title}
+                </p>
+                <p class="text-muted small">Qty: ${item.qty}</p>
+            </div>
+            <span style="font-weight:700; font-size:0.9rem; white-space:nowrap;">
+                $${((item.price * item.qty) / 100).toFixed(2)}
+            </span>
+        </div>
+    `).join('');
+
+    updateTotals();
+}
+
+// ── Card formatters ───────────────────────────────────────────────────
+function formatCard(el) {
+    let v = el.value.replace(/\D/g, '').slice(0, 16);
+    el.value = v.replace(/(.{4})/g, '$1 ').trim();
+}
+function formatExpiry(el) {
+    let v = el.value.replace(/\D/g, '').slice(0, 4);
+    if (v.length >= 3) v = v.slice(0, 2) + ' / ' + v.slice(2);
+    el.value = v;
+}
+
+// ── Validation ────────────────────────────────────────────────────────
+function validate() {
+    const billingFields = ['bill-street','bill-city','bill-zip','bill-country'];
+    let ok = true;
+    billingFields.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el.value.trim()) { el.classList.add('error-field'); ok = false; }
+        else el.classList.remove('error-field');
+    });
+
+    const sameAsBilling = document.getElementById('same-as-billing').checked;
+    if (!sameAsBilling) {
+        const shippingFields = ['ship-street','ship-city','ship-zip','ship-country'];
+        shippingFields.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el.value.trim()) { el.classList.add('error-field'); ok = false; }
+            else el.classList.remove('error-field');
+        });
+    }
+
+    const payMethod = document.querySelector('input[name="payment"]:checked').value;
+    if (payMethod === 'card') {
+        const card = document.getElementById('card-number').value.replace(/\s/g,'');
+        if (card.length < 13) { document.getElementById('card-number').classList.add('error-field'); ok = false; }
+        else document.getElementById('card-number').classList.remove('error-field');
+    }
+    return ok;
+}
+
+// ── Stock pre-check ───────────────────────────────────────────────────
+async function checkStock() {
+    const outOfStock = [];
+    await Promise.allSettled(checkoutItems.map(async item => {
+        try {
+            const r = await fetch(`/api/catalog/products/${item.productId || item._id}`);
+            if (!r.ok) return;
+            const p = await r.json();
+            if (p.status !== 'active') {
+                outOfStock.push(`"${item.title}" is no longer available.`);
+            }
+        } catch {}
+    }));
+    return outOfStock;
+}
+
+// ── Place order ───────────────────────────────────────────────────────
+async function placeOrder() {
+    if (!validate()) { showToast('Please fill in all required fields.', 'error'); return; }
+
+    const token = getToken();
+    if (!token) { showToast('You must be signed in to place an order.', 'error'); return; }
+    const user  = getUser();
+
+    const btn = document.getElementById('place-order-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Checking stock...';
+
+    const stockIssues = await checkStock();
+    if (stockIssues.length) {
+        showToast(stockIssues[0], 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa fa-lock" style="margin-right:0.5rem;"></i> Place Order';
+        return;
+    }
+
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Processing...';
+
+    const subtotalCents = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
+    const deliveryCost  = deliveryCents();
+    const taxCents      = Math.round(subtotalCents * 0.13);
+
+    const billingAddress = {
+        street:  document.getElementById('bill-street').value.trim(),
+        city:    document.getElementById('bill-city').value.trim(),
+        zip:     document.getElementById('bill-zip').value.trim(),
+        country: document.getElementById('bill-country').value.trim(),
+    };
+    const shippingAddress = getShippingAddress();
+
+    const payload = {
+        buyerId: user.sub,
+        items: checkoutItems.map(i => ({
+            productId: i.productId || i._id,
+            sellerId:  i.sellerId,
+            title:     i.title,
+            image:     i.image || '',
+            qty:       i.qty,
+            price:     i.price,
+        })),
+        billingAddress,
+        shippingAddress,
+        deliverySpeed:  selectedDelivery,
+        deliveryFee:    deliveryCost,
+        totalAmount:    subtotalCents + taxCents + deliveryCost,
+    };
+
+    try {
+        const res = await fetch('/api/orders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || data.error || 'Order failed');
+
+        // Clear cart after successful order
+        const params = new URLSearchParams(window.location.search);
+        if (!params.get('productId')) MarkeeCart.clearCart();
+
+        // Show confirmation
+        document.getElementById('checkout-main').style.display = 'none';
+        const confirm = document.getElementById('confirm-screen');
+        confirm.style.display = 'block';
+        document.getElementById('confirm-order-id').textContent = `#${data._id.slice(-8).toUpperCase()}`;
+        showToast('Order placed successfully!', 'success');
+
+    } catch (err) {
+        showToast(`Failed to place order: ${err.message}`, 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa fa-lock" style="margin-right:0.5rem;"></i> Place Order';
+    }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+    MarkeeCart.updateAllCartBadges();
+
+    const user = getUser();
+    if (!user) {
+        document.getElementById('checkout-main').style.display = 'none';
+        document.getElementById('auth-guard').style.display  = 'block';
+        return;
+    }
+
+    loadCheckoutItems();
+    loadSavedAddresses();
+});
+</script>
+
+</body>
+</html>

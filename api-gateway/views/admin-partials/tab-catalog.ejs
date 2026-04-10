@@ -1,0 +1,181 @@
+<!-- ══════════════════════ TAB: CATALOG ══════════════════════ -->
+<div class="tab-panel" id="tab-catalog">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-box-open" style="color:var(--accent);margin-right:0.4rem;font-size:1.1rem"></i> Catalog</h1>
+      <p>Product moderation, forced status overrides, and catalog intelligence</p>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="loadCatalog()"><i class="fas fa-rotate-right"></i> Refresh</button>
+  </div>
+
+  <div class="sub-tabs">
+    <button class="sub-tab active" onclick="switchSubTab('cat','pending',this)"><i class="fas fa-clock"></i> Pending Review <span id="cat-pending-count" style="background:var(--accent);color:#fff;font-size:0.6rem;padding:0.08rem 0.35rem;border-radius:10px;margin-left:0.25rem"></span></button>
+    <button class="sub-tab" onclick="switchSubTab('cat','all',this);if(!this.dataset.loaded){this.dataset.loaded=1;loadCatalogAll(1);}"><i class="fas fa-list"></i> All Products</button>
+    <button class="sub-tab" onclick="switchSubTab('cat','stale',this);if(!this.dataset.loaded){this.dataset.loaded=1;loadCatalogStale();}"><i class="fas fa-hourglass-half"></i> Stale</button>
+  </div>
+
+  <!-- Pending Review -->
+  <div id="cat-pending" class="sub-panel" style="display:block">
+    <div id="catp-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="catp-table"><div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading pending products...</div></div>
+  </div>
+
+  <!-- All Products -->
+  <div id="cat-all" class="sub-panel" style="display:none">
+    <div class="filter-bar">
+      <select id="cat-status-filter" onchange="loadCatalogAll(1)">
+        <option value="">All Statuses</option>
+        <option value="active">Active</option>
+        <option value="pending_review">Pending Review</option>
+        <option value="paused">Paused</option>
+        <option value="archived">Archived</option>
+        <option value="rejected">Rejected</option>
+      </select>
+      <input id="cat-seller-filter" type="text" placeholder="Filter by seller ID..." style="min-width:200px" oninput="debounce(()=>loadCatalogAll(1),400)()">
+    </div>
+    <div id="cata-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="cata-table"><div class="loading"><i class="fas fa-spinner fa-spin"></i></div></div>
+    <div class="pagination" id="cata-pagination"></div>
+  </div>
+
+  <!-- Stale -->
+  <div id="cat-stale" class="sub-panel" style="display:none">
+    <div id="cats-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="cats-table"><div class="loading"><i class="fas fa-spinner fa-spin"></i></div></div>
+  </div>
+</div>
+
+<script>
+function loadCatalog() { loadCatalogPending(); }
+
+async function loadCatalogPending() {
+  hideErr('catp-error');
+  const el=document.getElementById('catp-table');
+  el.innerHTML=`<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
+  try {
+    const data=await adminApi('GET','/proxy/catalog/pending-review');
+    const products=Array.isArray(data)?data:(data.products||[]);
+    const countEl=document.getElementById('cat-pending-count');
+    if(countEl) countEl.textContent=products.length||'';
+    // update sidebar badge
+    const sb=document.getElementById('badge-catalog');
+    if(sb&&products.length>0){sb.textContent=products.length;sb.style.display='inline-flex';}
+    if(!products.length){el.innerHTML=`<div class="empty-state"><i class="fas fa-check-double"></i>No products pending review<p>All submissions processed.</p></div>`;return;}
+    el.innerHTML=`<div class="table-wrap"><table>
+      <thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Seller</th><th>Submitted</th><th>Rejections</th><th>Actions</th></tr></thead>
+      <tbody>${products.map(p=>`<tr>
+        <td><div style="font-weight:600">${trunc(p.title,30)}</div><div class="mono" style="font-size:0.67rem;margin-top:0.1rem">${trunc(p._id,18)}</div></td>
+        <td><span style="background:var(--bg2);color:var(--muted2);padding:0.1rem 0.45rem;border-radius:5px;font-size:0.7rem">${p.category||'—'}</span></td>
+        <td style="font-weight:700;color:var(--success)">${fmt$(p.price)}</td>
+        <td class="mono" style="font-size:0.68rem">${trunc(p.sellerId||p.storeId,16)}</td>
+        <td style="color:var(--muted);font-size:0.72rem">${fmtDate(p.createdAt)}</td>
+        <td style="text-align:center;color:${(p.rejectionCount||0)>0?'var(--warn)':'var(--muted)'};font-weight:${(p.rejectionCount||0)>0?700:400}">${p.rejectionCount||0}</td>
+        <td><div class="btn-gap">
+          <button class="btn btn-success btn-xs" onclick="approveProduct('${p._id}')"><i class="fas fa-check"></i> Approve</button>
+          <button class="btn btn-danger btn-xs" onclick="rejectProduct('${p._id}')"><i class="fas fa-times"></i> Reject</button>
+          <button class="btn btn-warn btn-xs" onclick="forceProductStatus('${p._id}')"><i class="fas fa-wand-magic-sparkles"></i></button>
+        </div></td>
+      </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+  } catch(err){showErr('catp-error',err.message);el.innerHTML='';}
+}
+
+async function loadCatalogAll(page=1) {
+  hideErr('cata-error');
+  const el=document.getElementById('cata-table');
+  el.innerHTML=`<div class="loading"><i class="fas fa-spinner fa-spin"></i></div>`;
+  const status=document.getElementById('cat-status-filter').value;
+  const seller=document.getElementById('cat-seller-filter').value.trim();
+  const qs=new URLSearchParams({page,limit:20});
+  if(status) qs.set('status',status);
+  if(seller) qs.set('sellerId',seller);
+  try {
+    const data=await adminApi('GET',`/proxy/catalog/products/admin?${qs}`);
+    const products=data.products||[];
+    const total=data.total||products.length;
+    if(!products.length){el.innerHTML=`<div class="empty-state"><i class="fas fa-box-open"></i>No products found</div>`;document.getElementById('cata-pagination').innerHTML='';return;}
+    el.innerHTML=`<div class="table-wrap"><table>
+      <thead><tr><th>Title</th><th>Category</th><th>Price</th><th>Status</th><th>Seller</th><th>Created</th><th>Actions</th></tr></thead>
+      <tbody>${products.map(p=>`<tr>
+        <td><div style="font-weight:600">${trunc(p.title,28)}</div><div class="mono" style="font-size:0.67rem">${trunc(p._id,16)}</div></td>
+        <td style="color:var(--muted2);font-size:0.78rem">${p.category||'—'}</td>
+        <td style="font-weight:700">${fmt$(p.price)}</td>
+        <td>${badge(p.status||'active')}</td>
+        <td class="mono" style="font-size:0.68rem">${trunc(p.sellerId||p.storeId,16)}</td>
+        <td style="color:var(--muted);font-size:0.72rem">${fmtDate(p.createdAt)}</td>
+        <td><div class="btn-gap">
+          <button class="btn btn-warn btn-xs" onclick="forceProductStatus('${p._id}')"><i class="fas fa-wand-magic-sparkles"></i> Status</button>
+          <button class="btn btn-info btn-xs" onclick="featureProduct('${p._id}')"><i class="fas fa-star"></i></button>
+          <button class="btn btn-danger btn-xs" onclick="hardDeleteProduct('${p._id}')"><i class="fas fa-trash"></i></button>
+        </div></td>
+      </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+    const pages=Math.ceil(total/20);
+    document.getElementById('cata-pagination').innerHTML=
+      `<span style="margin-right:auto">Showing ${products.length} of ${total}</span>`+
+      (page>1?`<button class="btn btn-ghost btn-xs" onclick="loadCatalogAll(${page-1})">← Prev</button>`:'')+
+      `<span style="color:var(--text);font-weight:600">Page ${page}/${pages}</span>`+
+      (page<pages?`<button class="btn btn-ghost btn-xs" onclick="loadCatalogAll(${page+1})">Next →</button>`:'');
+  } catch(err){showErr('cata-error',err.message);el.innerHTML='';}
+}
+
+async function loadCatalogStale() {
+  hideErr('cats-error');
+  const el=document.getElementById('cats-table');
+  el.innerHTML=`<div class="loading"><i class="fas fa-spinner fa-spin"></i></div>`;
+  try {
+    const data=await adminApi('GET','/proxy/catalog/stale');
+    const products=data.products||[];
+    if(!products.length){el.innerHTML=`<div class="empty-state"><i class="fas fa-check-circle"></i>No stale products found</div>`;return;}
+    el.innerHTML=`<div style="color:var(--muted);font-size:0.75rem;margin-bottom:0.75rem"><i class="fas fa-info-circle"></i> Active products with no orders in 90+ days — cleanup candidates.</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Title</th><th>Price</th><th>Seller</th><th>Created</th><th>Actions</th></tr></thead>
+      <tbody>${products.map(p=>`<tr>
+        <td style="font-weight:600">${trunc(p.title,30)}</td>
+        <td>${fmt$(p.price)}</td>
+        <td class="mono" style="font-size:0.68rem">${trunc(p.sellerId||p.storeId,16)}</td>
+        <td style="color:var(--muted);font-size:0.72rem">${fmtDate(p.createdAt)}</td>
+        <td><div class="btn-gap">
+          <button class="btn btn-warn btn-xs" onclick="forceProductStatus('${p._id}')"><i class="fas fa-wand-magic-sparkles"></i> Status</button>
+          <button class="btn btn-danger btn-xs" onclick="hardDeleteProduct('${p._id}')"><i class="fas fa-trash"></i></button>
+        </div></td>
+      </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+  } catch(err){showErr('cats-error',err.message);el.innerHTML='';}
+}
+
+async function approveProduct(id){
+  const r=await showConfirm({title:'Approve Product',body:'This product will go live on the marketplace immediately.'});
+  if(!r.confirmed)return;
+  try{await adminApi('POST',`/proxy/catalog/products/${id}/approve`,{});toast('Product approved and live.','success');loadCatalogPending();}
+  catch(err){toast('Error: '+err.message,'error');}
+}
+async function rejectProduct(id){
+  const r=await showConfirm({title:'Reject Product',body:'Seller will be notified. Rejection count increments.',withReason:true,danger:true});
+  if(!r.confirmed)return;
+  try{await adminApi('POST',`/proxy/catalog/products/${id}/reject`,{reason:r.reason||'Does not meet listing standards'});toast('Product rejected.','warn');loadCatalogPending();}
+  catch(err){toast('Error: '+err.message,'error');}
+}
+async function forceProductStatus(id){
+  const statuses=['active','paused','archived','rejected','pending_review'];
+  const r=await showConfirm({title:'Force Product Status',body:'Override this product status regardless of its current state.',withSelect:statuses.map(s=>({value:s,label:s.replace(/_/g,' ')})),selectLabel:'New Status',withReason:true,danger:true});
+  if(!r.confirmed)return;
+  try{await adminApi('PATCH',`/proxy/catalog/products/${id}/force-status`,{status:r.selected,reason:r.reason});toast(`Status forced to "${r.selected}".`,'warn');loadCatalog();}
+  catch(err){toast('Error: '+err.message,'error');}
+}
+async function hardDeleteProduct(id){
+  const r=await showConfirm({title:'Hard Delete Product',body:'Permanently delete this product from the catalog. This cannot be undone.',withReason:true,danger:true});
+  if(!r.confirmed)return;
+  try{await adminApi('DELETE',`/proxy/catalog/products/${id}/hard-delete`,{reason:r.reason});toast('Product permanently deleted.','warn');loadCatalog();}
+  catch(err){toast('Error: '+err.message,'error');}
+}
+async function featureProduct(id){
+  const r=await showConfirm({title:'Feature Product',body:'Mark this product as featured. It will receive boost in search results.'});
+  if(!r.confirmed)return;
+  try{await adminApi('POST',`/proxy/catalog/products/${id}/feature`,{});toast('Product featured.','success');}
+  catch(err){toast('Error: '+err.message,'error');}
+}
+</script>

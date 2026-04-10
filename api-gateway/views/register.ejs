@@ -1,10 +1,20 @@
 <!DOCTYPE html>
-<html>
-<head><title>Register Redirect</title></head>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connecting... | Markee</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
 <body>
-    <p>Redirecting to authorization server...</p>
-    <script>
-        window.location.href = "http://localhost:5001/register";
-    </script>
+    <div class="auth-wrapper animate-fade">
+        <div class="auth-panel" style="box-shadow: none;">
+            <h3 class="mb-2">Routing...</h3>
+            <script>
+                // Use replace() to avoid back button redirect trap
+                window.location.replace("<%- authUrl %>/register");
+            </script>
+        </div>
+    </div>
 </body>
 </html>

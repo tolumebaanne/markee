@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligence | Markee Admin</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js"></script>
+    <style>
+        body { background:#0f172a;color:#f1f5f9; }
+        .admin-shell { display:grid;grid-template-columns:220px 1fr;min-height:100vh; }
+        .admin-sidebar { background:#1e293b;border-right:1px solid #334155;padding:1.5rem 1rem;position:sticky;top:0;height:100vh;overflow-y:auto; }
+        .sidebar-logo { display:flex;align-items:center;gap:0.6rem;margin-bottom:1.75rem; }
+        .sidebar-logo .mark { width:32px;height:32px;background:linear-gradient(135deg,#ef4444,#b91c1c);border-radius:8px;display:flex;align-items:center;justify-content:center; }
+        .sidebar-logo .mark i { color:white;font-size:0.85rem; }
+        .sidebar-logo span { font-weight:700;font-size:0.95rem; }
+        .sidebar-section { font-size:0.68rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.08em;padding:0.5rem 0.5rem 0.25rem; }
+        .sidebar-link { display:flex;align-items:center;gap:0.6rem;padding:0.6rem 0.75rem;border-radius:8px;color:#94a3b8;font-size:0.82rem;font-weight:500;text-decoration:none;cursor:pointer;transition:all 0.15s;border:none;background:none;width:100%; }
+        .sidebar-link:hover { background:#334155;color:#f1f5f9; }
+        .sidebar-link.active { background:#450a0a;color:#fca5a5; }
+        .sidebar-link i { width:16px;text-align:center; }
+        .admin-main { padding:2rem 2.5rem; }
+        .page-header { margin-bottom:1.75rem; }
+        .page-header h1 { font-size:1.4rem;font-weight:700;margin:0 0 0.25rem; }
+        .intel-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.25rem;margin-bottom:1.5rem; }
+        .intel-card { background:#1e293b;border:1px solid #334155;border-radius:12px;padding:1.35rem; }
+        .intel-card-title { font-size:0.82rem;font-weight:700;margin-bottom:0.3rem;display:flex;align-items:center;gap:0.5rem; }
+        .intel-card-desc { font-size:0.72rem;color:#64748b;margin-bottom:1rem; }
+        .intel-result { background:#0f172a;border:1px solid #334155;border-radius:8px;padding:0.85rem;font-size:0.8rem;min-height:80px; }
+        .btn { padding:0.4rem 0.8rem;border-radius:7px;font-size:0.75rem;font-weight:600;cursor:pointer;border:none;transition:all 0.15s; }
+        .btn-outline { background:transparent;color:#94a3b8;border:1px solid #334155; }
+        .btn-outline:hover { background:#334155;color:#f1f5f9; }
+        .btn-primary { background:#ef4444;color:white; }
+        .btn-primary:hover { background:#dc2626; }
+        .search-row { display:flex;gap:0.5rem;margin-bottom:0.75rem; }
+        .search-row input {
+            flex:1;padding:0.5rem 0.75rem;background:#0f172a;border:1px solid #334155;
+            border-radius:7px;color:#f1f5f9;font-size:0.82rem;
+        }
+        .stat-row { display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid #334155; }
+        .stat-row:last-child { border-bottom:none; }
+        .stat-label { font-size:0.75rem;color:#64748b; }
+        .stat-value { font-size:0.85rem;font-weight:700; }
+        .signal-chip { display:inline-flex;align-items:center;gap:0.3rem;padding:0.25rem 0.6rem;border-radius:6px;font-size:0.72rem;font-weight:600;margin-bottom:0.35rem; }
+        .signal-high   { background:#450a0a;color:#f87171; }
+        .signal-medium { background:#431407;color:#fb923c; }
+        .signal-low    { background:#1c1917;color:#a8a29e; }
+        .funnel-bar-wrap { margin-bottom:0.5rem; }
+        .funnel-label { display:flex;justify-content:space-between;font-size:0.72rem;margin-bottom:0.2rem; }
+        .funnel-bar { height:6px;background:#334155;border-radius:3px;overflow:hidden; }
+        .funnel-bar-fill { height:100%;background:linear-gradient(90deg,#ef4444,#8b5cf6);border-radius:3px;transition:width 0.5s; }
+        .score-ring { font-size:2rem;font-weight:800;text-align:center;padding:0.75rem; }
+    </style>
+</head>
+<body>
+<div class="admin-shell">
+    <aside class="admin-sidebar">
+        <div class="sidebar-logo">
+            <div class="mark"><i class="fa fa-shield-alt"></i></div>
+            <span>Markee Admin</span>
+        </div>
+        <div class="sidebar-section">Navigation</div>
+        <a class="sidebar-link" href="/admin"><i class="fa fa-th-large"></i> Overview</a>
+        <a class="sidebar-link" href="/admin/accounts"><i class="fa fa-users-cog"></i> Admin Accounts</a>
+        <a class="sidebar-link" href="/admin/templates"><i class="fa fa-layer-group"></i> Templates</a>
+        <a class="sidebar-link active" href="/admin/intelligence"><i class="fa fa-brain"></i> Intelligence</a>
+        <a class="sidebar-link" href="/admin/system"><i class="fa fa-cog"></i> System</a>
+        <div style="margin-top:auto;padding-top:2rem;">
+            <button class="sidebar-link" onclick="adminLogout()" style="color:#ef4444;">
+                <i class="fa fa-sign-out-alt"></i> Logout
+            </button>
+        </div>
+    </aside>
+
+    <main class="admin-main">
+        <div class="page-header">
+            <h1><i class="fa fa-brain" style="color:#ef4444;margin-right:0.5rem;"></i> Platform Intelligence</h1>
+            <p style="color:#64748b;margin:0;font-size:0.82rem;">Cross-service aggregated insights — live data from all platform services</p>
+        </div>
+
+        <div class="intel-grid">
+            <!-- Marketplace Balance -->
+            <div class="intel-card">
+                <div class="intel-card-title"><i class="fa fa-balance-scale" style="color:#8b5cf6;"></i> Marketplace Balance</div>
+                <div class="intel-card-desc">Store count, verification rate, tier distribution</div>
+                <div class="intel-result" id="balance-result"><span style="color:#475569;"><i class="fa fa-spinner fa-spin"></i> Loading...</span></div>
+                <button class="btn btn-outline" style="margin-top:0.75rem;width:100%;" onclick="loadBalance()"><i class="fa fa-sync" style="margin-right:0.3rem;"></i> Refresh</button>
+            </div>
+
+            <!-- Onboarding Funnel -->
+            <div class="intel-card">
+                <div class="intel-card-title"><i class="fa fa-filter" style="color:#f59e0b;"></i> Onboarding Funnel</div>
+                <div class="intel-card-desc">Seller setup completion rates across all stages</div>
+                <div class="intel-result" id="funnel-result"><span style="color:#475569;"><i class="fa fa-spinner fa-spin"></i> Loading...</span></div>
+                <button class="btn btn-outline" style="margin-top:0.75rem;width:100%;" onclick="loadFunnel()"><i class="fa fa-sync" style="margin-right:0.3rem;"></i> Refresh</button>
+            </div>
+
+            <!-- Revenue Leakage -->
+            <div class="intel-card">
+                <div class="intel-card-title"><i class="fa fa-tint" style="color:#ef4444;"></i> Revenue Leakage</div>
+                <div class="intel-card-desc">Pending payments and cancelled order value at risk</div>
+                <div class="intel-result" id="leakage-result"><span style="color:#475569;"><i class="fa fa-spinner fa-spin"></i> Loading...</span></div>
+                <button class="btn btn-outline" style="margin-top:0.75rem;width:100%;" onclick="loadLeakage()"><i class="fa fa-sync" style="margin-right:0.3rem;"></i> Refresh</button>
+            </div>
+
+            <!-- Fraud Signals -->
+            <div class="intel-card">
+                <div class="intel-card-title"><i class="fa fa-exclamation-triangle" style="color:#ef4444;"></i> Fraud Signals</div>
+                <div class="intel-card-desc">Heuristic risk indicators from order and payment patterns</div>
+                <div class="intel-result" id="fraud-result"><span style="color:#475569;"><i class="fa fa-spinner fa-spin"></i> Loading...</span></div>
+                <button class="btn btn-outline" style="margin-top:0.75rem;width:100%;" onclick="loadFraud()"><i class="fa fa-sync" style="margin-right:0.3rem;"></i> Refresh</button>
+            </div>
+        </div>
+
+        <!-- Seller Health Lookup -->
+        <div class="intel-card" style="max-width:600px;margin-bottom:1.25rem;">
+            <div class="intel-card-title"><i class="fa fa-heartbeat" style="color:#4ade80;"></i> Seller Health Score</div>
+            <div class="intel-card-desc">Composite score (0–100) computed from live seller, review, and analytics data</div>
+            <div class="search-row">
+                <input type="text" id="store-id-input" placeholder="Store ID..." />
+                <button class="btn btn-primary" onclick="loadSellerHealth()"><i class="fa fa-search"></i> Check</button>
+            </div>
+            <div class="intel-result" id="health-result" style="display:none;"></div>
+        </div>
+
+        <!-- Order Timeline Lookup -->
+        <div class="intel-card" style="max-width:600px;">
+            <div class="intel-card-title"><i class="fa fa-stream" style="color:#93c5fd;"></i> Order Timeline</div>
+            <div class="intel-card-desc">Full cross-service order lifecycle: placement → payment → shipment → delivery</div>
+            <div class="search-row">
+                <input type="text" id="order-id-input" placeholder="Order ID..." />
+                <button class="btn btn-primary" onclick="loadOrderTimeline()"><i class="fa fa-search"></i> Trace</button>
+            </div>
+            <div class="intel-result" id="timeline-result" style="display:none;"></div>
+        </div>
+    </main>
+</div>
+
+<script>
+const ADMIN_API = '/api/admin';
+const token = () => localStorage.getItem('admin_access_token');
+(function guard() {
+    const t = token();
+    if (!t) { window.location.replace('/admin-login'); return; }
+    try {
+        const payload = JSON.parse(atob(t.split('.')[1]));
+        if (payload.exp && payload.exp * 1000 < Date.now()) {
+            localStorage.removeItem('admin_access_token');
+            localStorage.removeItem('admin_refresh_token');
+            window.location.replace('/admin-login');
+        }
+    } catch { window.location.replace('/admin-login'); }
+})();
+
+async function api(path) {
+    const res = await fetch(ADMIN_API + path, {
+        headers: { Authorization: 'Bearer ' + token() }
+    });
+    if (res.status === 401) {
+        localStorage.removeItem('admin_access_token');
+        localStorage.removeItem('admin_refresh_token');
+        window.location.replace('/admin-login');
+        return;
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Request failed');
+    return data;
+}
+function adminLogout() {
+    localStorage.removeItem('admin_access_token');
+    localStorage.removeItem('admin_refresh_token');
+    window.location.replace('/admin-login');
+}
+
+function setResult(id, html) { document.getElementById(id).innerHTML = html; }
+
+async function loadBalance() {
+    setResult('balance-result', '<span style="color:#475569;"><i class="fa fa-spinner fa-spin"></i></span>');
+    try {
+        const d = await api('/intelligence/marketplace-balance');
+        setResult('balance-result', `
+            <div class="stat-row"><span class="stat-label">Total Active Stores</span><span class="stat-value">${d.totalActiveStores ?? '—'}</span></div>
+            <div class="stat-row"><span class="stat-label">Verified Stores</span><span class="stat-value" style="color:#4ade80;">${d.verifiedStores ?? '—'}</span></div>
+            <div class="stat-row"><span class="stat-label">Tier: Standard / Rising / Top</span><span class="stat-value">${d.tierDistribution?.standard ?? 0} / ${d.tierDistribution?.rising ?? 0} / ${d.tierDistribution?.top ?? 0}</span></div>
+            ${d.totalOrders ? `<div class="stat-row"><span class="stat-label">Total Orders</span><span class="stat-value">${d.totalOrders}</span></div>` : ''}
+        `);
+    } catch (err) { setResult('balance-result', `<span style="color:#f87171;">${err.message}</span>`); }
+}
+
+async function loadFunnel() {
+    setResult('funnel-result', '<span style="color:#475569;"><i class="fa fa-spinner fa-spin"></i></span>');
+    try {
+        const d = await api('/intelligence/onboarding-funnel');
+        const steps = [
+            { key:'profilePhoto',      label:'Profile Photo' },
+            { key:'descriptionWritten',label:'Description Written' },
+            { key:'firstProductListed',label:'First Product Listed' },
+            { key:'firstSaleMade',     label:'First Sale Made' },
+            { key:'returnPolicySet',   label:'Return Policy Set' },
+            { key:'fullyOnboarded',    label:'Fully Onboarded' }
+        ];
+        setResult('funnel-result', steps.map(s => `
+            <div class="funnel-bar-wrap">
+                <div class="funnel-label"><span>${s.label}</span><span>${d[s.key+'Pct'] ?? 0}% (${d[s.key] ?? 0})</span></div>
+                <div class="funnel-bar"><div class="funnel-bar-fill" style="width:${d[s.key+'Pct'] ?? 0}%;"></div></div>
+            </div>
+        `).join('') + `<div style="font-size:0.7rem;color:#475569;margin-top:0.5rem;">Total stores: ${d.total}</div>`);
+    } catch (err) { setResult('funnel-result', `<span style="color:#f87171;">${err.message}</span>`); }
+}
+
+async function loadLeakage() {
+    setResult('leakage-result', '<span style="color:#475569;"><i class="fa fa-spinner fa-spin"></i></span>');
+    try {
+        const d = await api('/intelligence/revenue-leakage');
+        setResult('leakage-result', `
+            <div class="stat-row"><span class="stat-label">Pending Payments</span><span class="stat-value" style="color:#f59e0b;">${d.pendingAmountFormatted}</span></div>
+            <div class="stat-row"><span class="stat-label">Pending Count</span><span class="stat-value">${d.pendingPaymentsCount}</span></div>
+            <div class="stat-row"><span class="stat-label">Cancelled Orders Value</span><span class="stat-value" style="color:#f87171;">${d.cancelledValueFormatted}</span></div>
+            <div class="stat-row"><span class="stat-label">Cancelled Count</span><span class="stat-value">${d.cancelledOrdersCount}</span></div>
+        `);
+    } catch (err) { setResult('leakage-result', `<span style="color:#f87171;">${err.message}</span>`); }
+}
+
+async function loadFraud() {
+    setResult('fraud-result', '<span style="color:#475569;"><i class="fa fa-spinner fa-spin"></i></span>');
+    try {
+        const d = await api('/intelligence/fraud-signals');
+        if (!d.signals?.length) {
+            setResult('fraud-result', `<span style="color:#4ade80;"><i class="fa fa-check-circle"></i> No fraud signals detected</span><div style="font-size:0.72rem;color:#475569;margin-top:0.35rem;">Scanned ${d.ordersScanned} orders</div>`);
+            return;
+        }
+        setResult('fraud-result', d.signals.map(s => `
+            <div class="signal-chip signal-${s.severity}">
+                <i class="fa fa-exclamation-circle"></i>
+                ${s.type.replace(/_/g,' ')}${s.value ? ': ' + s.value : ''}${s.count ? ' (×' + s.count + ')' : ''}
+            </div><br>
+        `).join('') + `<div style="font-size:0.72rem;color:#475569;margin-top:0.35rem;">Scanned ${d.ordersScanned} orders</div>`);
+    } catch (err) { setResult('fraud-result', `<span style="color:#f87171;">${err.message}</span>`); }
+}
+
+async function loadSellerHealth() {
+    const storeId = document.getElementById('store-id-input').value.trim();
+    if (!storeId) { showToast('Enter a Store ID', 'error'); return; }
+    const el = document.getElementById('health-result');
+    el.style.display = 'block';
+    el.innerHTML = '<span style="color:#475569;"><i class="fa fa-spinner fa-spin"></i> Analysing...</span>';
+    try {
+        const d = await api(`/intelligence/seller-health/${storeId}`);
+        const color = d.healthScore >= 75 ? '#4ade80' : d.healthScore >= 50 ? '#f59e0b' : '#f87171';
+        el.innerHTML = `
+            <div class="score-ring" style="color:${color};">${d.healthScore}<span style="font-size:1rem;">/100</span></div>
+            <div class="stat-row"><span class="stat-label">Store</span><span class="stat-value">${d.storeName}</span></div>
+            <div class="stat-row"><span class="stat-label">Tier</span><span class="stat-value">${d.tier}</span></div>
+            <div class="stat-row"><span class="stat-label">Avg Rating</span><span class="stat-value">${d.avgRating?.toFixed(1) ?? '—'}</span></div>
+            <div class="stat-row"><span class="stat-label">On-Time Delivery</span><span class="stat-value">${d.onTimeDeliveryRate != null ? Math.round(d.onTimeDeliveryRate*100)+'%' : '—'}</span></div>
+            <div class="stat-row"><span class="stat-label">Reply Rate</span><span class="stat-value">${d.replyRate != null ? Math.round(d.replyRate*100)+'%' : '—'}</span></div>
+            <div class="stat-row"><span class="stat-label">Verified</span><span class="stat-value">${d.verified ? '✓ Yes' : 'No'}</span></div>
+        `;
+    } catch (err) { el.innerHTML = `<span style="color:#f87171;">${err.message}</span>`; }
+}
+
+async function loadOrderTimeline() {
+    const orderId = document.getElementById('order-id-input').value.trim();
+    if (!orderId) { showToast('Enter an Order ID', 'error'); return; }
+    const el = document.getElementById('timeline-result');
+    el.style.display = 'block';
+    el.innerHTML = '<span style="color:#475569;"><i class="fa fa-spinner fa-spin"></i> Tracing...</span>';
+    try {
+        const d = await api(`/intelligence/order-timeline/${orderId}`);
+        const events = d.timeline || [];
+        el.innerHTML = `
+            <div style="font-weight:700;margin-bottom:0.75rem;">Order: <span style="font-family:monospace;font-size:0.78rem;color:#94a3b8;">${orderId}</span></div>
+            ${events.map(e => `
+                <div style="display:flex;align-items:center;gap:0.75rem;padding:0.4rem 0;border-bottom:1px solid #334155;">
+                    <i class="fa fa-circle" style="color:#8b5cf6;font-size:0.5rem;"></i>
+                    <div>
+                        <div style="font-size:0.78rem;font-weight:600;">${e.event.replace(/\./g,' › ')}</div>
+                        <div style="font-size:0.7rem;color:#64748b;">${new Date(e.at).toLocaleString()}</div>
+                    </div>
+                </div>
+            `).join('') || '<span style="color:#475569;">No timeline events found</span>'}
+        `;
+    } catch (err) { el.innerHTML = `<span style="color:#f87171;">${err.message}</span>`; }
+}
+
+// Load all panels on mount
+loadBalance();
+loadFunnel();
+loadLeakage();
+loadFraud();
+</script>
+</body>
+</html>

@@ -1,7 +1,54 @@
-detail_and_demo_from_class/
-foundational_docs/
-m0t_base_protocol_v3_1.md
-node_modules/
+# ── Dependencies ────────────────────────────────────────────────────────────────
+**/node_modules/
+
+# ── Environment / Secrets ────────────────────────────────────────────────────────
+**/.env
+**/.env.*
 .env
 .env.*
+*.pem
+*.key
+*.p12
+*.cert
+*.crt
+
+# ── Logs ─────────────────────────────────────────────────────────────────────────
+**/*.log
+**/logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── OS junk ──────────────────────────────────────────────────────────────────────
+**/.DS_Store
 .DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Test output / recordings ─────────────────────────────────────────────────────
+*.webp
+*.mp4
+*.mov
+scripts/tests/results/
+pulse_check_results.json
+
+# ── Reference / working docs (not source code) ───────────────────────────────────
+foundational_docs/
+detail_and_demo_from_class/
+m0t_base_protocol_v3_1.md
+
+# ── Agent working files / temp ────────────────────────────────────────────────────
+.agents/
+_to_be_deleted/
+skills-lock.json
+
+# ── Build artifacts ───────────────────────────────────────────────────────────────
+dist/
+build/
+.cache/
+
+# ── Editor / IDE ─────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo

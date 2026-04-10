@@ -6,7 +6,7 @@ const AuthCodeSchema = new mongoose.Schema({
   clientId: String,
   scope: [String],
   redirectUri: String,
-  expiresAt: { type: Date, expires: '10m' }, // Auto delete after 10m based on spec
+  expiresAt: { type: Date, default: () => new Date(Date.now() + 10 * 60 * 1000) }, // Default 10 mins
   used: { type: Boolean, default: false }
 });
 

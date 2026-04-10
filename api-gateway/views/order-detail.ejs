@@ -1,0 +1,1587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Detail | Markee Marketplace</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js"></script>
+    <script src="/js/cart.js"></script>
+    <style>
+        /* ── Layout ──────────────────────────────────────────────────────────── */
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 1.75rem;
+            align-items: start;
+        }
+
+        @media (max-width: 860px) {
+            .detail-grid { grid-template-columns: 1fr; }
+        }
+
+        /* ── Section cards ───────────────────────────────────────────────────── */
+        .section-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-card-header {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border-light);
+            background: var(--bg-secondary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-card-header h4 { margin: 0; font-size: 0.9rem; font-weight: 700; }
+        .section-card-body { padding: 1.25rem; }
+
+        /* ── Status badge ─────────────────────────────────────────────────────── */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.3rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .status-badge::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            display: inline-block;
+        }
+
+        .status-pending    { background: #fefce8; color: #a16207; border: 1px solid #fde68a; }
+        .status-paid       { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .status-processing { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
+        .status-shipped    { background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; }
+        .status-delivered  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+        .status-cancelled  { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+
+        /* ── Timeline stepper ────────────────────────────────────────────────── */
+        .timeline {
+            padding: 0.5rem 0;
+        }
+
+        .timeline-step {
+            display: flex;
+            gap: 1rem;
+            position: relative;
+        }
+
+        .timeline-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 32px;
+            bottom: 0;
+            width: 2px;
+            background: var(--border-light);
+        }
+
+        .timeline-step.done::after { background: #22c55e; }
+
+        .timeline-dot {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid var(--border-light);
+            background: var(--bg-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            position: relative;
+            z-index: 1;
+        }
+
+        .timeline-step.done .timeline-dot {
+            background: #22c55e;
+            border-color: #22c55e;
+            color: white;
+        }
+
+        .timeline-step.current .timeline-dot {
+            background: var(--accent-red);
+            border-color: var(--accent-red);
+            color: white;
+            box-shadow: 0 0 0 4px rgba(204,0,0,0.12);
+        }
+
+        .timeline-info {
+            padding-bottom: 1.5rem;
+            padding-top: 0.35rem;
+        }
+
+        .timeline-label {
+            font-weight: 600;
+            font-size: 0.875rem;
+            text-transform: capitalize;
+        }
+
+        .timeline-time {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 0.1rem;
+        }
+
+        .timeline-step.future .timeline-label { color: var(--text-muted); font-weight: 500; }
+
+        /* ── Order items ──────────────────────────────────────────────────────── */
+        .order-item-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.85rem 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .order-item-row:last-child { border-bottom: none; }
+
+        .item-img {
+            width: 52px;
+            height: 52px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: var(--bg-secondary);
+            flex-shrink: 0;
+            border: 1px solid var(--border-light);
+        }
+
+        .item-info { flex-grow: 1; min-width: 0; }
+        .item-title { font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .item-qty   { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem; }
+
+        .item-price { font-weight: 700; font-size: 0.95rem; flex-shrink: 0; }
+
+        .review-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.35rem 0.75rem;
+            border-radius: 7px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1.5px solid #bbf7d0;
+            background: #f0fdf4;
+            color: #15803d;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .review-btn:hover { background: #dcfce7; }
+        .review-btn.reviewed { background: #f0fdf4; color: var(--text-muted); border-color: var(--border-light); cursor: default; }
+
+        /* ── Shipping address ─────────────────────────────────────────────────── */
+        .address-block {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1rem;
+            font-size: 0.875rem;
+            line-height: 1.7;
+            color: var(--text-main);
+        }
+
+        /* ── Shipment form ────────────────────────────────────────────────────── */
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 500px) { .form-row { grid-template-columns: 1fr; } }
+
+        /* ── Tracking display ─────────────────────────────────────────────────── */
+        .tracking-info {
+            background: #ecfeff;
+            border: 1px solid #a5f3fc;
+            border-radius: 8px;
+            padding: 1rem;
+            font-size: 0.875rem;
+        }
+
+        .tracking-info .track-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.3rem 0;
+            border-bottom: 1px solid rgba(165,243,252,0.5);
+        }
+
+        .tracking-info .track-row:last-child { border-bottom: none; }
+        .tracking-label { color: var(--text-muted); font-weight: 500; }
+        .tracking-value { font-weight: 600; }
+
+        /* ── Cancel button ────────────────────────────────────────────────────── */
+        .btn-danger {
+            background: transparent;
+            color: #b91c1c;
+            border: 1.5px solid #fecaca;
+        }
+
+        .btn-danger:hover {
+            background: #fef2f2;
+            color: #b91c1c;
+        }
+
+        /* ── Star rating ─────────────────────────────────────────────────────── */
+        .star-group { display: flex; gap: 0.25rem; }
+
+        .star {
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #d1d5db;
+            transition: color 0.15s;
+            line-height: 1;
+        }
+
+        .star.filled, .star:hover, .star.hover { color: #f59e0b; }
+
+        /* ── Modal ───────────────────────────────────────────────────────────── */
+        .review-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s;
+        }
+
+        .review-modal-overlay.open {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .review-modal {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+            transform: translateY(20px);
+            transition: transform 0.25s;
+        }
+
+        .review-modal-overlay.open .review-modal { transform: translateY(0); }
+
+        /* ── Skeleton ────────────────────────────────────────────────────────── */
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-secondary) 25%, #e9eaec 50%, var(--bg-secondary) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+            border-radius: 8px;
+        }
+
+        @keyframes shimmer { to { background-position: -200% 0; } }
+    </style>
+</head>
+<body class="bg-light">
+
+<!-- ============ NAVBAR ============ -->
+<nav class="navbar">
+    <div class="brand-combo">
+        <a href="/"><span class="brand">Markee</span></a>
+    </div>
+    <%- include('_nav') %>
+</nav>
+
+<!-- ============ MAIN ============ -->
+<div class="container py-4 animate-fade">
+
+    <!-- Back link + heading -->
+    <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1.5rem;">
+        <a href="/orders" style="color:var(--text-muted); font-size:0.875rem;">
+            <i class="fa fa-arrow-left" style="margin-right:0.35rem;"></i> All Orders
+        </a>
+        <span style="color:var(--border-light);">|</span>
+        <h2 style="margin:0; font-size:1.25rem;" id="page-title">Order Detail</h2>
+        <span id="status-badge-header"></span>
+    </div>
+
+    <!-- Skeleton while loading -->
+    <div id="loading-skeleton">
+        <div class="detail-grid">
+            <div>
+                <div class="section-card" style="padding:1.25rem;">
+                    <div class="skeleton" style="height:14px; width:200px; margin-bottom:1rem;"></div>
+                    <div class="skeleton" style="height:60px; width:100%; margin-bottom:0.75rem;"></div>
+                    <div class="skeleton" style="height:60px; width:100%; margin-bottom:0.75rem;"></div>
+                    <div class="skeleton" style="height:60px; width:80%;"></div>
+                </div>
+                <div class="section-card" style="padding:1.25rem;">
+                    <div class="skeleton" style="height:14px; width:150px; margin-bottom:1rem;"></div>
+                    <div class="skeleton" style="height:80px; width:100%;"></div>
+                </div>
+            </div>
+            <div>
+                <div class="section-card" style="padding:1.25rem;">
+                    <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                        <div class="skeleton" style="height:32px; width:100%;"></div>
+                        <div class="skeleton" style="height:32px; width:90%;"></div>
+                        <div class="skeleton" style="height:32px; width:70%;"></div>
+                        <div class="skeleton" style="height:32px; width:80%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actual content -->
+    <div id="order-content" style="display:none;" class="detail-grid">
+
+        <!-- LEFT COLUMN -->
+        <div>
+
+            <!-- Order Items -->
+            <div class="section-card">
+                <div class="section-card-header">
+                    <h4><i class="fa fa-box" style="margin-right:0.5rem; color:var(--accent-red);"></i> Items</h4>
+                    <span id="item-count-label" class="text-muted small"></span>
+                </div>
+                <div class="section-card-body" id="items-list" style="padding-top:0; padding-bottom:0;"></div>
+            </div>
+
+            <!-- Shipping Address -->
+            <div class="section-card">
+                <div class="section-card-header">
+                    <h4><i class="fa fa-map-marker-alt" style="margin-right:0.5rem; color:var(--accent-red);"></i> Shipping Address</h4>
+                </div>
+                <div class="section-card-body">
+                    <div class="address-block" id="address-block">—</div>
+                </div>
+            </div>
+
+            <!-- Tracking info (shown when shipped/delivered) -->
+            <div class="section-card" id="tracking-card" style="display:none;">
+                <div class="section-card-header">
+                    <h4><i class="fa fa-truck" style="margin-right:0.5rem; color:#0e7490;"></i> Shipment Tracking</h4>
+                </div>
+                <div class="section-card-body">
+                    <div class="tracking-info" id="tracking-info"></div>
+                </div>
+            </div>
+
+            <!-- Seller: Create Shipment form (shown when paid or processing) -->
+            <div class="section-card" id="shipment-form-card" style="display:none;">
+                <div class="section-card-header">
+                    <h4><i class="fa fa-truck" style="margin-right:0.5rem; color:var(--accent-red);"></i> Create Shipment</h4>
+                </div>
+                <div class="section-card-body">
+                    <form id="shipment-form" onsubmit="submitShipment(event)">
+                        <div class="form-row">
+                            <div class="form-group mb-3">
+                                <label>Carrier</label>
+                                <select name="carrier" required>
+                                    <option value="">Select carrier...</option>
+                                    <option value="UPS">UPS</option>
+                                    <option value="FedEx">FedEx</option>
+                                    <option value="USPS">USPS</option>
+                                    <option value="DHL">DHL</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label>Tracking Number</label>
+                                <input type="text" name="trackingNumber" placeholder="e.g. 1Z999AA10123456784" required>
+                            </div>
+                        </div>
+                        <div class="form-group mb-4">
+                            <label>Estimated Delivery</label>
+                            <input type="date" name="estimatedDelivery" required min="">
+                        </div>
+                        <button type="submit" id="ship-btn" class="btn btn-red" style="width:auto; padding:0.65rem 1.5rem;">
+                            <i class="fa fa-paper-plane" style="margin-right:0.5rem;"></i> Mark as Shipped
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- ── Order Actions Card (role-aware) ───────────────────────────── -->
+            <div id="actions-card" style="display:none;" class="section-card">
+                <div class="section-card-header">
+                    <h4><i class="fa fa-bolt" style="margin-right:0.5rem; color:var(--accent-red);"></i> Order Actions</h4>
+                </div>
+                <div class="section-card-body" style="display:flex; flex-direction:column; gap:0.85rem;">
+
+                    <!-- Seller: Accept (pending → processing) -->
+                    <div id="action-accept" style="display:none;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
+                            <div>
+                                <div style="font-weight:600; font-size:0.875rem;"><i class="fa fa-check-circle" style="color:#15803d; margin-right:0.4rem;"></i>Accept & Confirm</div>
+                                <div class="text-muted small">Confirm you have the item and are preparing it for shipment.</div>
+                            </div>
+                            <button class="btn" style="background:#15803d; width:auto; padding:0.5rem 1.1rem; font-size:0.82rem;" onclick="acceptOrder()">
+                                <i class="fa fa-check" style="margin-right:0.4rem;"></i> Accept Order
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Seller: Mark Delivered (shipped → delivered, COD) -->
+                    <div id="action-deliver" style="display:none; border-top:1px solid var(--border-light); padding-top:0.85rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
+                            <div>
+                                <div style="font-weight:600; font-size:0.875rem;"><i class="fa fa-handshake" style="color:#0e7490; margin-right:0.4rem;"></i>Mark as Delivered</div>
+                                <div class="text-muted small">Confirm the buyer received the item and payment was collected.</div>
+                            </div>
+                            <button class="btn" style="background:#0e7490; width:auto; padding:0.5rem 1.1rem; font-size:0.82rem;" onclick="deliverOrder()">
+                                <i class="fa fa-handshake" style="margin-right:0.4rem;"></i> Mark Delivered
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Cancel section (buyer or seller) -->
+                    <div id="action-cancel" style="display:none; border-top:1px solid var(--border-light); padding-top:0.85rem;">
+                        <div style="font-weight:600; font-size:0.875rem; margin-bottom:0.4rem;"><i class="fa fa-times-circle" style="color:#b91c1c; margin-right:0.4rem;"></i>Cancel Order</div>
+                        <div class="text-muted small" style="margin-bottom:0.65rem;" id="cancel-description"></div>
+                        <div style="display:flex; gap:0.65rem; align-items:flex-end; flex-wrap:wrap;">
+                            <div style="flex:1; min-width:180px;">
+                                <input type="text" id="cancel-reason-input" placeholder="Reason (optional)"
+                                       style="font-size:0.82rem; padding:0.45rem 0.75rem; border-radius:6px;">
+                            </div>
+                            <button class="btn" style="background:#b91c1c; width:auto; padding:0.5rem 1.1rem; font-size:0.82rem; flex-shrink:0;" onclick="cancelOrder()">
+                                <i class="fa fa-times" style="margin-right:0.4rem;"></i> Cancel Order
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Buyer: legacy cancel card removed — now part of actions-card -->
+
+            <!-- Cancellation reason (auto-cancelled orders) -->
+            <div id="cancellation-reason-card" style="display:none;" class="section-card">
+                <div class="section-card-body" style="background:#fef2f2; border-radius:8px; padding:1rem;">
+                    <div style="display:flex; gap:0.75rem; align-items:flex-start;">
+                        <i class="fa fa-exclamation-circle" style="color:#b91c1c; margin-top:0.15rem; flex-shrink:0;"></i>
+                        <div>
+                            <div style="font-weight:700; font-size:0.9rem; color:#b91c1c; margin-bottom:0.25rem;">Order Automatically Cancelled</div>
+                            <div id="cancellation-reason-text" style="font-size:0.875rem; color:#7f1d1d; line-height:1.5;"></div>
+                            <div style="margin-top:0.5rem; font-size:0.8rem; color:#991b1b;">
+                                No payment was taken. If you still want this item, check back once the seller restocks.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Billing address (shown alongside shipping) -->
+            <div class="section-card" id="billing-card" style="display:none;">
+                <div class="section-card-header">
+                    <h4><i class="fa fa-file-invoice" style="margin-right:0.5rem; color:var(--accent-red);"></i> Billing Address</h4>
+                </div>
+                <div class="section-card-body">
+                    <div class="address-block" id="billing-block">—</div>
+                </div>
+            </div>
+
+            <!-- S33 — Order notes (buyer note to seller; seller note to buyer) -->
+            <div class="section-card" id="notes-card" style="display:none;">
+                <div class="section-card-header">
+                    <h4><i class="fa fa-sticky-note" style="margin-right:0.5rem; color:#a16207;"></i> Order Notes</h4>
+                </div>
+                <div class="section-card-body" id="notes-body"></div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div>
+
+            <!-- Order Summary card -->
+            <div class="section-card mb-2" style="margin-bottom:1.5rem;">
+                <div class="section-card-header">
+                    <h4><i class="fa fa-receipt" style="margin-right:0.5rem; color:var(--accent-red);"></i> Summary</h4>
+                </div>
+                <div class="section-card-body" style="padding:0;">
+                    <div class="list-item" style="justify-content:flex-start; gap:0.5rem;">
+                        <span class="text-muted small" style="width:90px; flex-shrink:0;">Order ID</span>
+                        <span id="summary-id" style="font-family:monospace; font-size:0.8rem;"></span>
+                    </div>
+                    <div class="list-item" style="justify-content:flex-start; gap:0.5rem;">
+                        <span class="text-muted small" style="width:90px; flex-shrink:0;">Placed</span>
+                        <span id="summary-date" style="font-size:0.875rem;"></span>
+                    </div>
+                    <div class="list-item" style="justify-content:flex-start; gap:0.5rem;">
+                        <span class="text-muted small" style="width:90px; flex-shrink:0;">Status</span>
+                        <span id="summary-status"></span>
+                    </div>
+                    <div class="list-item" style="justify-content:flex-start; gap:0.5rem;" id="delivery-row" style="display:none;">
+                        <span class="text-muted small" style="width:90px; flex-shrink:0;">Delivery</span>
+                        <span id="summary-delivery" style="font-size:0.875rem;"></span>
+                    </div>
+                    <div class="list-item" style="border-bottom:none;">
+                        <span class="text-muted small">Order Total</span>
+                        <span id="summary-total" style="font-weight:700; font-size:1.05rem;"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Timeline -->
+            <div class="section-card">
+                <div class="section-card-header">
+                    <h4><i class="fa fa-history" style="margin-right:0.5rem; color:var(--accent-red);"></i> Timeline</h4>
+                </div>
+                <div class="section-card-body">
+                    <div class="timeline" id="timeline-steps"></div>
+                </div>
+            </div>
+
+            <!-- Buyer Trust Score (seller view only) -->
+            <div class="section-card" id="buyer-score-card" style="display:none; margin-top:1rem;">
+                <div class="section-card-header">
+                    <h4><i class="fa fa-user-shield" style="margin-right:0.5rem; color:#1d4ed8;"></i> Buyer Trust</h4>
+                </div>
+                <div class="section-card-body" id="buyer-score-body"></div>
+            </div>
+
+            <!-- S21 — Payment / Escrow Status Card (buyer + seller view) -->
+            <div class="section-card" id="payment-status-card" style="display:none; margin-top:1rem;">
+                <div class="section-card-header">
+                    <h4><i class="fa fa-lock" style="margin-right:0.5rem; color:#7c3aed;"></i> Payment</h4>
+                    <span id="payment-status-badge"></span>
+                </div>
+                <div class="section-card-body" id="payment-status-body">
+                    <div style="color:var(--text-muted); font-size:0.82rem;">Loading payment info…</div>
+                </div>
+            </div>
+
+            <!-- Message seller / buyer (S30) -->
+            <div class="section-card" id="msg-seller-card" style="display:none; margin-top:1rem;">
+                <div class="section-card-body" style="padding:1rem;">
+                    <button id="msg-seller-btn" class="btn" style="width:100%; background:var(--accent-red); display:flex; align-items:center; justify-content:center; gap:0.5rem; font-size:0.85rem; padding:0.6rem 1rem;" onclick="openOrderThread()">
+                        <i class="fa fa-comments"></i>
+                        <span id="msg-seller-label">Message about this order</span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Error state -->
+    <div id="error-state" style="display:none;" class="empty-state" style="text-align:center; padding:5rem 2rem;">
+        <div style="width:72px; height:72px; background:var(--bg-secondary); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 1.25rem; font-size:1.75rem; color:var(--text-muted);">
+            <i class="fa fa-exclamation-triangle"></i>
+        </div>
+        <h3 id="error-title" style="margin-bottom:0.5rem;">Order not found</h3>
+        <p class="text-muted" style="margin-bottom:1.5rem;" id="error-msg"></p>
+        <a href="/orders" class="btn btn-red" style="width:auto; display:inline-flex;">Back to Orders</a>
+    </div>
+
+</div>
+
+<!-- ============ REVIEW MODAL ============ -->
+<div class="review-modal-overlay" id="review-modal" onclick="handleReviewModalClick(event)">
+    <div class="review-modal">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+            <h4 style="margin:0;">Leave a Review</h4>
+            <button onclick="closeReviewModal()" style="background:none; border:none; cursor:pointer; font-size:1.25rem; color:var(--text-muted);">&times;</button>
+        </div>
+        <div style="margin-bottom:1rem;">
+            <div id="review-product-name" style="font-weight:600; font-size:0.9rem; margin-bottom:0.75rem;"></div>
+            <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.5rem;">Rating</label>
+            <div class="star-group" id="star-group">
+                <span class="star" data-val="1" onclick="setRating(1)">&#9733;</span>
+                <span class="star" data-val="2" onclick="setRating(2)">&#9733;</span>
+                <span class="star" data-val="3" onclick="setRating(3)">&#9733;</span>
+                <span class="star" data-val="4" onclick="setRating(4)">&#9733;</span>
+                <span class="star" data-val="5" onclick="setRating(5)">&#9733;</span>
+            </div>
+        </div>
+        <div class="form-group mb-4">
+            <label>Your Review</label>
+            <textarea id="review-body" placeholder="Share your experience with this product..." rows="4"></textarea>
+        </div>
+        <button id="review-submit-btn" class="btn btn-red" onclick="submitReview()">Submit Review</button>
+    </div>
+</div>
+
+<script>
+    // ── Auth guard ────────────────────────────────────────────────────────────
+    const token = localStorage.getItem('access_token');
+    if (!token) window.location.replace('/login');
+
+    function parseJwt(t) {
+        try { return JSON.parse(atob(t.split('.')[1])); }
+        catch { return null; }
+    }
+
+    const user = parseJwt(token);
+    if (!user) window.location.replace('/login');
+
+    // ── Navbar role awareness ────────────────────────────────────────────────
+    const isSeller = user.storeActive === true;
+    const isAdmin  = user.role === 'admin';
+    if (isSeller || isAdmin) {
+        document.getElementById('nav-dashboard').style.display = 'inline-flex';
+    }
+    if (isAdmin) {
+        document.getElementById('nav-admin').style.display = 'inline-flex';
+    }
+
+    function handleLogout() {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        window.location.replace('/');
+    }
+
+    // ── Order ID from EJS ────────────────────────────────────────────────────
+    const ORDER_ID = '<%= orderId %>';
+
+    // ── State ────────────────────────────────────────────────────────────────
+    let _order = null;
+    let _shipment = null;
+    let _reviewProductId = null;
+    let _reviewProductName = '';
+    let _selectedRating = 0;
+    const _reviewed = new Set(); // productIds already reviewed this session
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function escHtml(s) {
+        return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function formatDate(iso) {
+        if (!iso) return '—';
+        return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatDateShort(iso) {
+        if (!iso) return '—';
+        return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function formatPrice(cents) {
+        return `$${((cents || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    function statusClass(s) {
+        return ['pending','paid','processing','shipped','delivered','cancelled'].includes(s) ? `status-${s}` : 'status-pending';
+    }
+
+    // ── Status ordering for timeline ──────────────────────────────────────────
+    const STATUS_ORDER = ['pending','paid','processing','shipped','delivered'];
+    const STATUS_ICONS = {
+        pending:    'fa-clock',
+        paid:       'fa-credit-card',
+        processing: 'fa-cog fa-spin',
+        shipped:    'fa-truck',
+        delivered:  'fa-check-circle',
+        cancelled:  'fa-times-circle'
+    };
+
+    // ── Render timeline ───────────────────────────────────────────────────────
+    function renderTimeline(order) {
+        const isCancelled = order.status === 'cancelled';
+        const container = document.getElementById('timeline-steps');
+
+        // Build a map of status → timestamp from the order timeline array
+        const tsMap = {};
+        (order.timeline || []).forEach(t => { tsMap[t.status] = t.timestamp; });
+
+        let steps;
+        if (isCancelled) {
+            steps = (order.timeline || []).map(t => ({
+                status: t.status,
+                timestamp: t.timestamp,
+                state: 'done'
+            }));
+        } else {
+            const currentIdx = STATUS_ORDER.indexOf(order.status);
+            steps = STATUS_ORDER.map((s, idx) => ({
+                status: s,
+                timestamp: tsMap[s] || null,
+                state: idx < currentIdx ? 'done' : (idx === currentIdx ? 'current' : 'future')
+            }));
+        }
+
+        container.innerHTML = steps.map((step, i) => {
+            const icon = STATUS_ICONS[step.status] || 'fa-circle';
+            const isLast = i === steps.length - 1;
+            return `
+            <div class="timeline-step ${step.state}${isLast ? '' : ''}">
+                <div class="timeline-dot">
+                    <i class="fa ${step.state === 'future' ? 'fa-circle' : icon}" style="font-size:0.7rem;"></i>
+                </div>
+                <div class="timeline-info">
+                    <div class="timeline-label">${step.status}</div>
+                    <div class="timeline-time">${step.timestamp ? formatDate(step.timestamp) : (step.state === 'future' ? 'Pending' : '—')}</div>
+                </div>
+            </div>
+            `;
+        }).join('');
+    }
+
+    // ── Render items ──────────────────────────────────────────────────────────
+    function renderItems(order) {
+        const isBuyer = order.buyerId?.toString() === user.sub;
+        const isDelivered = order.status === 'delivered';
+        const items = order.items || [];
+
+        document.getElementById('item-count-label').textContent = `${items.length} item${items.length !== 1 ? 's' : ''}`;
+
+        document.getElementById('items-list').innerHTML = items.map(item => {
+            const reviewable = isBuyer && isDelivered;
+            const alreadyReviewed = _reviewed.has(item.productId?.toString());
+            const reviewBtnHtml = reviewable
+                ? alreadyReviewed
+                    ? `<span class="review-btn reviewed"><i class="fa fa-check"></i> Reviewed</span>`
+                    : `<button class="review-btn" onclick="openReviewModal('${item.productId}', '${(item.title || 'Product').replace(/'/g, "\\'")}')">
+                           <i class="fa fa-star"></i> Review
+                       </button>`
+                : '';
+
+            return `
+            <div class="order-item-row">
+                <img class="item-img"
+                     src="${item.image || ''}"
+                     style="background:var(--bg-secondary);"
+                     onerror="this.onerror=null; this.src=''"
+                     alt="${item.title || 'Item'}">
+                <div class="item-info">
+                    <div class="item-title">${item.title || 'Item'}</div>
+                    <div class="item-qty">Qty: ${item.qty || 1}</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:0.75rem;">
+                    <div class="item-price">${formatPrice((item.price || 0) * (item.qty || 1))}</div>
+                    ${reviewBtnHtml}
+                </div>
+            </div>
+            `;
+        }).join('');
+    }
+
+    // ── Render shipping address ───────────────────────────────────────────────
+    function renderAddress(order) {
+        const addr = order.shippingAddress;
+        if (!addr || !addr.street) {
+            document.getElementById('address-block').textContent = 'No shipping address on record.';
+            return;
+        }
+        document.getElementById('address-block').innerHTML = `
+            <strong>${addr.street}</strong><br>
+            ${addr.city}${addr.zip ? ', ' + addr.zip : ''}<br>
+            ${addr.country || ''}
+        `;
+    }
+
+    // ── Render tracking (S22) ─────────────────────────────────────────────────
+    function renderTracking(shipment) {
+        if (!shipment) return;
+        document.getElementById('tracking-card').style.display = 'block';
+
+        const SHIPMENT_STATUS_ICONS = {
+            created:          '&#9679;',
+            in_transit:       '&#128666;',
+            out_for_delivery: '&#128230;',
+            delivered:        '&#10003;',
+            cancelled:        '&#10007;'
+        };
+        const SHIPMENT_STATUS_LABELS = {
+            created:          'Shipment Created',
+            in_transit:       'In Transit',
+            out_for_delivery: 'Out for Delivery',
+            delivered:        'Delivered',
+            cancelled:        'Cancelled'
+        };
+
+        // Timeline stepper — if timeline has entries, render the full history.
+        // Falls back to single status badge if timeline is empty (legacy shipments).
+        const timeline = shipment.timeline || [];
+
+        const timelineHtml = timeline.length
+            ? `<div style="margin-top:0.75rem;">
+                <div style="font-size:0.75rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.5rem;">Tracking History</div>
+                ${timeline.map((entry, i) => {
+                    const isLast = i === timeline.length - 1;
+                    const isCancelled = entry.status === 'cancelled';
+                    return `
+                    <div style="display:flex; gap:0.75rem; align-items:flex-start; margin-bottom:${isLast ? '0' : '0.5rem'}; padding-bottom:${isLast ? '0' : '0.5rem'}; border-bottom:${isLast ? 'none' : '1px solid var(--border-light)'};">
+                        <div style="width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.7rem; flex-shrink:0; margin-top:0.1rem;
+                            background:${isCancelled ? '#fee2e2' : isLast ? 'var(--accent-red)' : 'var(--bg-secondary)'};
+                            color:${isCancelled ? '#b91c1c' : isLast ? '#fff' : 'var(--text-muted)'};">
+                            ${SHIPMENT_STATUS_ICONS[entry.status] || '&#9679;'}
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-weight:600; font-size:0.82rem;">${SHIPMENT_STATUS_LABELS[entry.status] || entry.status}</div>
+                            ${entry.location ? `<div style="font-size:0.75rem; color:var(--text-muted);">${entry.location}</div>` : ''}
+                            ${entry.note     ? `<div style="font-size:0.75rem; color:var(--text-muted);">${entry.note}</div>`     : ''}
+                            <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.1rem;">${formatDate(entry.timestamp)}</div>
+                        </div>
+                    </div>`;
+                }).join('')}
+              </div>`
+            : `<div class="track-row">
+                   <span class="tracking-label">Status</span>
+                   <span class="status-badge ${statusClass(shipment.status)}">${shipment.status || 'shipped'}</span>
+               </div>`;
+
+        // On-time indicator (post-delivery)
+        let onTimeHtml = '';
+        if (shipment.status === 'delivered' && shipment.estimatedDelivery && shipment.deliveredAt) {
+            const onTime = new Date(shipment.deliveredAt) <= new Date(shipment.estimatedDelivery);
+            onTimeHtml = `<div class="track-row" style="margin-top:0.5rem;">
+                <span class="tracking-label">Delivery</span>
+                <span style="font-weight:600; font-size:0.82rem; color:${onTime ? '#16a34a' : '#b91c1c'};">
+                    ${onTime ? '&#10003; On time' : '&#9888; Delivered late'}
+                </span>
+            </div>`;
+        }
+
+        document.getElementById('tracking-info').innerHTML = `
+            <div class="track-row">
+                <span class="tracking-label">Carrier</span>
+                <span class="tracking-value">${shipment.carrier || '—'}</span>
+            </div>
+            <div class="track-row">
+                <span class="tracking-label">Tracking #</span>
+                <span class="tracking-value" style="font-family:monospace;">${shipment.trackingNumber || '—'}</span>
+            </div>
+            <div class="track-row">
+                <span class="tracking-label">Est. Delivery</span>
+                <span class="tracking-value">${shipment.estimatedDelivery ? formatDateShort(shipment.estimatedDelivery) : '—'}</span>
+            </div>
+            ${onTimeHtml}
+            ${timelineHtml}
+        `;
+    }
+
+    // ── Show seller shipment form ─────────────────────────────────────────────
+    function showShipmentForm(order) {
+        const isSeller = order.items.some(i => i.sellerId?.toString() === user.storeId);
+        if (!isSeller) return;
+        const canShip = ['paid', 'processing'].includes(order.status);
+        if (!canShip) return;
+
+        document.getElementById('shipment-form-card').style.display = 'block';
+        // Set min date to today
+        const today = new Date().toISOString().split('T')[0];
+        document.querySelector('input[name="estimatedDelivery"]').min = today;
+    }
+
+    // ── Render all available order actions (role-aware) ───────────────────────
+    function renderActions(order) {
+        const isBuyer  = order.buyerId?.toString() === user.sub;
+        const isSeller = user.storeId && order.items.some(i => i.sellerId?.toString() === user.storeId);
+
+        let showCard = false;
+
+        // Seller: Accept (pending → processing, COD confirm)
+        if (isSeller && order.status === 'pending') {
+            document.getElementById('action-accept').style.display = 'block';
+            showCard = true;
+        }
+
+        // Seller: Mark Delivered (shipped → delivered, COD)
+        if (isSeller && order.status === 'shipped') {
+            document.getElementById('action-deliver').style.display = 'block';
+            showCard = true;
+        }
+
+        // Seller: Pickup fulfillment actions (S23)
+        if (isSeller && order.fulfillmentType === 'pickup') {
+            if (order.status === 'processing') {
+                // Inject "Mark Ready for Pickup" button if not already present
+                if (!document.getElementById('action-ready-pickup')) {
+                    const btn = document.createElement('div');
+                    btn.id = 'action-ready-pickup';
+                    btn.innerHTML = `<button class="btn-primary" style="width:100%;" onclick="advanceFulfillment('ready_for_pickup')">
+                        <i class="fa fa-map-marker" style="margin-right:0.4rem;"></i> Mark Ready for Pickup
+                    </button>
+                    <div class="text-muted small" style="margin-top:0.3rem;">Buyer will be notified that the order is ready to collect.</div>`;
+                    document.getElementById('actions-card').querySelector('.section-body')?.appendChild(btn)
+                        || document.getElementById('actions-card').appendChild(btn);
+                }
+                showCard = true;
+            }
+            if (order.status === 'ready_for_pickup') {
+                if (!document.getElementById('action-confirm-pickup')) {
+                    const btn = document.createElement('div');
+                    btn.id = 'action-confirm-pickup';
+                    btn.innerHTML = `<button class="btn-primary" style="width:100%; margin-top:0.5rem;" onclick="advanceFulfillment('picked_up')">
+                        <i class="fa fa-check" style="margin-right:0.4rem;"></i> Confirm Pickup
+                    </button>
+                    <div class="text-muted small" style="margin-top:0.3rem;">Confirm the buyer has collected the order. This releases escrow.</div>`;
+                    document.getElementById('actions-card').querySelector('.section-body')?.appendChild(btn)
+                        || document.getElementById('actions-card').appendChild(btn);
+                }
+                showCard = true;
+            }
+        }
+
+        // Seller: Self-fulfilled action (S23)
+        if (isSeller && order.fulfillmentType === 'self_fulfilled' && order.status === 'processing') {
+            if (!document.getElementById('action-self-fulfill')) {
+                const btn = document.createElement('div');
+                btn.id = 'action-self-fulfill';
+                btn.innerHTML = `<button class="btn-primary" style="width:100%; margin-top:0.5rem;" onclick="advanceFulfillment('self_fulfilled')">
+                    <i class="fa fa-check-square" style="margin-right:0.4rem;"></i> Mark as Fulfilled
+                </button>
+                <div class="text-muted small" style="margin-top:0.3rem;">Mark this order as fulfilled (digital delivery, service, or in-person). This releases escrow.</div>`;
+                document.getElementById('actions-card').querySelector('.section-body')?.appendChild(btn)
+                    || document.getElementById('actions-card').appendChild(btn);
+            }
+            showCard = true;
+        }
+
+        // Cancel — seller can cancel pending/paid/processing; buyer can cancel pending
+        const sellerCanCancel = isSeller && ['pending','paid','processing'].includes(order.status);
+        const buyerCanCancel  = isBuyer  && order.status === 'pending';
+        if (sellerCanCancel || buyerCanCancel) {
+            const descEl = document.getElementById('cancel-description');
+            if (descEl) {
+                descEl.textContent = isSeller
+                    ? 'Cancel on behalf of your store. The buyer will be notified.'
+                    : 'Cancel your order. No payment has been taken for COD orders.';
+            }
+            document.getElementById('action-cancel').style.display = 'block';
+            showCard = true;
+        }
+
+        if (showCard) document.getElementById('actions-card').style.display = 'block';
+
+        // Show "Message about this order" button for both buyer and seller (S30)
+        if (isBuyer || isSeller) {
+            document.getElementById('msg-seller-card').style.display = 'block';
+            const label = isSeller ? 'Message buyer about this order' : 'Message seller about this order';
+            document.getElementById('msg-seller-label').textContent = label;
+        }
+    }
+
+    // ── Open order thread (S30) ───────────────────────────────────────────────
+    function openOrderThread() {
+        // Determine the "other" user's ID for this order thread
+        // Buyer → messages seller; Seller → messages buyer
+        // order is available in closure from loadOrder()
+        const order = window._currentOrder;
+        if (!order) return;
+        const isBuyer  = order.buyerId?.toString() === user.sub;
+        const isSeller = user.storeId && order.items.some(i => i.sellerId?.toString() === user.storeId);
+        if (!isBuyer && !isSeller) return;
+
+        // For buyer: find a seller from order items; for seller: use buyerId
+        let otherUserId;
+        if (isBuyer) {
+            // pick the first seller's userId — for multi-seller orders this opens the first thread
+            const firstSellerItem = order.items.find(i => i.sellerId);
+            otherUserId = firstSellerItem?.sellerId;
+        } else {
+            otherUserId = order.buyerId;
+        }
+        if (!otherUserId) return;
+
+        const shortId = ORDER_ID.slice(-8).toUpperCase();
+        const ctx = {
+            recipientId: otherUserId.toString(),
+            contextType: 'order',
+            refId:       ORDER_ID,
+            refTitle:    `Order #${shortId}`
+        };
+        window.location.href = `/messages?ctx=${encodeURIComponent(JSON.stringify(ctx))}`;
+    }
+
+    // ── Enrich item images from catalog (best-effort) ─────────────────────────
+    async function enrichItemImages(order) {
+        const itemsMissingImage = (order.items || []).filter(i => !i.image && i.productId);
+        if (!itemsMissingImage.length) return;
+        await Promise.allSettled(itemsMissingImage.map(async item => {
+            try {
+                const r = await fetch(`/api/catalog/products/${item.productId}`);
+                if (!r.ok) return;
+                const p = await r.json();
+                item.image = (p.images || [])[0] || '';
+            } catch {}
+        }));
+    }
+
+    // ── Render billing address ────────────────────────────────────────────────
+    function renderBillingAddress(order) {
+        const addr = order.billingAddress;
+        if (!addr || !addr.street) return;
+        // Only show if different from shipping
+        const sa = order.shippingAddress;
+        const same = sa && sa.street === addr.street && sa.city === addr.city;
+        if (same) return;
+        document.getElementById('billing-card').style.display = 'block';
+        document.getElementById('billing-block').innerHTML = `
+            <strong>${addr.street}</strong><br>
+            ${addr.city}${addr.zip ? ', ' + addr.zip : ''}<br>
+            ${addr.country || ''}
+        `;
+    }
+
+    // ── Render delivery info ──────────────────────────────────────────────────
+    function renderDelivery(order) {
+        const row = document.getElementById('delivery-row');
+        const el  = document.getElementById('summary-delivery');
+        if (!row || !el) return;
+        if (order.deliverySpeed === 'fast') {
+            const fee = order.deliveryFee ? `+$${(order.deliveryFee / 100).toFixed(2)}` : '';
+            el.innerHTML = `<i class="fa fa-bolt" style="color:#f59e0b; margin-right:0.3rem;"></i> Fast Delivery ${fee}`;
+            row.style.display = 'flex';
+        } else if (order.deliverySpeed === 'standard') {
+            el.textContent = 'Standard (Free)';
+            row.style.display = 'flex';
+        }
+    }
+
+    // ── Render cancellation reason ────────────────────────────────────────────
+    function renderCancellationReason(order) {
+        if (order.status !== 'cancelled' || !order.cancellationReason) return;
+        // Only show the auto-cancellation card — not for user-initiated cancels
+        const wasAutoCancelled = !order.timeline.some(t => t.status === 'paid');
+        if (!wasAutoCancelled) return;
+        const card = document.getElementById('cancellation-reason-card');
+        const text = document.getElementById('cancellation-reason-text');
+        if (card && text) {
+            text.textContent = order.cancellationReason;
+            card.style.display = 'block';
+        }
+    }
+
+    // ── S33 — Order notes ─────────────────────────────────────────────────────
+    function renderNotes(order) {
+        const isBuyer  = order.buyerId?.toString() === user.sub;
+        const isSeller = user.storeActive && order.items.some(i => i.sellerId?.toString() === user.storeId);
+        const isAdmin  = user.role === 'admin';
+        if (!isBuyer && !isSeller && !isAdmin) return;
+
+        const card = document.getElementById('notes-card');
+        const body = document.getElementById('notes-body');
+        let html   = '';
+
+        if (order.buyerNote) {
+            const label = isBuyer ? 'Your note to seller' : "Buyer's note";
+            html += `<div style="margin-bottom:${(isSeller || isAdmin) ? '1rem' : '0'}; font-size:0.875rem;">
+                <div style="font-weight:600; font-size:0.78rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.35rem;">${label}</div>
+                <div style="padding:0.65rem 0.9rem; background:var(--bg-secondary); border-radius:8px; line-height:1.5;">${escHtml(order.buyerNote)}</div>
+            </div>`;
+        }
+
+        if (isSeller || isAdmin) {
+            if (order.sellerNote) {
+                html += `<div style="margin-bottom:1rem; font-size:0.875rem;">
+                    <div style="font-weight:600; font-size:0.78rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.35rem;">Your note to buyer</div>
+                    <div style="padding:0.65rem 0.9rem; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; line-height:1.5;">${escHtml(order.sellerNote)}</div>
+                </div>`;
+            }
+            if (isSeller && !['cancelled','delivered','refunded'].includes(order.status)) {
+                const btnLabel = order.sellerNote ? 'Update note' : 'Add note to buyer';
+                html += `<div>
+                    <label style="font-size:0.78rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:0.35rem;">${btnLabel}</label>
+                    <textarea id="seller-note-input" rows="3" style="font-size:0.85rem; border-radius:8px; resize:vertical; width:100%;" placeholder="Visible to buyer — e.g. handling instructions, dispatch date…">${escHtml(order.sellerNote || '')}</textarea>
+                    <button onclick="submitNote()" style="margin-top:0.5rem; padding:0.45rem 1rem; border-radius:7px; background:var(--accent-red); color:white; font-size:0.82rem; font-weight:600; border:none; cursor:pointer;">
+                        <i class="fa fa-save" style="margin-right:0.4rem;"></i> Save Note
+                    </button>
+                </div>`;
+            }
+        }
+
+        if (!html) return;
+        body.innerHTML = html;
+        card.style.display = 'block';
+    }
+
+    async function submitNote() {
+        const input = document.getElementById('seller-note-input');
+        if (!input) return;
+        const note = input.value.trim();
+        try {
+            const res = await fetch(`/api/orders/${ORDER_ID}/note`, {
+                method:  'PATCH',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body:    JSON.stringify({ sellerNote: note })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            showToast('Note saved.', 'success');
+            _order.sellerNote = note;
+            renderNotes(_order);
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    // ── Load order ────────────────────────────────────────────────────────────
+    async function loadOrder() {
+        try {
+            const res = await fetch(`/api/orders/${ORDER_ID}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (res.status === 401) { window.location.replace('/login'); return; }
+            if (res.status === 403) {
+                showError('Access Denied', 'You do not have permission to view this order.');
+                return;
+            }
+            if (res.status === 404) {
+                showError('Order Not Found', 'This order does not exist or has been removed.');
+                return;
+            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            _order = await res.json();
+            window._currentOrder = _order;  // expose for openOrderThread()
+
+            // Page heading
+            document.getElementById('page-title').textContent = `Order #${'…' + _order._id.slice(-8)}`;
+            const sc = statusClass(_order.status);
+            document.getElementById('status-badge-header').innerHTML = `<span class="status-badge ${sc}">${_order.status}</span>`;
+
+            // Summary card
+            document.getElementById('summary-id').textContent = '…' + _order._id.slice(-12);
+            document.getElementById('summary-date').textContent = formatDateShort(_order.createdAt);
+            document.getElementById('summary-status').innerHTML = `<span class="status-badge ${sc}">${_order.status}</span>`;
+            document.getElementById('summary-total').textContent = formatPrice(_order.totalAmount || _order.totalCents);
+
+            // Enrich items with product images where missing (best-effort parallel fetch)
+            await enrichItemImages(_order);
+
+            // Render sections
+            renderItems(_order);
+            renderAddress(_order);
+            renderBillingAddress(_order);
+            renderTimeline(_order);
+            renderActions(_order);
+            showShipmentForm(_order);
+            renderDelivery(_order);
+            renderCancellationReason(_order);
+            renderNotes(_order);
+
+            // Load shipment if shipped or delivered
+            if (['shipped', 'delivered'].includes(_order.status)) {
+                await loadShipment();
+            }
+
+            // Seller: load buyer trust score
+            const viewerIsSeller = user.storeActive === true;
+            if (viewerIsSeller && _order.buyerId) {
+                loadBuyerScore(_order.buyerId);
+            }
+
+            // S21 — load escrow status card (best-effort — hides silently if not a party)
+            loadEscrowCard(_order);
+
+            // Show content
+            document.getElementById('loading-skeleton').style.display = 'none';
+            document.getElementById('order-content').style.display = 'grid';
+
+        } catch (err) {
+            showError('Failed to Load Order', err.message);
+        }
+    }
+
+    // ── Buyer trust score (seller view) ──────────────────────────────────────
+    async function loadBuyerScore(buyerId) {
+        try {
+            const res = await fetch(`/api/users/${buyerId}/buyer-score`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) return;
+            const { buyerScore, reviewsWritten } = await res.json();
+            const card = document.getElementById('buyer-score-card');
+            const body = document.getElementById('buyer-score-body');
+            let badgeColor, badgeText, badgeIcon;
+            if (buyerScore >= 80) {
+                badgeColor = '#15803d'; badgeText = 'Trusted';    badgeIcon = 'fa-check-circle';
+            } else if (buyerScore >= 60) {
+                badgeColor = '#1d4ed8'; badgeText = 'Established'; badgeIcon = 'fa-user-check';
+            } else {
+                badgeColor = '#6b7280'; badgeText = 'New';         badgeIcon = 'fa-user';
+            }
+            body.innerHTML = `
+                <div style="display:flex; align-items:center; gap:0.85rem;">
+                    <div style="font-size:2rem; font-weight:800; color:${badgeColor};">${buyerScore}</div>
+                    <div>
+                        <div style="font-size:0.82rem; font-weight:700; color:${badgeColor};">
+                            <i class="fa ${badgeIcon}" style="margin-right:0.3rem;"></i>${badgeText} Buyer
+                        </div>
+                        <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.15rem;">${reviewsWritten} review${reviewsWritten !== 1 ? 's' : ''} written</div>
+                    </div>
+                </div>
+                <div style="margin-top:0.75rem; font-size:0.72rem; color:var(--text-muted); line-height:1.5;">
+                    ${buyerScore >= 80
+                        ? 'This buyer has an excellent review history. Low dispute risk.'
+                        : buyerScore >= 60
+                        ? 'This buyer has a moderate review history. Generally reliable.'
+                        : 'This buyer is new or has limited review history. Exercise normal caution for COD orders.'}
+                </div>`;
+            card.style.display = 'block';
+        } catch {}
+    }
+
+    // ── Load shipment ─────────────────────────────────────────────────────────
+    async function loadShipment() {
+        try {
+            const res = await fetch(`/api/shipping/order/${ORDER_ID}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                _shipment = await res.json();
+                renderTracking(_shipment);
+            }
+        } catch {}
+    }
+
+    // ── Submit shipment ───────────────────────────────────────────────────────
+    async function submitShipment(e) {
+        e.preventDefault();
+        const btn = document.getElementById('ship-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Processing...';
+
+        const fd = new FormData(e.target);
+        try {
+            const res = await fetch('/api/shipping', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    orderId:           ORDER_ID,
+                    carrier:           fd.get('carrier'),
+                    trackingNumber:    fd.get('trackingNumber'),
+                    estimatedDelivery: fd.get('estimatedDelivery'),
+                    sellerId:          user.storeId
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+            showToast('Shipment created — order marked as shipped!', 'success');
+            document.getElementById('shipment-form-card').style.display = 'none';
+            // Reload to reflect new status
+            setTimeout(() => window.location.reload(), 800);
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa fa-paper-plane" style="margin-right:0.5rem;"></i> Mark as Shipped';
+        }
+    }
+
+    // ── Accept order (seller: pending → processing) ───────────────────────────
+    async function acceptOrder() {
+        if (!confirm('Confirm this order? You are committing to fulfil it.')) return;
+        try {
+            const res = await fetch(`/api/orders/${ORDER_ID}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ status: 'processing' })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+            showToast('Order confirmed — now processing.', 'success');
+            setTimeout(() => window.location.reload(), 800);
+        } catch (err) { showToast('Error: ' + err.message, 'error'); }
+    }
+
+    // ── Mark delivered (seller: shipped → delivered, COD) ────────────────────
+    async function deliverOrder() {
+        if (!confirm('Confirm the buyer received this order and payment was collected?')) return;
+        try {
+            const res = await fetch(`/api/orders/${ORDER_ID}/deliver`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({})
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+            showToast('Order marked as delivered!', 'success');
+            setTimeout(() => window.location.reload(), 800);
+        } catch (err) { showToast('Error: ' + err.message, 'error'); }
+    }
+
+    // ── Fulfillment type transitions — pickup / self_fulfilled (S23) ─────────────
+    async function advanceFulfillment(status) {
+        const labels = {
+            ready_for_pickup: 'mark this order as ready for pickup',
+            picked_up:        'confirm the buyer has collected this order',
+            self_fulfilled:   'mark this order as fulfilled'
+        };
+        if (!confirm(`Are you sure you want to ${labels[status] || status}? This cannot be undone.`)) return;
+        try {
+            const res = await fetch(`/api/orders/${ORDER_ID}/status`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ status })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            showToast('Order updated successfully.', 'success');
+            setTimeout(() => window.location.reload(), 800);
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    // ── Cancel order ──────────────────────────────────────────────────────────
+    async function cancelOrder() {
+        const reason = (document.getElementById('cancel-reason-input')?.value || '').trim();
+        if (!confirm('Cancel this order? This cannot be undone.')) return;
+        try {
+            const res = await fetch(`/api/orders/${ORDER_ID}/status`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ status: 'cancelled', cancellationReason: reason })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            showToast('Order cancelled.', 'info');
+            setTimeout(() => window.location.reload(), 800);
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    // ── Review modal ──────────────────────────────────────────────────────────
+    function openReviewModal(productId, productName) {
+        _reviewProductId = productId;
+        _reviewProductName = productName;
+        _selectedRating = 0;
+        document.getElementById('review-product-name').textContent = productName;
+        document.getElementById('review-body').value = '';
+        updateStars(0);
+        document.getElementById('review-modal').classList.add('open');
+    }
+
+    function closeReviewModal() {
+        document.getElementById('review-modal').classList.remove('open');
+    }
+
+    function handleReviewModalClick(e) {
+        if (e.target === document.getElementById('review-modal')) closeReviewModal();
+    }
+
+    function setRating(val) {
+        _selectedRating = val;
+        updateStars(val);
+    }
+
+    function updateStars(val) {
+        document.querySelectorAll('#star-group .star').forEach((s, i) => {
+            s.classList.toggle('filled', i < val);
+        });
+    }
+
+    async function submitReview() {
+        if (!_selectedRating) { showToast('Please select a star rating.', 'error'); return; }
+        const body = document.getElementById('review-body').value.trim();
+        if (!body) { showToast('Please write a review.', 'error'); return; }
+
+        const btn = document.getElementById('review-submit-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Submitting...';
+
+        try {
+            const res = await fetch('/api/reviews', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    orderId:   ORDER_ID,
+                    productId: _reviewProductId,
+                    rating:    _selectedRating,
+                    body
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+            _reviewed.add(_reviewProductId);
+            closeReviewModal();
+            showToast('Review submitted — thank you!', 'success');
+            renderItems(_order); // Re-render items to mark as reviewed
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = 'Submit Review';
+        }
+    }
+
+    // ── Error state ───────────────────────────────────────────────────────────
+    function showError(title, msg) {
+        document.getElementById('loading-skeleton').style.display = 'none';
+        document.getElementById('error-title').textContent = title;
+        document.getElementById('error-msg').textContent = msg;
+        document.getElementById('error-state').style.display = 'block';
+    }
+
+    // ── S21 — Escrow status card ──────────────────────────────────────────────
+    async function loadEscrowCard(order) {
+        const card = document.getElementById('payment-status-card');
+        const body = document.getElementById('payment-status-body');
+        const badgeEl = document.getElementById('payment-status-badge');
+        if (!card || !body) return;
+
+        try {
+            const res = await fetch(`/api/payments/escrow/${order._id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) return; // not a party to this escrow — hide card silently
+
+            const esc = await res.json();
+            card.style.display = 'block';
+
+            const amountCents = esc.amountCents ?? esc.amount ?? 0;
+            const isBuyer  = esc.buyerId?.toString() === user.sub;
+            const isSeller = user.storeActive && (esc.sellerPayouts || []).some(
+                p => p.sellerId?.toString() === user.storeId
+            );
+            const isAdmin  = user.role === 'admin';
+
+            // Status badge colors
+            const ESCROW_STATUS_COLORS = {
+                held:        { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+                cod_pending: { bg: '#fefce8', color: '#a16207', border: '#fde68a' },
+                disputed:    { bg: '#fef2f2', color: '#b91c1c', border: '#fecaca' },
+                released:    { bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
+                refunded:    { bg: '#f5f3ff', color: '#6d28d9', border: '#ddd6fe' }
+            };
+            const ESCROW_STATUS_LABELS = {
+                held:        'In Escrow',
+                cod_pending: 'COD Pending',
+                disputed:    'Disputed',
+                released:    'Released',
+                refunded:    'Refunded'
+            };
+            const sc = ESCROW_STATUS_COLORS[esc.status] || ESCROW_STATUS_COLORS.held;
+            badgeEl.innerHTML = `<span style="display:inline-block; padding:0.2rem 0.6rem; border-radius:12px; font-size:0.72rem; font-weight:700; background:${sc.bg}; color:${sc.color}; border:1px solid ${sc.border};">${ESCROW_STATUS_LABELS[esc.status] || esc.status}</span>`;
+
+            let html = '';
+
+            // Payment method row
+            const methodLabel = esc.paymentMethod === 'cod' ? 'Cash on Delivery' : 'Escrow';
+            html += `<div style="display:flex; justify-content:space-between; font-size:0.82rem; margin-bottom:0.6rem;">
+                <span style="color:var(--text-muted);">Method</span>
+                <span style="font-weight:600;">${methodLabel}</span>
+            </div>`;
+
+            // Amount
+            html += `<div style="display:flex; justify-content:space-between; font-size:0.82rem; margin-bottom:0.6rem;">
+                <span style="color:var(--text-muted);">Total</span>
+                <span style="font-weight:600;">${window.formatCurrency ? formatCurrency(amountCents) : '$' + (amountCents / 100).toFixed(2)}</span>
+            </div>`;
+
+            // Buyer view: dispute window countdown and dispute button
+            if (isBuyer && esc.status === 'held' && esc.disputeWindowExpiresAt) {
+                const expiresAt = new Date(esc.disputeWindowExpiresAt);
+                const now = Date.now();
+                const msLeft = expiresAt - now;
+                if (msLeft > 0) {
+                    const hoursLeft = Math.floor(msLeft / 3600000);
+                    const minsLeft  = Math.floor((msLeft % 3600000) / 60000);
+                    html += `<div style="margin:0.75rem 0; padding:0.6rem 0.75rem; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; font-size:0.78rem; color:#1d4ed8;">
+                        <i class="fa fa-clock" style="margin-right:0.4rem;"></i>
+                        Dispute window closes in <strong>${hoursLeft}h ${minsLeft}m</strong>
+                    </div>
+                    <button onclick="fileDispute()" style="width:100%; padding:0.55rem; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c; font-size:0.82rem; font-weight:700; cursor:pointer; margin-top:0.4rem;">
+                        <i class="fa fa-exclamation-circle" style="margin-right:0.4rem;"></i> File a Dispute
+                    </button>`;
+                } else {
+                    html += `<div style="margin:0.5rem 0; font-size:0.78rem; color:var(--text-muted);">
+                        <i class="fa fa-clock" style="margin-right:0.3rem;"></i> Dispute window has closed
+                    </div>`;
+                }
+            }
+
+            // Buyer COD view
+            if (isBuyer && esc.status === 'cod_pending') {
+                html += `<div style="margin:0.75rem 0; padding:0.6rem 0.75rem; background:#fefce8; border:1px solid #fde68a; border-radius:8px; font-size:0.78rem; color:#a16207;">
+                    <i class="fa fa-coins" style="margin-right:0.4rem;"></i>
+                    Pay on Delivery — payment due at collection
+                </div>`;
+            }
+
+            // Released date
+            if (esc.releasedAt) {
+                html += `<div style="display:flex; justify-content:space-between; font-size:0.78rem; margin-top:0.5rem; color:var(--text-muted);">
+                    <span>Released</span>
+                    <span>${new Date(esc.releasedAt).toLocaleDateString()}</span>
+                </div>`;
+            }
+
+            // Seller view: net payout
+            if (isSeller) {
+                const payout = (esc.sellerPayouts || []).find(p => p.sellerId?.toString() === user.storeId);
+                if (payout) {
+                    const net = payout.netAmountCents ?? payout.amountCents ?? payout.amount ?? 0;
+                    const fee = payout.platformFeeCents ?? 0;
+                    html += `<hr style="border:none; border-top:1px solid var(--border-light); margin:0.75rem 0;">
+                    <div style="font-size:0.78rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase; letter-spacing:0.04em;">Your Payout</div>
+                    <div style="display:flex; justify-content:space-between; font-size:0.82rem; margin-bottom:0.4rem;">
+                        <span style="color:var(--text-muted);">Gross</span>
+                        <span>${window.formatCurrency ? formatCurrency(payout.amountCents ?? payout.amount ?? 0) : '$' + ((payout.amountCents ?? payout.amount ?? 0) / 100).toFixed(2)}</span>
+                    </div>`;
+                    if (fee > 0) {
+                        html += `<div style="display:flex; justify-content:space-between; font-size:0.82rem; margin-bottom:0.4rem;">
+                            <span style="color:var(--text-muted);">Platform fee (${esc.feePercent || 0}%)</span>
+                            <span style="color:#b91c1c;">-${window.formatCurrency ? formatCurrency(fee) : '$' + (fee / 100).toFixed(2)}</span>
+                        </div>`;
+                    }
+                    html += `<div style="display:flex; justify-content:space-between; font-size:0.9rem; font-weight:700; margin-top:0.3rem;">
+                        <span>Net</span>
+                        <span style="color:#15803d;">${window.formatCurrency ? formatCurrency(net) : '$' + (net / 100).toFixed(2)}</span>
+                    </div>
+                    <div style="margin-top:0.5rem; font-size:0.78rem; color:var(--text-muted);">
+                        Status: <strong>${payout.released ? 'Released' : 'Pending release'}</strong>
+                    </div>`;
+                }
+            }
+
+            body.innerHTML = html;
+        } catch {}
+    }
+
+    async function fileDispute() {
+        if (!confirm('File a payment dispute for this order? Payment will be held until an admin reviews it.')) return;
+        try {
+            const res = await fetch(`/api/payments/dispute/${ORDER_ID}`, {
+                method:  'POST',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            showToast('Dispute filed. Admin will review shortly.', 'success');
+            setTimeout(() => loadEscrowCard(_order), 500);
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    // ── Boot ─────────────────────────────────────────────────────────────────
+    loadOrder();
+</script>
+</body>
+</html>

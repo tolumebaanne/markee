@@ -1,0 +1,314 @@
+<!-- Messages Tab: thread moderation, flagged, disputes, bans -->
+<div class="tab-panel" id="tab-messages">
+  <div class="page-header">
+    <h2>Messages</h2>
+    <span id="msg-count" style="color:var(--muted);font-size:.85rem"></span>
+  </div>
+
+  <!-- Sub-tabs -->
+  <div class="sub-tabs">
+    <button class="sub-tab active" onclick="switchSubTab('msg','all',this);loadAllThreads(1)">All Threads</button>
+    <button class="sub-tab" onclick="switchSubTab('msg','flagged',this);if(!this.dataset.loaded){this.dataset.loaded=1;loadFlaggedThreads();}">Flagged</button>
+    <button class="sub-tab" onclick="switchSubTab('msg','disputes',this);if(!this.dataset.loaded){this.dataset.loaded=1;loadDisputeThreads();}">Disputes</button>
+    <button class="sub-tab" onclick="switchSubTab('msg','banned',this);if(!this.dataset.loaded){this.dataset.loaded=1;loadBannedUsers();}">Banned Users</button>
+  </div>
+
+  <!-- Sub-panel: All Threads -->
+  <div id="msg-all" class="sub-panel" style="display:block">
+    <div id="msg-all-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Thread ID</th><th>Buyer</th><th>Seller</th><th>Subject</th><th>Priority</th><th>Flagged</th><th>Status</th><th>Last Activity</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="msg-all-body"></tbody>
+      </table>
+    </div>
+    <div id="msg-all-pagination" style="display:flex;align-items:center;gap:10px;margin-top:1rem;font-size:.85rem"></div>
+  </div>
+
+  <!-- Sub-panel: Flagged Threads -->
+  <div id="msg-flagged" class="sub-panel" style="display:none">
+    <div id="msg-flagged-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Thread ID</th><th>Buyer</th><th>Seller</th><th>Subject</th><th>Priority</th><th>Status</th><th>Last Activity</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="msg-flagged-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Sub-panel: Dispute Threads -->
+  <div id="msg-disputes" class="sub-panel" style="display:none">
+    <div id="msg-disputes-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Thread ID</th><th>Buyer</th><th>Seller</th><th>Subject</th><th>Priority</th><th>Status</th><th>Last Activity</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="msg-disputes-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Sub-panel: Banned Users -->
+  <div id="msg-banned" class="sub-panel" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+      <span style="color:var(--muted);font-size:.85rem">Users banned from messaging</span>
+      <button class="btn btn-sm btn-danger" onclick="banMessagingUser()"><i class="fas fa-gavel"></i> Ban User</button>
+    </div>
+    <div id="msg-banned-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>User ID</th><th>Reason</th><th>Ban Type</th><th>Expires At</th><th>Banned At</th><th>Actions</th></tr></thead>
+        <tbody id="msg-banned-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Inject System Message Modal -->
+<div class="modal-overlay" id="injectMsgModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-paper-plane"></i> Inject System Message</h3>
+      <button class="modal-close" onclick="closeModal('injectMsgModal')">&times;</button>
+    </div>
+    <div style="padding:1.25rem">
+      <div class="form-group">
+        <label style="font-size:.8rem;color:var(--muted)">Thread ID</label>
+        <div id="inject-thread-id" style="font-family:monospace;font-size:.82rem;background:var(--surface2);padding:8px 12px;border-radius:6px;border:1px solid var(--border)"></div>
+      </div>
+      <div class="form-group">
+        <label for="inject-content">Message Content</label>
+        <textarea id="inject-content" rows="4" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);resize:vertical;font-family:inherit" placeholder="Enter admin message to inject into the thread…"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="inject-type">Message Type</label>
+        <select id="inject-type" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text)">
+          <option value="warning">Warning</option>
+          <option value="info">Info</option>
+          <option value="resolution">Resolution</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-sm btn-primary" onclick="submitInjectMessage()"><i class="fas fa-paper-plane"></i> Inject</button>
+      <button class="btn btn-sm btn-ghost" onclick="closeModal('injectMsgModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let _msgPage = 1;
+const _msgLimit = 20;
+let _msgTotal = 0;
+let _injectThreadId = null;
+
+function loadMessages() {
+  loadAllThreads(1);
+}
+
+async function loadAllThreads(page) {
+  _msgPage = page || 1;
+  hideErr('msg-all-error');
+  const tbody = document.getElementById('msg-all-body');
+  tbody.innerHTML = '<tr><td colspan="9" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading threads…</td></tr>';
+  try {
+    const data = await adminApi('GET', `/proxy/messages/threads?page=${_msgPage}&limit=${_msgLimit}`);
+    const threads = data.threads || [];
+    _msgTotal = data.total || threads.length;
+    document.getElementById('msg-count').textContent = `${_msgTotal} threads`;
+    if (!threads.length) {
+      tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No threads found.</td></tr>';
+      document.getElementById('msg-all-pagination').innerHTML = '';
+      return;
+    }
+    tbody.innerHTML = threads.map(t => _threadRow(t, true)).join('');
+    const totalPages = Math.ceil(_msgTotal / _msgLimit);
+    const start = (_msgPage - 1) * _msgLimit + 1;
+    const end = Math.min(_msgPage * _msgLimit, _msgTotal);
+    document.getElementById('msg-all-pagination').innerHTML = `
+      <span>Showing ${start}–${end} of ${_msgTotal}</span>
+      <button class="btn btn-xs btn-ghost" onclick="loadAllThreads(${_msgPage-1})" ${_msgPage<=1?'disabled':''}>‹ Prev</button>
+      <span>Page ${_msgPage}/${totalPages}</span>
+      <button class="btn btn-xs btn-ghost" onclick="loadAllThreads(${_msgPage+1})" ${_msgPage>=totalPages?'disabled':''}>Next ›</button>`;
+  } catch(err) {
+    showErr('msg-all-error', err.message);
+    tbody.innerHTML = '';
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+async function loadFlaggedThreads() {
+  hideErr('msg-flagged-error');
+  const tbody = document.getElementById('msg-flagged-body');
+  tbody.innerHTML = '<tr><td colspan="8" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
+  try {
+    const data = await adminApi('GET', '/proxy/messages/threads/flagged');
+    const threads = data.threads || (Array.isArray(data) ? data : []);
+    if (!threads.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No flagged threads.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = threads.map(t => _threadRow(t, false, true)).join('');
+  } catch(err) {
+    showErr('msg-flagged-error', err.message);
+    tbody.innerHTML = '';
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+async function loadDisputeThreads() {
+  hideErr('msg-disputes-error');
+  const tbody = document.getElementById('msg-disputes-body');
+  tbody.innerHTML = '<tr><td colspan="8" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
+  try {
+    const data = await adminApi('GET', '/proxy/messages/threads/disputes');
+    const threads = data.threads || (Array.isArray(data) ? data : []);
+    if (!threads.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No dispute threads.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = threads.map(t => _threadRow(t, false)).join('');
+  } catch(err) {
+    showErr('msg-disputes-error', err.message);
+    tbody.innerHTML = '';
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+async function loadBannedUsers() {
+  hideErr('msg-banned-error');
+  const tbody = document.getElementById('msg-banned-body');
+  tbody.innerHTML = '<tr><td colspan="6" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
+  try {
+    const data = await adminApi('GET', '/proxy/messages/banned-users');
+    const bans = data.bans || (Array.isArray(data) ? data : []);
+    if (!bans.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No messaging bans active.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = bans.map(b => `
+      <tr>
+        <td style="font-family:monospace;font-size:.74rem">${trunc(b.userId,20)}</td>
+        <td title="${b.reason||''}">${trunc(b.reason||'—',30)}</td>
+        <td><span style="background:${b.type==='permanent'?'#ef444422':'#f59e0b22'};color:${b.type==='permanent'?'#ef4444':'#f59e0b'};border:1px solid ${b.type==='permanent'?'#ef444444':'#f59e0b44'};padding:2px 8px;border-radius:9999px;font-size:.7rem;font-weight:600;text-transform:capitalize">${b.type||'temporary'}</span></td>
+        <td style="font-size:.8rem">${b.expiresAt ? fmtDate(b.expiresAt) : 'Never'}</td>
+        <td style="font-size:.8rem">${fmtDate(b.bannedAt)}</td>
+        <td><button class="btn btn-xs btn-success" onclick="liftMessagingBan('${b.userId}')"><i class="fas fa-unlock"></i> Lift Ban</button></td>
+      </tr>`).join('');
+  } catch(err) {
+    showErr('msg-banned-error', err.message);
+    tbody.innerHTML = '';
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+function _priorityBadge(priority) {
+  const map = {urgent:'#ef4444', high:'#f59e0b', normal:'var(--muted)'};
+  const color = map[priority] || 'var(--muted)';
+  return `<span style="color:${color};font-weight:600;font-size:.75rem;text-transform:capitalize">${priority||'normal'}</span>`;
+}
+
+function _threadRow(t, showFlagCol, flagged) {
+  const actions = `<div class="btn-gap">
+    <button class="btn btn-xs btn-warn" onclick="suspendThread('${t._id}')"><i class="fas fa-pause-circle"></i> Suspend</button>
+    <button class="btn btn-xs btn-info" onclick="openInjectModal('${t._id}')"><i class="fas fa-paper-plane"></i> Inject</button>
+  </div>`;
+  const flagStyle = flagged ? 'border-left:3px solid #f59e0b;' : '';
+  return `<tr style="${flagStyle}">
+    <td style="font-family:monospace;font-size:.72rem">${trunc(t._id,16)}</td>
+    <td style="font-family:monospace;font-size:.72rem">${trunc(t.buyerId,14)}</td>
+    <td style="font-family:monospace;font-size:.72rem">${trunc(t.sellerId,14)}</td>
+    <td title="${t.subject||''}">${trunc(t.subject||'(no subject)',26)}</td>
+    <td>${_priorityBadge(t.priority)}</td>
+    ${showFlagCol ? `<td>${t.isFlagged ? '<span style="color:#f59e0b">⚑</span>' : '—'}</td>` : ''}
+    <td>${badge(t.status)}</td>
+    <td style="font-size:.78rem">${fmtDate(t.updatedAt)}</td>
+    <td>${actions}</td>
+  </tr>`;
+}
+
+async function suspendThread(threadId) {
+  const {confirmed, reason} = await showConfirm({title:'Suspend Thread?', body:'This will lock the thread and prevent further messages.', withReason:true, danger:true});
+  if (!confirmed || !reason) return;
+  try {
+    await adminApi('PATCH', `/proxy/messages/thread/${threadId}/suspend`, {reason});
+    toast('Thread suspended', 'warn');
+    loadAllThreads(_msgPage);
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+function openInjectModal(threadId) {
+  _injectThreadId = threadId;
+  document.getElementById('inject-thread-id').textContent = threadId;
+  document.getElementById('inject-content').value = '';
+  document.getElementById('inject-type').value = 'warning';
+  openModal('injectMsgModal');
+}
+
+async function submitInjectMessage() {
+  const content = document.getElementById('inject-content').value.trim();
+  const type = document.getElementById('inject-type').value;
+  if (!content) { toast('Message content is required', 'warn'); return; }
+  if (!_injectThreadId) { toast('No thread selected', 'error'); return; }
+  try {
+    await adminApi('POST', `/proxy/messages/thread/${_injectThreadId}/system-message`, {content, type});
+    toast('System message injected', 'success');
+    closeModal('injectMsgModal');
+    _injectThreadId = null;
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function banMessagingUser() {
+  const {confirmed, selected, reason} = await showConfirm({
+    title: 'Ban User from Messaging',
+    body: 'Enter the user ID to ban and select ban type:',
+    withSelect: true,
+    selectLabel: 'Ban Type',
+    selectOptions: [
+      {value:'temporary', label:'Temporary'},
+      {value:'permanent', label:'Permanent'}
+    ],
+    withReason: true,
+    danger: true
+  });
+  if (!confirmed) return;
+
+  // Prompt for user ID via a second confirm (input workaround)
+  const userId = window.prompt('Enter User ID to ban:');
+  if (!userId || !userId.trim()) { toast('User ID is required', 'warn'); return; }
+  if (!reason) { toast('Reason is required', 'warn'); return; }
+
+  const body = {reason, type: selected || 'temporary'};
+  if (selected === 'temporary') {
+    const hours = parseInt(window.prompt('Expires in how many hours? (leave blank for 168 = 1 week)') || '168');
+    if (hours > 0) {
+      const exp = new Date(Date.now() + hours * 3600000).toISOString();
+      body.expiresAt = exp;
+    }
+  }
+
+  try {
+    await adminApi('POST', `/proxy/messages/ban/${userId.trim()}`, body);
+    toast(`User ${userId.trim()} banned from messaging`, 'warn');
+    const bannedTab = document.querySelector('[onclick*="msg-banned"]');
+    if (bannedTab) { bannedTab.dataset.loaded = ''; }
+    loadBannedUsers();
+    switchSubTab('msg','banned', document.querySelector('.sub-tab[onclick*="msg-banned"]'));
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function liftMessagingBan(userId) {
+  const {confirmed} = await showConfirm({title:'Lift Messaging Ban?', body:`Remove messaging ban for user: ${userId}`});
+  if (!confirmed) return;
+  try {
+    await adminApi('DELETE', `/proxy/messages/ban/${userId}`);
+    toast('Messaging ban lifted', 'success');
+    loadBannedUsers();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+</script>

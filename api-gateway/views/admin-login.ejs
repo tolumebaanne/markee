@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login | Markee</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js"></script>
+    <style>
+        body { background: #0f172a; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .admin-login-wrap {
+            width: 100%;
+            max-width: 400px;
+            padding: 1rem;
+        }
+        .admin-login-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 2.5rem 2rem;
+            color: #f1f5f9;
+        }
+        .admin-login-logo {
+            text-align: center;
+            margin-bottom: 1.75rem;
+        }
+        .admin-login-logo .logo-mark {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 56px; height: 56px;
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            border-radius: 14px;
+            margin-bottom: 0.75rem;
+        }
+        .admin-login-logo .logo-mark i { font-size: 1.5rem; color: white; }
+        .admin-login-logo h2 { font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin: 0 0 0.25rem; }
+        .admin-login-logo p  { font-size: 0.78rem; color: #94a3b8; margin: 0; }
+        .form-group { margin-bottom: 1.1rem; }
+        .form-group label { display: block; font-size: 0.78rem; font-weight: 600; color: #94a3b8; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .form-group input {
+            width: 100%; padding: 0.7rem 0.9rem;
+            background: #0f172a; border: 1px solid #334155;
+            border-radius: 8px; color: #f1f5f9; font-size: 0.9rem;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus { outline: none; border-color: #ef4444; }
+        .btn-admin-login {
+            width: 100%; padding: 0.75rem;
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            border: none; border-radius: 8px;
+            color: white; font-size: 0.9rem; font-weight: 700;
+            cursor: pointer; transition: opacity 0.2s;
+            margin-top: 0.5rem;
+        }
+        .btn-admin-login:hover { opacity: 0.9; }
+        .btn-admin-login:disabled { opacity: 0.5; cursor: default; }
+        .step { display: none; }
+        .step.active { display: block; }
+        .mfa-hint { font-size: 0.78rem; color: #64748b; text-align: center; margin-top: 0.75rem; }
+        .mfa-hint a { color: #94a3b8; cursor: pointer; text-decoration: underline; }
+        .security-badge {
+            display: flex; align-items: center; gap: 0.5rem;
+            font-size: 0.73rem; color: #475569; text-align: center;
+            justify-content: center; margin-top: 1.5rem; padding-top: 1.25rem;
+            border-top: 1px solid #1e293b;
+        }
+        .back-link { font-size: 0.78rem; color: #64748b; text-align: center; margin-top: 1rem; }
+        .back-link a { color: #94a3b8; text-decoration: none; }
+        .back-link a:hover { color: #f1f5f9; }
+        .err-msg { background: #450a0a; border: 1px solid #7f1d1d; border-radius: 8px; padding: 0.6rem 0.85rem; font-size: 0.82rem; color: #fca5a5; margin-bottom: 1rem; display: none; }
+    </style>
+</head>
+<body>
+<div class="admin-login-wrap">
+    <div class="admin-login-card">
+        <div class="admin-login-logo">
+            <div class="logo-mark"><i class="fa fa-shield-alt"></i></div>
+            <h2>Markee Admin</h2>
+            <p>Secure admin access — all sessions audited</p>
+        </div>
+
+        <div id="err-msg" class="err-msg"></div>
+
+        <!-- Step 1: Credentials -->
+        <div id="step1" class="step active">
+            <div class="form-group">
+                <label>Admin Email</label>
+                <input type="email" id="email" placeholder="admin@markee.internal" autocomplete="email" />
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="password" placeholder="••••••••••••" autocomplete="current-password" />
+            </div>
+            <button class="btn-admin-login" id="btn-step1" onclick="submitStep1()">
+                <i class="fa fa-arrow-right" style="margin-right:0.4rem;"></i> Continue
+            </button>
+        </div>
+
+        <!-- Step 2: MFA -->
+        <div id="step2" class="step">
+            <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:1.25rem;">
+                Enter the 6-digit code from your authenticator app.
+            </p>
+            <div class="form-group">
+                <label>Authenticator Code</label>
+                <input type="text" id="totp-code" placeholder="000000" maxlength="6"
+                       inputmode="numeric" autocomplete="one-time-code"
+                       style="font-size:1.4rem;letter-spacing:0.35em;text-align:center;" />
+            </div>
+            <button class="btn-admin-login" id="btn-step2" onclick="submitStep2()">
+                <i class="fa fa-lock" style="margin-right:0.4rem;"></i> Verify &amp; Login
+            </button>
+            <p class="mfa-hint">
+                Lost your device? <a onclick="showRecovery()">Use a recovery code</a>
+            </p>
+        </div>
+
+        <!-- Step 2 (recovery): Recovery code -->
+        <div id="step2-recovery" class="step">
+            <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:1.25rem;">
+                Enter one of your 8-character recovery codes (format: XXXX-XXXX).
+            </p>
+            <div class="form-group">
+                <label>Recovery Code</label>
+                <input type="text" id="recovery-code" placeholder="XXXX-XXXX" maxlength="9"
+                       style="font-family:monospace;font-size:1.1rem;letter-spacing:0.1em;text-align:center;" />
+            </div>
+            <button class="btn-admin-login" id="btn-recovery" onclick="submitRecovery()">
+                <i class="fa fa-key" style="margin-right:0.4rem;"></i> Use Recovery Code
+            </button>
+            <p class="mfa-hint">
+                <a onclick="showTotp()">Back to authenticator code</a>
+            </p>
+        </div>
+
+        <div class="security-badge">
+            <i class="fa fa-lock"></i>
+            JWT: 10min · Refresh: 4h · All actions logged
+        </div>
+    </div>
+    <div class="back-link"><a href="/">← Back to Markee</a></div>
+</div>
+
+<script>
+const ADMIN_URL = '/api/admin';
+let preAuthToken = null;
+
+function showErr(msg) {
+    const el = document.getElementById('err-msg');
+    el.textContent = msg; el.style.display = 'block';
+}
+function clearErr() { document.getElementById('err-msg').style.display = 'none'; }
+function setStep(name) {
+    ['step1','step2','step2-recovery'].forEach(id => {
+        document.getElementById(id).classList.remove('active');
+    });
+    document.getElementById(name).classList.add('active');
+    clearErr();
+}
+function showRecovery() { setStep('step2-recovery'); }
+function showTotp()     { setStep('step2'); }
+
+async function submitStep1() {
+    const email    = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    if (!email || !password) { showErr('Email and password are required.'); return; }
+    const btn = document.getElementById('btn-step1');
+    btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Checking...';
+    clearErr();
+
+    try {
+        const res  = await fetch(`${ADMIN_URL}/auth/step1`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) { showErr(data.message || 'Login failed.'); return; }
+
+        if (data.mfa_required) {
+            preAuthToken = data.pre_auth_token;
+            setStep('step2');
+            setTimeout(() => document.getElementById('totp-code').focus(), 100);
+        } else {
+            // No MFA — store tokens and redirect
+            storeAndRedirect(data);
+        }
+    } catch {
+        showErr('Unable to reach admin service. Is it running?');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa fa-arrow-right" style="margin-right:0.4rem;"></i> Continue';
+    }
+}
+
+async function submitStep2() {
+    const totpCode = document.getElementById('totp-code').value.trim();
+    if (totpCode.length !== 6) { showErr('Enter the 6-digit code from your authenticator app.'); return; }
+    await completeMfa({ pre_auth_token: preAuthToken, totp_code: totpCode });
+}
+
+async function submitRecovery() {
+    const code = document.getElementById('recovery-code').value.trim();
+    if (!code) { showErr('Enter your recovery code.'); return; }
+    await completeMfa({ pre_auth_token: preAuthToken, recovery_code: code });
+}
+
+async function completeMfa(body) {
+    const btnId = body.totp_code ? 'btn-step2' : 'btn-recovery';
+    const btn   = document.getElementById(btnId);
+    btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Verifying...';
+    clearErr();
+
+    try {
+        const res  = await fetch(`${ADMIN_URL}/auth/step2`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) { showErr(data.message || 'MFA verification failed.'); return; }
+        storeAndRedirect(data);
+    } catch {
+        showErr('Verification failed. Please try again.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = btn === document.getElementById('btn-step2')
+            ? '<i class="fa fa-lock" style="margin-right:0.4rem;"></i> Verify &amp; Login'
+            : '<i class="fa fa-key" style="margin-right:0.4rem;"></i> Use Recovery Code';
+    }
+}
+
+function storeAndRedirect(data) {
+    localStorage.setItem('admin_access_token',  data.access_token);
+    localStorage.setItem('admin_refresh_token', data.refresh_token);
+    localStorage.setItem('admin_is_superuser',  data.is_superuser ? 'true' : 'false');
+    window.location.replace('/admin');
+}
+
+// Enter key support
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const step1 = document.getElementById('step1');
+    const step2 = document.getElementById('step2');
+    const rec   = document.getElementById('step2-recovery');
+    if (step1.classList.contains('active')) submitStep1();
+    else if (step2.classList.contains('active')) submitStep2();
+    else if (rec.classList.contains('active')) submitRecovery();
+});
+</script>
+</body>
+</html>

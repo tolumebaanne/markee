@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory | Markee</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js"></script>
+    <script src="/js/cart.js"></script>
+    <style>
+        /* ── Page header ── */
+        .inv-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+        .inv-header h2 { margin: 0 0 0.2rem; }
+
+        /* ── Stats strip ── */
+        .inv-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .inv-stat {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            border-left: 4px solid var(--accent-red);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+        }
+        .inv-stat.green  { border-left-color: #15803d; }
+        .inv-stat.amber  { border-left-color: #d97706; }
+        .inv-stat.purple { border-left-color: #7c3aed; }
+        .inv-stat-val  { font-size: 1.6rem; font-weight: 700; line-height: 1; margin-bottom: 0.2rem; }
+        .inv-stat-lbl  { font-size: 0.72rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+
+        /* ── Tab bar ── */
+        .inv-tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid var(--border-light);
+            margin-bottom: 1.25rem;
+        }
+        .inv-tab {
+            padding: 0.65rem 1.25rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: color 0.15s, border-color 0.15s;
+            background: none;
+            border-top: none;
+            border-left: none;
+            border-right: none;
+        }
+        .inv-tab.active { color: var(--accent-red); border-bottom-color: var(--accent-red); }
+        .inv-tab:hover:not(.active) { color: var(--text-main); }
+        .inv-tab-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-secondary);
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            font-weight: 700;
+            border-radius: 10px;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 0.4rem;
+            margin-left: 0.4rem;
+        }
+        .inv-tab.active .inv-tab-count { background: #fef2f2; color: var(--accent-red); }
+
+        /* ── Toolbar ── */
+        .inv-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+        .inv-search {
+            flex: 1;
+            min-width: 180px;
+            max-width: 320px;
+            position: relative;
+        }
+        .inv-search i {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        .inv-search input {
+            padding-left: 2.1rem;
+            font-size: 0.875rem;
+            height: 38px;
+        }
+
+        /* ── Batch action bar ── */
+        .batch-bar {
+            display: none;
+            align-items: center;
+            gap: 0.75rem;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 0.6rem 1rem;
+            margin-bottom: 0.75rem;
+            font-size: 0.875rem;
+        }
+        .batch-bar.visible { display: flex; }
+        .batch-bar .batch-count { font-weight: 700; color: #1d4ed8; flex: 1; }
+
+        /* ── Table card ── */
+        .inv-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        /* ── Table ── */
+        .inv-table { width: 100%; border-collapse: collapse; }
+        .inv-table th {
+            padding: 0.7rem 1rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-muted);
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-light);
+            text-align: left;
+            white-space: nowrap;
+        }
+        .inv-table th.th-check { width: 42px; text-align: center; }
+        .inv-table th.th-action { text-align: right; }
+        .inv-table td {
+            padding: 0.9rem 1rem;
+            border-bottom: 1px solid var(--border-light);
+            vertical-align: middle;
+            font-size: 0.875rem;
+        }
+        .inv-table tr:last-child td { border-bottom: none; }
+        .inv-table tbody tr.data-row { cursor: pointer; transition: background 0.12s; }
+        .inv-table tbody tr.data-row:hover td { background: #f9fafb; }
+
+        /* product thumbnail */
+        .prod-thumb {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: var(--bg-secondary);
+            flex-shrink: 0;
+        }
+        .prod-cell { display: flex; align-items: center; gap: 0.75rem; }
+        .prod-name { font-weight: 600; font-size: 0.875rem; line-height: 1.3; }
+        .prod-cat  { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.1rem; }
+
+        /* stock badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .badge-ok       { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
+        .badge-low      { background:#fefce8; color:#a16207; border:1px solid #fef08a; }
+        .badge-none     { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+        .badge-untracked{ background:#f3f4f6; color:#6b7280; border:1px solid #e5e7eb; }
+        .badge-paused   { background:#f5f3ff; color:#6d28d9; border:1px solid #ddd6fe; }
+        .badge-archived { background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; }
+        .badge-active   { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
+
+        /* numeric cells */
+        .num-cell { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+        /* action buttons in cells */
+        .row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.4rem; }
+        .row-btn {
+            padding: 0.3rem 0.65rem;
+            font-size: 0.75rem;
+            border-radius: 7px;
+            border: 1px solid var(--border-light);
+            background: var(--bg-primary);
+            color: var(--text-main);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.12s, border-color 0.12s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        .row-btn:hover { background: var(--bg-secondary); border-color: #9ca3af; }
+        .row-btn.red   { color: #b91c1c; border-color: #fecaca; }
+        .row-btn.red:hover { background: #fef2f2; }
+        .row-btn.green { color: #15803d; border-color: #bbf7d0; }
+        .row-btn.green:hover { background: #f0fdf4; }
+
+        /* inline edit expand row */
+        .edit-expand td {
+            padding: 0 !important;
+            border-bottom: 1px solid var(--border-light) !important;
+        }
+        .edit-expand-inner {
+            background: #eff6ff;
+            border-top: 1px solid #bfdbfe;
+            padding: 1rem 1.25rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: flex-end;
+        }
+        .edit-expand-inner .form-group { margin: 0; }
+        .edit-expand-inner label { font-size: 0.75rem; font-weight: 600; }
+        .edit-expand-inner input { font-size: 0.82rem; padding: 0.45rem 0.7rem; width: 110px; }
+
+        /* skeleton */
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-secondary) 25%, #e9eaec 50%, var(--bg-secondary) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+            border-radius: 6px;
+            display: inline-block;
+        }
+        @keyframes shimmer { to { background-position: -200% 0; } }
+
+        /* empty */
+        .inv-empty { text-align: center; padding: 3.5rem 2rem; }
+        .inv-empty i { font-size: 2.5rem; color: #d1d5db; display: block; margin-bottom: 0.75rem; }
+        .inv-empty h4 { margin: 0 0 0.35rem; font-size: 1rem; }
+
+        /* delete confirm dialog */
+        .del-confirm-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 3000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .del-confirm-overlay.open { display: flex; }
+        .del-confirm-box {
+            background: white;
+            border-radius: 14px;
+            padding: 2rem;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        /* ── S35 — Forecast panel ── */
+        .forecast-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 0.85rem;
+            padding: 1.25rem;
+        }
+        .forecast-item {
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            padding: 0.85rem 1rem;
+            background: var(--bg-primary);
+        }
+        .forecast-item.critical { border-left: 4px solid #b91c1c; background: #fef2f2; }
+        .forecast-item.low      { border-left: 4px solid #d97706; background: #fffbeb; }
+        .forecast-item.healthy  { border-left: 4px solid #15803d; background: #f0fdf4; }
+        .forecast-item.unknown  { border-left: 4px solid #9ca3af; }
+        .forecast-title    { font-weight: 600; font-size: 0.875rem; margin-bottom: 0.35rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .forecast-days     { font-size: 1.4rem; font-weight: 800; line-height: 1; }
+        .forecast-days-lbl { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 0.5rem; }
+        .forecast-meta     { font-size: 0.75rem; color: var(--text-muted); }
+    </style>
+</head>
+<body class="bg-light">
+
+<!-- ============ NAVBAR ============ -->
+<nav class="navbar">
+    <div class="brand-combo">
+        <a href="/"><span class="brand">Markee</span></a>
+    </div>
+    <%- include('_nav') %>
+</nav>
+
+<!-- ============ MAIN ============ -->
+<div class="container py-4 animate-fade">
+
+    <!-- Header -->
+    <div class="inv-header">
+        <div>
+            <h2>Inventory Management</h2>
+            <p class="text-muted" style="margin:0;">Track stock, manage listings, and archive products.</p>
+        </div>
+        <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+            <button class="btn btn-outline" style="width:auto;" onclick="loadAll()">
+                <i class="fa fa-sync"></i> Refresh
+            </button>
+            <button class="btn" id="seed-btn" style="background:var(--accent-red); width:auto;" onclick="seedAll()">
+                <i class="fa fa-magic"></i> Seed Inventory
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="inv-stats">
+        <div class="inv-stat">
+            <div class="inv-stat-val" id="sum-total">—</div>
+            <div class="inv-stat-lbl">Total Listings</div>
+        </div>
+        <div class="inv-stat green">
+            <div class="inv-stat-val" id="sum-stock">—</div>
+            <div class="inv-stat-lbl">Total Stock</div>
+        </div>
+        <div class="inv-stat amber">
+            <div class="inv-stat-val" id="sum-low">—</div>
+            <div class="inv-stat-lbl">Low Stock</div>
+        </div>
+        <div class="inv-stat purple">
+            <div class="inv-stat-val" id="sum-archived">—</div>
+            <div class="inv-stat-lbl">Archived</div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="inv-tabs">
+        <button class="inv-tab active" id="tab-active" onclick="switchTab('active')">
+            Active &amp; Paused
+            <span class="inv-tab-count" id="cnt-active">—</span>
+        </button>
+        <button class="inv-tab" id="tab-archived" onclick="switchTab('archived')">
+            <i class="fa fa-archive" style="margin-right:0.4rem;"></i>Archive
+            <span class="inv-tab-count" id="cnt-archived">—</span>
+        </button>
+        <button class="inv-tab" id="tab-forecast" onclick="switchTab('forecast')">
+            <i class="fa fa-chart-bar" style="margin-right:0.4rem;"></i>Forecast
+        </button>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="inv-toolbar">
+        <div class="inv-search">
+            <i class="fa fa-search"></i>
+            <input type="text" id="inv-search" placeholder="Search products…" oninput="applyFilter()">
+        </div>
+        <div style="margin-left:auto; display:flex; gap:0.6rem;">
+        </div>
+    </div>
+
+    <!-- Batch action bar -->
+    <div class="batch-bar" id="batch-bar">
+        <span class="batch-count" id="batch-count-lbl">0 selected</span>
+        <button class="btn btn-outline" style="width:auto; font-size:0.8rem;" id="batch-archive-btn" onclick="batchAction('archive')">
+            <i class="fa fa-archive"></i> Archive Selected
+        </button>
+        <button class="btn btn-outline" style="width:auto; font-size:0.8rem; display:none;" id="batch-restore-btn" onclick="batchAction('restore')">
+            <i class="fa fa-undo"></i> Restore Selected
+        </button>
+        <button class="btn btn-outline" style="width:auto; font-size:0.8rem; color:#b91c1c; border-color:#fecaca; display:none;" id="batch-delete-btn" onclick="batchAction('delete')">
+            <i class="fa fa-trash-alt"></i> Delete Selected
+        </button>
+        <button class="btn btn-outline" style="width:auto; font-size:0.8rem;" onclick="clearSelection()">Deselect All</button>
+    </div>
+
+    <!-- Table card -->
+    <div class="inv-card">
+        <table class="inv-table">
+            <thead>
+                <tr>
+                    <th class="th-check">
+                        <input type="checkbox" id="select-all" onchange="toggleSelectAll(this.checked)" title="Select all">
+                    </th>
+                    <th>Product</th>
+                    <th>Status</th>
+                    <th>Qty</th>
+                    <th>Reserved</th>
+                    <th>Available</th>
+                    <th>Threshold</th>
+                    <th>Stock</th>
+                    <th class="th-action">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="inv-tbody">
+                <!-- filled by JS -->
+                <tr><td colspan="9" style="padding:2.5rem; text-align:center;">
+                    <div class="skeleton" style="height:14px; width:200px; margin:0 auto 0.75rem;"></div>
+                    <div class="skeleton" style="height:14px; width:160px; margin:0 auto;"></div>
+                </td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Empty state -->
+    <div class="inv-empty" id="inv-empty" style="display:none;">
+        <i class="fa fa-boxes"></i>
+        <h4 id="empty-title">No products yet</h4>
+        <p class="text-muted" id="empty-sub">Create your first listing from the dashboard.</p>
+        <a href="/dashboard" class="btn btn-outline" style="width:auto; display:inline-flex; margin-top:1rem;">
+            <i class="fa fa-arrow-left" style="margin-right:0.5rem;"></i> Dashboard
+        </a>
+    </div>
+
+    <!-- S35 — Stock Forecast panel (shown when forecast tab is active) -->
+    <div id="forecast-panel" style="display:none;">
+        <div class="inv-card">
+            <div style="padding:1rem 1.25rem; border-bottom:1px solid var(--border-light); background:var(--bg-secondary); display:flex; align-items:center; justify-content:space-between;">
+                <div>
+                    <div style="font-weight:700; font-size:0.9rem;"><i class="fa fa-chart-bar" style="margin-right:0.5rem; color:#1d4ed8;"></i> Stock Forecast</div>
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.15rem;">Estimated days until stockout based on recent sales velocity</div>
+                </div>
+                <div style="display:flex; gap:0.5rem; font-size:0.72rem; font-weight:700;">
+                    <span style="padding:0.2rem 0.55rem; border-radius:6px; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca;">Critical ≤7d</span>
+                    <span style="padding:0.2rem 0.55rem; border-radius:6px; background:#fffbeb; color:#d97706; border:1px solid #fed7aa;">Low ≤14d</span>
+                    <span style="padding:0.2rem 0.55rem; border-radius:6px; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0;">Healthy</span>
+                </div>
+            </div>
+            <div id="forecast-loading" style="padding:2rem; text-align:center; color:var(--text-muted); font-size:0.875rem;">
+                <i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Loading forecast…
+            </div>
+            <div id="forecast-grid" class="forecast-grid" style="display:none;"></div>
+            <div id="forecast-empty" style="display:none; padding:2.5rem; text-align:center; color:var(--text-muted); font-size:0.875rem;">
+                <i class="fa fa-chart-bar" style="font-size:1.5rem; margin-bottom:0.75rem; display:block;"></i>
+                No forecast data available. Add inventory records to see projections.
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ============ PERMANENT DELETE CONFIRM ============ -->
+<div class="del-confirm-overlay" id="del-overlay">
+    <div class="del-confirm-box">
+        <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
+            <div style="width:40px; height:40px; background:#fef2f2; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <i class="fa fa-trash-alt" style="color:#b91c1c;"></i>
+            </div>
+            <div>
+                <h4 style="margin:0; font-size:1rem;">Permanently Delete?</h4>
+                <p class="text-muted" style="margin:0; font-size:0.82rem;">This removes the product completely and cannot be undone.</p>
+            </div>
+        </div>
+        <p class="text-muted" style="font-size:0.875rem; margin-bottom:1.25rem;">
+            "<strong id="del-product-name">Product</strong>" will be permanently deleted for all users.
+        </p>
+        <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
+            <button class="btn btn-outline" style="width:auto;" onclick="closDelOverlay()">Cancel</button>
+            <button class="btn" style="background:#b91c1c; width:auto;" id="del-confirm-btn">
+                <i class="fa fa-trash-alt" style="margin-right:0.4rem;"></i> Delete Permanently
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ── Auth ──────────────────────────────────────────────────────────────────
+    const token = localStorage.getItem('access_token');
+    if (!token) window.location.replace('/login');
+
+    function parseJwt(t) {
+        try { return JSON.parse(atob(t.split('.')[1])); }
+        catch { return null; }
+    }
+
+    const user = parseJwt(token);
+    if (!user) window.location.replace('/login');
+
+    function handleLogout() {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        window.location.replace('/');
+    }
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let _allProducts = [];    // all catalog products (active+paused)
+    let _archived    = [];    // archived products
+    let _invMap      = {};    // productId → inventory record
+    let _currentTab  = 'active';
+    let _openEditId  = null;
+    let _selected    = new Set();
+    let _delTarget   = null;  // { ids: [], names: [] }
+
+    // ── Load everything ───────────────────────────────────────────────────────
+    async function loadAll() {
+        showSkeleton();
+        try {
+            const [invRes, prodRes, archRes] = await Promise.all([
+                fetch('/api/inventory/', { headers: { Authorization: `Bearer ${token}` } }),
+                fetch('/api/catalog/my-products', { headers: { Authorization: `Bearer ${token}` } }),
+                fetch('/api/catalog/my-products?includeArchived=true', { headers: { Authorization: `Bearer ${token}` } })
+            ]);
+
+            const inventory  = invRes.ok ? await invRes.json() : [];
+            _invMap = {};
+            inventory.forEach(r => { _invMap[r.productId?.toString()] = r; });
+
+            const allProd = archRes.ok ? await archRes.json() : [];
+            _archived    = allProd.filter(p => p.status === 'archived');
+            _allProducts = prodRes.ok ? await prodRes.json() : allProd.filter(p => p.status !== 'archived');
+
+            // Update stats
+            const tracked      = _allProducts.filter(p => _invMap[p._id.toString()]);
+            const totalStock   = tracked.reduce((s, p) => s + (_invMap[p._id.toString()]?.quantity || 0), 0);
+            const lowCount     = tracked.filter(p => {
+                const r = _invMap[p._id.toString()];
+                return r && r.available <= (r.lowStockThreshold || 5);
+            }).length;
+
+            document.getElementById('sum-total').textContent    = _allProducts.length + _archived.length;
+            document.getElementById('sum-stock').textContent    = totalStock;
+            document.getElementById('sum-low').textContent      = lowCount;
+            document.getElementById('sum-archived').textContent = _archived.length;
+            document.getElementById('cnt-active').textContent   = _allProducts.length;
+            document.getElementById('cnt-archived').textContent = _archived.length;
+
+            _selected.clear();
+            updateBatchBar();
+            if (_currentTab !== 'forecast') applyFilter();
+        } catch (err) {
+            document.getElementById('inv-tbody').innerHTML = `
+                <tr><td colspan="9" style="text-align:center; padding:2rem; color:var(--accent-red);">
+                    <i class="fa fa-exclamation-triangle" style="margin-right:0.5rem;"></i>
+                    Failed to load: ${err.message}
+                    <a href="#" onclick="loadAll(); return false;" style="margin-left:0.75rem; color:var(--accent-red);">Retry</a>
+                </td></tr>`;
+        }
+    }
+
+    // ── Tab switch ────────────────────────────────────────────────────────────
+    let _forecastLoaded = false;
+
+    function switchTab(tab) {
+        _currentTab = tab;
+        _selected.clear();
+        _openEditId = null;
+        document.getElementById('tab-active').classList.toggle('active', tab === 'active');
+        document.getElementById('tab-archived').classList.toggle('active', tab === 'archived');
+        document.getElementById('tab-forecast').classList.toggle('active', tab === 'forecast');
+
+        // Show/hide toolbar and table vs forecast panel
+        const isTable    = tab !== 'forecast';
+        document.querySelector('.inv-toolbar').style.display    = isTable ? '' : 'none';
+        document.getElementById('batch-bar').style.display      = 'none';
+        document.querySelector('.inv-card').style.display       = isTable ? '' : 'none';
+        document.getElementById('inv-empty').style.display      = 'none';
+        document.getElementById('forecast-panel').style.display = tab === 'forecast' ? 'block' : 'none';
+
+        document.getElementById('batch-archive-btn').style.display = tab === 'active'   ? 'inline-flex' : 'none';
+        document.getElementById('batch-restore-btn').style.display = tab === 'archived' ? 'inline-flex' : 'none';
+        document.getElementById('batch-delete-btn').style.display  = tab === 'archived' ? 'inline-flex' : 'none';
+        document.getElementById('select-all').checked = false;
+        updateBatchBar();
+
+        if (tab === 'forecast') {
+            if (!_forecastLoaded) loadForecast();
+        } else {
+            applyFilter();
+        }
+    }
+
+    // ── Filter / render ───────────────────────────────────────────────────────
+    function applyFilter() {
+        const q    = (document.getElementById('inv-search').value || '').toLowerCase();
+        const list = _currentTab === 'active' ? _allProducts : _archived;
+        const filtered = q ? list.filter(p => p.title.toLowerCase().includes(q)) : list;
+        renderRows(filtered);
+    }
+
+    function renderRows(products) {
+        const tbody  = document.getElementById('inv-tbody');
+        const empty  = document.getElementById('inv-empty');
+        const card   = document.querySelector('.inv-card');
+
+        if (!products.length) {
+            tbody.innerHTML = '';
+            card.style.display  = 'none';
+            empty.style.display = 'block';
+            document.getElementById('empty-title').textContent = _currentTab === 'archived' ? 'No archived products' : 'No active listings';
+            document.getElementById('empty-sub').textContent   = _currentTab === 'archived' ? 'Products you archive will appear here.' : 'Create your first listing from the dashboard.';
+            return;
+        }
+
+        card.style.display  = '';
+        empty.style.display = 'none';
+
+        tbody.innerHTML = products.map(p => {
+            const pid     = p._id.toString();
+            const r       = _invMap[pid];
+            const qty     = r ? r.quantity  : 0;
+            const res     = r ? r.reserved  : 0;
+            const avail   = r ? r.available : 0;
+            const thresh  = r ? (r.lowStockThreshold ?? 5) : 5;
+            const tracked = !!r;
+            const checked = _selected.has(pid);
+
+            const statusBadge = p.status === 'archived'
+                ? `<span class="badge badge-archived"><i class="fa fa-archive"></i> Archived</span>`
+                : p.status === 'paused'
+                    ? `<span class="badge badge-paused"><i class="fa fa-pause"></i> Paused</span>`
+                    : `<span class="badge badge-active"><i class="fa fa-circle" style="font-size:0.55rem;"></i> Active</span>`;
+
+            let stockBadge;
+            if (!tracked) {
+                stockBadge = `<span class="badge badge-untracked">Not tracked</span>`;
+            } else if (avail <= 0) {
+                stockBadge = `<span class="badge badge-none"><i class="fa fa-times-circle"></i> Out of Stock</span>`;
+            } else if (avail <= thresh) {
+                stockBadge = `<span class="badge badge-low"><i class="fa fa-exclamation-triangle"></i> Low Stock</span>`;
+            } else {
+                stockBadge = `<span class="badge badge-ok"><i class="fa fa-check-circle"></i> In Stock</span>`;
+            }
+
+            const availColor = !tracked ? 'var(--text-muted)' : avail <= 0 ? '#b91c1c' : avail <= thresh ? '#a16207' : '#15803d';
+
+            const img = p.images?.[0]
+                ? `<img class="prod-thumb" src="${p.images[0]}" alt="" onerror="this.onerror=null; this.style.display='none';">`
+                : `<div class="prod-thumb" style="background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:#d1d5db;"><i class="fa fa-image"></i></div>`;
+
+            // Actions based on tab
+            let actions;
+            if (_currentTab === 'archived') {
+                actions = `
+                    <div class="row-actions">
+                        <button class="row-btn green" onclick="event.stopPropagation(); restoreProduct('${pid}')">
+                            <i class="fa fa-undo"></i> Restore
+                        </button>
+                        <button class="row-btn red" onclick="event.stopPropagation(); promptDelete(['${pid}'], ['${escHtml(p.title)}'])">
+                            <i class="fa fa-trash-alt"></i> Delete
+                        </button>
+                    </div>`;
+            } else {
+                const pauseBtn = p.status === 'paused'
+                    ? `<button class="row-btn green" onclick="event.stopPropagation(); setProductStatus('${pid}', 'active')"><i class="fa fa-play"></i> Activate</button>`
+                    : `<button class="row-btn" onclick="event.stopPropagation(); setProductStatus('${pid}', 'paused')"><i class="fa fa-pause"></i> Pause</button>`;
+                actions = `
+                    <div class="row-actions">
+                        <button class="row-btn" onclick="event.stopPropagation(); toggleEdit('${pid}', ${qty}, ${thresh}, ${tracked})">
+                            <i class="fa fa-edit"></i> ${tracked ? 'Edit Stock' : 'Set Stock'}
+                        </button>
+                        ${pauseBtn}
+                        <button class="row-btn red" onclick="event.stopPropagation(); archiveProduct('${pid}')">
+                            <i class="fa fa-archive"></i>
+                        </button>
+                    </div>`;
+            }
+
+            return `
+                <tr class="data-row" id="row-${pid}" onclick="rowClick(event, '${pid}')">
+                    <td class="th-check" onclick="event.stopPropagation();" style="text-align:center;">
+                        <input type="checkbox" class="row-check" data-pid="${pid}"
+                               onchange="toggleSelect('${pid}', this.checked)" ${checked ? 'checked' : ''}>
+                    </td>
+                    <td>
+                        <div class="prod-cell">
+                            ${img}
+                            <div>
+                                <div class="prod-name">${escHtml(p.title)}</div>
+                                <div class="prod-cat">${escHtml(p.category || '')}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>${statusBadge}</td>
+                    <td class="num-cell">${tracked ? qty : '—'}</td>
+                    <td class="num-cell" style="color:var(--text-muted);">${tracked ? res : '—'}</td>
+                    <td class="num-cell" style="color:${availColor};">${tracked ? avail : '—'}</td>
+                    <td class="num-cell" style="color:var(--text-muted);">${tracked ? thresh : '—'}</td>
+                    <td>${stockBadge}</td>
+                    <td>${actions}</td>
+                </tr>
+                <tr class="edit-expand" id="edit-row-${pid}" style="display:none;">
+                    <td colspan="9">
+                        <div class="edit-expand-inner">
+                            <div class="form-group">
+                                <label>Quantity</label>
+                                <input type="number" id="eq-qty-${pid}" value="${qty}" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Reserved</label>
+                                <input type="number" id="eq-res-${pid}" value="${res}" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Low Stock Threshold</label>
+                                <input type="number" id="eq-thr-${pid}" value="${thresh}" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Fast Delivery Fee ($)</label>
+                                <input type="number" id="eq-fdf-${pid}"
+                                       value="${((p.fastDeliveryFee || 0) / 100).toFixed(2)}"
+                                       min="0" step="0.01" placeholder="0.00 = not offered">
+                            </div>
+                            <button class="btn" style="background:var(--accent-red); width:auto; padding:0.45rem 1rem; font-size:0.82rem;"
+                                    onclick="saveInventory('${pid}', ${tracked})">
+                                <i class="fa fa-save" style="margin-right:0.35rem;"></i> Save
+                            </button>
+                            <button class="btn btn-outline" style="width:auto; padding:0.45rem 0.85rem; font-size:0.82rem;"
+                                    onclick="closeEdit('${pid}')">
+                                Cancel
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+        }).join('');
+    }
+
+    function escHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function showSkeleton() {
+        document.getElementById('inv-tbody').innerHTML = `
+            <tr><td colspan="9" style="padding:0;">
+                ${[1,2,3,4].map(() => `
+                <div style="display:grid; grid-template-columns:42px 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr; gap:0.75rem; padding:0.9rem 1rem; border-bottom:1px solid var(--border-light);">
+                    <div class="skeleton" style="height:14px;"></div>
+                    <div class="skeleton" style="height:14px;"></div>
+                    <div class="skeleton" style="height:20px;"></div>
+                    <div class="skeleton" style="height:14px;"></div>
+                    <div class="skeleton" style="height:14px;"></div>
+                    <div class="skeleton" style="height:14px;"></div>
+                    <div class="skeleton" style="height:14px;"></div>
+                    <div class="skeleton" style="height:20px;"></div>
+                    <div class="skeleton" style="height:28px;"></div>
+                </div>`).join('')}
+            </td></tr>`;
+    }
+
+    // ── Row click navigation ──────────────────────────────────────────────────
+    function rowClick(e, pid) {
+        // If the user clicked a button or input inside the row, don't navigate
+        if (e.target.closest('button') || e.target.closest('input')) return;
+        window.location.href = `/product/${pid}`;
+    }
+
+    // ── Selection ─────────────────────────────────────────────────────────────
+    function toggleSelect(pid, checked) {
+        if (checked) _selected.add(pid);
+        else _selected.delete(pid);
+        updateBatchBar();
+    }
+
+    function toggleSelectAll(checked) {
+        const list = _currentTab === 'active' ? _allProducts : _archived;
+        list.forEach(p => {
+            const pid = p._id.toString();
+            if (checked) _selected.add(pid);
+            else _selected.delete(pid);
+        });
+        document.querySelectorAll('.row-check').forEach(cb => { cb.checked = checked; });
+        updateBatchBar();
+    }
+
+    function clearSelection() {
+        _selected.clear();
+        document.querySelectorAll('.row-check').forEach(cb => { cb.checked = false; });
+        document.getElementById('select-all').checked = false;
+        updateBatchBar();
+    }
+
+    function updateBatchBar() {
+        const bar = document.getElementById('batch-bar');
+        const n   = _selected.size;
+        if (n > 0) {
+            bar.classList.add('visible');
+            document.getElementById('batch-count-lbl').textContent = `${n} selected`;
+        } else {
+            bar.classList.remove('visible');
+        }
+    }
+
+    // ── Inline edit ───────────────────────────────────────────────────────────
+    function toggleEdit(pid, qty, thresh, tracked) {
+        if (_openEditId && _openEditId !== pid) closeEdit(_openEditId);
+        const row = document.getElementById(`edit-row-${pid}`);
+        if (row.style.display !== 'none') { closeEdit(pid); return; }
+        row.style.display = 'table-row';
+        _openEditId = pid;
+        document.getElementById(`eq-qty-${pid}`).focus();
+    }
+
+    function closeEdit(pid) {
+        const row = document.getElementById(`edit-row-${pid}`);
+        if (row) row.style.display = 'none';
+        if (_openEditId === pid) _openEditId = null;
+    }
+
+    async function saveInventory(productId, tracked) {
+        const qty    = parseInt(document.getElementById(`eq-qty-${productId}`).value);
+        const res    = parseInt(document.getElementById(`eq-res-${productId}`).value);
+        const thresh = parseInt(document.getElementById(`eq-thr-${productId}`).value);
+        // Fast delivery fee: seller enters dollars, we store cents in catalog
+        const fdfRaw = parseFloat(document.getElementById(`eq-fdf-${productId}`)?.value || '0');
+        const fastDeliveryFee = isNaN(fdfRaw) ? 0 : Math.round(fdfRaw * 100);
+
+        if (isNaN(qty) || qty < 0)    return showToast('Quantity must be 0 or more.', 'error');
+        if (isNaN(thresh) || thresh < 0) return showToast('Threshold must be 0 or more.', 'error');
+
+        try {
+            // ── Inventory save ────────────────────────────────────────────────
+            let r;
+            if (tracked) {
+                r = await fetch(`/api/inventory/${productId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body:   JSON.stringify({ quantity: qty, reserved: isNaN(res) ? 0 : res, lowStockThreshold: thresh })
+                });
+            } else {
+                r = await fetch('/api/inventory/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body:   JSON.stringify({ productId, quantity: qty, lowStockThreshold: thresh })
+                });
+            }
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+
+            // ── Fast delivery fee → catalog ───────────────────────────────────
+            const catRes = await fetch(`/api/catalog/products/${productId}`, {
+                method:  'PUT',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body:    JSON.stringify({ fastDeliveryFee })
+            });
+            if (!catRes.ok) {
+                const ce = await catRes.json().catch(() => ({}));
+                throw new Error('Inventory saved but catalog update failed: ' + (ce.error || `HTTP ${catRes.status}`));
+            }
+
+            showToast('Saved!', 'success');
+            await loadAll();
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    // ── Product status change ─────────────────────────────────────────────────
+    async function setProductStatus(pid, status) {
+        try {
+            const r = await fetch(`/api/catalog/products/${pid}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body:   JSON.stringify({ status })
+            });
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+            showToast(`Product ${status === 'active' ? 'activated' : 'paused'}.`, 'success');
+            await loadAll();
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    async function archiveProduct(pid) {
+        try {
+            const r = await fetch(`/api/catalog/products/${pid}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body:   JSON.stringify({ status: 'archived' })
+            });
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+            showToast('Product archived. View it in the Archive tab.', 'success');
+            await loadAll();
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    async function restoreProduct(pid) {
+        try {
+            const r = await fetch(`/api/catalog/products/${pid}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body:   JSON.stringify({ status: 'active' })
+            });
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+            showToast('Product restored to Active listings.', 'success');
+            await loadAll();
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    // ── Permanent delete (only from archive) ─────────────────────────────────
+    function promptDelete(ids, names) {
+        _delTarget = { ids, names };
+        document.getElementById('del-product-name').textContent = names.length === 1 ? names[0] : `${names.length} products`;
+        document.getElementById('del-overlay').classList.add('open');
+        document.getElementById('del-confirm-btn').onclick = confirmDelete;
+    }
+
+    function closDelOverlay() {
+        document.getElementById('del-overlay').classList.remove('open');
+        _delTarget = null;
+    }
+
+    async function confirmDelete() {
+        if (!_delTarget) return;
+        const { ids, names } = _delTarget;
+        closDelOverlay();
+
+        let deleted = 0;
+        for (const pid of ids) {
+            try {
+                const r = await fetch(`/api/catalog/products/${pid}`, {
+                    method: 'DELETE',
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (r.ok) deleted++;
+            } catch {}
+        }
+        showToast(`${deleted} product${deleted !== 1 ? 's' : ''} permanently deleted.`, 'success');
+        await loadAll();
+    }
+
+    // ── Batch actions ─────────────────────────────────────────────────────────
+    async function batchAction(action) {
+        const ids = [..._selected];
+        if (!ids.length) return;
+
+        if (action === 'archive') {
+            let done = 0;
+            for (const pid of ids) {
+                try {
+                    const r = await fetch(`/api/catalog/products/${pid}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body:   JSON.stringify({ status: 'archived' })
+                    });
+                    if (r.ok) done++;
+                } catch {}
+            }
+            showToast(`${done} product${done !== 1 ? 's' : ''} archived.`, 'success');
+            await loadAll();
+
+        } else if (action === 'restore') {
+            let done = 0;
+            for (const pid of ids) {
+                try {
+                    const r = await fetch(`/api/catalog/products/${pid}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body:   JSON.stringify({ status: 'active' })
+                    });
+                    if (r.ok) done++;
+                } catch {}
+            }
+            showToast(`${done} product${done !== 1 ? 's' : ''} restored.`, 'success');
+            await loadAll();
+
+        } else if (action === 'delete') {
+            const names = ids.map(pid => {
+                const p = _archived.find(p => p._id.toString() === pid);
+                return p ? p.title : pid;
+            });
+            promptDelete(ids, names);
+        }
+    }
+
+    // ── Seed inventory ────────────────────────────────────────────────────────
+    async function seedAll() {
+        const btn = document.getElementById('seed-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Seeding...';
+
+        try {
+            const [prodRes, invRes] = await Promise.all([
+                fetch('/api/catalog/my-products', { headers: { Authorization: `Bearer ${token}` } }),
+                fetch('/api/inventory/', { headers: { Authorization: `Bearer ${token}` } })
+            ]);
+            if (!prodRes.ok) throw new Error('Could not fetch products');
+            const products  = await prodRes.json();
+            const inventory = invRes.ok ? await invRes.json() : [];
+            const trackedIds = new Set(inventory.map(r => r.productId?.toString()));
+            const untracked  = products.filter(p => !trackedIds.has(p._id.toString()));
+
+            if (!untracked.length) {
+                showToast('All products already have inventory records.', 'info');
+                return;
+            }
+
+            let created = 0;
+            for (const p of untracked) {
+                const quantity          = 15 + Math.floor(Math.random() * 86);
+                const reserved          = Math.floor(Math.random() * Math.floor(quantity * 0.12));
+                const lowStockThreshold = 3  + Math.floor(Math.random() * 6);
+
+                const postRes = await fetch('/api/inventory/', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body:    JSON.stringify({ productId: p._id, quantity, lowStockThreshold })
+                });
+                if (!postRes.ok) continue;
+
+                if (reserved > 0) {
+                    await fetch(`/api/inventory/${p._id}`, {
+                        method:  'PUT',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body:    JSON.stringify({ quantity, reserved, lowStockThreshold })
+                    });
+                }
+                created++;
+            }
+            showToast(`Seeded ${created} product${created !== 1 ? 's' : ''} with randomised stock.`, 'success');
+            await loadAll();
+        } catch (err) {
+            showToast('Seed failed: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa fa-magic"></i> Seed Inventory';
+        }
+    }
+
+    // ── S35 — Stock Forecast ──────────────────────────────────────────────────
+    async function loadForecast() {
+        try {
+            const r = await fetch('/api/inventory/forecasting', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const items = await r.json();
+
+            document.getElementById('forecast-loading').style.display = 'none';
+
+            if (!items || !items.length) {
+                document.getElementById('forecast-empty').style.display = 'block';
+                _forecastLoaded = true;
+                return;
+            }
+
+            const grid = document.getElementById('forecast-grid');
+            grid.innerHTML = items.map(item => {
+                const days     = item.daysUntilStockout;
+                const velocity = item.dailyVelocity ?? item.velocity ?? 0;
+                let urgency, daysLabel, daysColor;
+                if (days === null || days === undefined || days === Infinity) {
+                    urgency    = 'unknown';
+                    daysLabel  = '∞';
+                    daysColor  = '#6b7280';
+                } else if (days <= 7) {
+                    urgency    = 'critical';
+                    daysLabel  = days;
+                    daysColor  = '#b91c1c';
+                } else if (days <= 14) {
+                    urgency    = 'low';
+                    daysLabel  = days;
+                    daysColor  = '#d97706';
+                } else {
+                    urgency    = 'healthy';
+                    daysLabel  = days;
+                    daysColor  = '#15803d';
+                }
+                const escTitle = String(item.title || 'Product').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                const velText  = velocity > 0 ? `${velocity.toFixed(1)} units/day` : 'Low/no sales';
+                const stock    = item.available ?? item.quantity ?? '—';
+                return `<div class="forecast-item ${urgency}">
+                    <div class="forecast-title" title="${escTitle}">${escTitle}</div>
+                    <div class="forecast-days" style="color:${daysColor};">${daysLabel}</div>
+                    <div class="forecast-days-lbl">days until stockout</div>
+                    <div class="forecast-meta"><i class="fa fa-layer-group" style="margin-right:0.3rem;"></i>${stock} in stock &nbsp;·&nbsp; ${velText}</div>
+                </div>`;
+            }).join('');
+
+            grid.style.display = 'grid';
+            _forecastLoaded = true;
+        } catch (err) {
+            document.getElementById('forecast-loading').innerHTML =
+                `<i class="fa fa-exclamation-circle" style="margin-right:0.4rem; color:#b91c1c;"></i> Failed to load forecast: ${err.message}`;
+        }
+    }
+
+    // ── Boot ──────────────────────────────────────────────────────────────────
+    window.addEventListener('load', () => {
+        // initialise batch bar button visibility for default tab
+        switchTab('active');
+        loadAll();
+        if (window.MarkeeCart) MarkeeCart.updateAllCartBadges();
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<!-- ══════════════════════ TAB: SELLERS ══════════════════════ -->
+<div class="tab-panel" id="tab-sellers">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-store" style="color:var(--accent);margin-right:0.4rem;font-size:1.1rem"></i> Sellers</h1>
+      <p>Manage storefronts, verification, tier assignments and seller lifecycle</p>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="loadSellers()"><i class="fas fa-rotate-right"></i> Refresh</button>
+  </div>
+
+  <div class="sub-tabs">
+    <button class="sub-tab active" onclick="switchSubTab('sel','all',this)"><i class="fas fa-store"></i> All Sellers</button>
+    <button class="sub-tab" onclick="switchSubTab('sel','dormant',this);if(!this.dataset.loaded){this.dataset.loaded=1;loadDormantSellers();}"><i class="fas fa-moon"></i> Dormant</button>
+  </div>
+
+  <div id="sel-all" class="sub-panel" style="display:block">
+    <div class="filter-bar">
+      <select id="sel-tier-filter" onchange="loadSellers()">
+        <option value="">All Tiers</option>
+        <option value="standard">Standard</option>
+        <option value="rising">Rising</option>
+        <option value="top">Top Seller</option>
+      </select>
+      <select id="sel-verified-filter" onchange="loadSellers()">
+        <option value="">Verified — All</option>
+        <option value="true">Verified</option>
+        <option value="false">Unverified</option>
+      </select>
+      <select id="sel-active-filter" onchange="loadSellers()">
+        <option value="">Status — All</option>
+        <option value="true">Active</option>
+        <option value="false">Suspended</option>
+      </select>
+    </div>
+    <div id="sel-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="sel-grid"><div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading sellers...</div></div>
+  </div>
+
+  <div id="sel-dormant" class="sub-panel" style="display:none">
+    <div id="dorm-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="dorm-table"><div class="loading"><i class="fas fa-spinner fa-spin"></i></div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="sellerProfileModal">
+  <div class="modal modal-xl">
+    <div class="modal-header">
+      <h3>Seller Profile</h3>
+      <button class="modal-close" onclick="closeModal('sellerProfileModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="sellerProfileBody"></div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('sellerProfileModal')">Close</button></div>
+  </div>
+</div>
+
+<script>
+const _TIER_COLORS = { top:'#f59e0b', rising:'#3b82f6', standard:'#64748b' };
+
+async function loadSellers() {
+  hideErr('sel-error');
+  const el = document.getElementById('sel-grid');
+  el.innerHTML = `<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading sellers...</div>`;
+  const tier=document.getElementById('sel-tier-filter').value, verified=document.getElementById('sel-verified-filter').value, active=document.getElementById('sel-active-filter').value;
+  const qs=new URLSearchParams({limit:50});
+  if(tier) qs.set('tier',tier); if(verified) qs.set('verified',verified); if(active) qs.set('active',active);
+  try {
+    const data=await adminApi('GET',`/proxy/sellers?${qs}`); const stores=data.stores||[];
+    if(!stores.length){el.innerHTML=`<div class="empty-state"><i class="fas fa-store-slash"></i>No sellers match your filters</div>`;return;}
+    el.innerHTML=`<div class="seller-grid">${stores.map(s=>{
+      const initials=(s.name||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+      const tc=_TIER_COLORS[s.tier]||'#64748b'; const isActive=s.active!==false;
+      return `<div class="seller-card ${!isActive?'suspended':''}">
+        <div class="seller-card-header">
+          <div class="seller-avatar">${initials}</div>
+          <div><div class="seller-name">${trunc(s.name,22)}</div><div class="seller-id">${trunc(s._id,20)}</div></div>
+        </div>
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.6rem">
+          <span style="background:${tc}22;color:${tc};border:1px solid ${tc}44;padding:0.1rem 0.45rem;border-radius:20px;font-size:0.63rem;font-weight:700;text-transform:uppercase">${s.tier||'standard'}</span>
+          ${s.verified?`<span style="background:#052e1655;color:#4ade80;border:1px solid #4ade8044;padding:0.1rem 0.45rem;border-radius:20px;font-size:0.63rem;font-weight:700"><i class="fas fa-check"></i> Verified</span>`:`<span style="background:var(--bg2);color:var(--muted);border:1px solid var(--border);padding:0.1rem 0.45rem;border-radius:20px;font-size:0.63rem">Unverified</span>`}
+          ${!isActive?`<span style="background:#450a0a55;color:#f87171;border:1px solid #f8717144;padding:0.1rem 0.45rem;border-radius:20px;font-size:0.63rem;font-weight:700"><i class="fas fa-ban"></i> Suspended</span>`:''}
+        </div>
+        <div style="display:flex;gap:1rem;font-size:0.7rem;color:var(--muted);margin-bottom:0.65rem">
+          <span><strong style="color:var(--text);display:block;font-size:0.85rem">${s.totalOrders||0}</strong>Orders</span>
+          <span><strong style="color:var(--text);display:block;font-size:0.85rem">${s.sellerAvgRating?s.sellerAvgRating.toFixed(1):'—'}</strong>Rating</span>
+          <span><strong style="color:var(--text);display:block;font-size:0.78rem">${fmtDate(s.createdAt)}</strong>Joined</span>
+        </div>
+        <div class="seller-card-actions">
+          ${s.verified?`<button class="btn btn-warn btn-xs" onclick="unverifyStore('${s._id}')"><i class="fas fa-badge-check"></i> Unverify</button>`:`<button class="btn btn-success btn-xs" onclick="verifyStore('${s._id}')"><i class="fas fa-badge-check"></i> Verify</button>`}
+          ${isActive?`<button class="btn btn-danger btn-xs" onclick="suspendStore('${s._id}')"><i class="fas fa-ban"></i> Suspend</button>`:`<button class="btn btn-ghost btn-xs" onclick="restoreStore('${s._id}')"><i class="fas fa-rotate-right"></i> Restore</button>`}
+          <button class="btn btn-purple btn-xs" onclick="changeTier('${s._id}','${s.tier||'standard'}')"><i class="fas fa-layer-group"></i> Tier</button>
+          <button class="btn btn-info btn-xs" onclick="viewSellerProfile('${s._id}')"><i class="fas fa-eye"></i></button>
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+  } catch(err){showErr('sel-error',err.message);el.innerHTML='';}
+}
+
+async function loadDormantSellers() {
+  hideErr('dorm-error'); const el=document.getElementById('dorm-table');
+  el.innerHTML=`<div class="loading"><i class="fas fa-spinner fa-spin"></i></div>`;
+  try {
+    const data=await adminApi('GET','/proxy/sellers/dormant'); const stores=data.stores||[];
+    if(!stores.length){el.innerHTML=`<div class="empty-state"><i class="fas fa-check-circle"></i>No dormant stores — all stores have recent activity</div>`;return;}
+    el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Name</th><th>Store ID</th><th>Tier</th><th>Last Active</th><th>Actions</th></tr></thead><tbody>
+    ${stores.map(s=>`<tr>
+      <td style="font-weight:600">${trunc(s.name,24)}</td><td class="mono">${trunc(s._id,18)}</td>
+      <td>${badge(s.tier||'standard')}</td>
+      <td style="color:var(--warn);font-size:0.72rem">${fmtDate(s.lastActive||s.updatedAt)}</td>
+      <td><div class="btn-gap"><button class="btn btn-info btn-xs" onclick="viewSellerProfile('${s._id}')"><i class="fas fa-eye"></i> Profile</button></div></td>
+    </tr>`).join('')}</tbody></table></div>`;
+  } catch(err){showErr('dorm-error',err.message);el.innerHTML='';}
+}
+
+async function verifyStore(id){
+  const r=await showConfirm({title:'Verify Store',body:'Grant the Verified badge to this store?'});
+  if(!r.confirmed)return;
+  try{await adminApi('POST',`/proxy/sellers/${id}/verify`,{});toast('Store verified.','success');loadSellers();}
+  catch(err){toast('Error: '+err.message,'error');}
+}
+async function unverifyStore(id){
+  const r=await showConfirm({title:'Remove Verification',body:'Remove the Verified badge?',danger:true});
+  if(!r.confirmed)return;
+  try{await adminApi('POST',`/proxy/sellers/${id}/unverify`,{});toast('Verification removed.','warn');loadSellers();}
+  catch(err){toast('Error: '+err.message,'error');}
+}
+async function suspendStore(id){
+  const r=await showConfirm({title:'Suspend Store',body:'Deactivate this store? All new sales blocked.',withReason:true,danger:true});
+  if(!r.confirmed)return;
+  try{await adminApi('POST',`/proxy/sellers/${id}/suspend`,{reason:r.reason});toast('Store suspended.','warn');loadSellers();}
+  catch(err){toast('Error: '+err.message,'error');}
+}
+async function restoreStore(id){
+  const r=await showConfirm({title:'Restore Store',body:'Reactivate this store and resume sales?'});
+  if(!r.confirmed)return;
+  try{await adminApi('POST',`/proxy/sellers/${id}/restore`,{});toast('Store restored.','success');loadSellers();}
+  catch(err){toast('Error: '+err.message,'error');}
+}
+async function changeTier(id,currentTier){
+  const tiers=['standard','rising','top'].filter(t=>t!==currentTier);
+  const r=await showConfirm({title:'Change Seller Tier',body:`Current: ${currentTier}. Override analytics-computed tier.`,withSelect:tiers.map(t=>({value:t,label:t.charAt(0).toUpperCase()+t.slice(1)})),selectLabel:'New Tier'});
+  if(!r.confirmed)return;
+  try{await adminApi('PATCH',`/proxy/sellers/${id}/tier`,{tier:r.selected});toast(`Tier → ${r.selected}.`,'success');loadSellers();}
+  catch(err){toast('Error: '+err.message,'error');}
+}
+async function viewSellerProfile(id){
+  const body=document.getElementById('sellerProfileBody');
+  body.innerHTML=`<div class="loading"><i class="fas fa-spinner fa-spin"></i></div>`;
+  openModal('sellerProfileModal');
+  try {
+    const p=await adminApi('GET',`/proxy/sellers/${id}/profile`); const s=p.store||p;
+    body.innerHTML=`<div class="grid-2">
+      <div>${['Name','Store ID','Tier','Verified','Status','Total Orders','Avg Rating','Joined'].map((l,i)=>{
+        const v=[s.name,trunc(s._id,20),badge(s.tier||'standard'),s.verified?'<span style="color:var(--success)"><i class="fas fa-check"></i> Yes</span>':'No',badge(s.active===false?'suspended':'active'),s.totalOrders||0,s.sellerAvgRating?s.sellerAvgRating.toFixed(2):'—',fmtDate(s.createdAt)];
+        return `<div class="order-detail-row"><div class="order-detail-label" style="min-width:100px">${l}</div><div style="font-size:0.83rem">${v[i]}</div></div>`;
+      }).join('')}</div>
+      <div>
+        ${s.bio?`<div style="font-size:0.8rem;color:var(--muted2);margin-bottom:0.75rem;line-height:1.5">${trunc(s.bio,300)}</div>`:''}
+        <div class="btn-gap" style="margin-top:0.75rem">
+          <button class="btn btn-danger btn-sm" onclick="suspendStore('${id}');closeModal('sellerProfileModal')"><i class="fas fa-ban"></i> Suspend</button>
+          <button class="btn btn-purple btn-sm" onclick="changeTier('${id}','${s.tier||'standard'}');closeModal('sellerProfileModal')"><i class="fas fa-layer-group"></i> Tier</button>
+        </div>
+      </div>
+    </div>`;
+  } catch(err){body.innerHTML=`<div class="error-banner"><i class="fas fa-triangle-exclamation"></i>${err.message}</div>`;}
+}
+</script>

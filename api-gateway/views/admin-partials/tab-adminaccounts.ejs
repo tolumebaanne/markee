@@ -1,0 +1,236 @@
+<!-- ══════════════════════ TAB: ADMIN ACCOUNTS ══════════════════════ -->
+<div class="tab-panel" id="tab-adminaccounts">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-users-gear" style="color:var(--accent);margin-right:0.4rem;font-size:1.1rem"></i> Admin Accounts</h1>
+      <p>Manage spawned admin accounts and permission buckets</p>
+    </div>
+    <div class="page-header-actions">
+      <button class="btn btn-ghost btn-sm" onclick="loadAdminAccounts()"><i class="fas fa-rotate-right"></i> Refresh</button>
+      <button class="btn btn-primary btn-sm" id="aa-create-btn" onclick="openCreateAdmin()" style="display:none"><i class="fas fa-plus"></i> New Admin</button>
+    </div>
+  </div>
+
+  <div id="aa-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+  <div id="aa-table"><div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading accounts...</div></div>
+</div>
+
+<!-- Create Admin Modal -->
+<div class="modal-overlay" id="createAdminModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>Create Admin Account</h3>
+      <button class="modal-close" onclick="closeModal('createAdminModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="form-group">
+      <label>Email Address</label>
+      <input type="email" id="ca-email" placeholder="admin@markee.com">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="ca-password" placeholder="Min 12 characters">
+    </div>
+    <div class="form-group">
+      <label>Display Name</label>
+      <input type="text" id="ca-name" placeholder="Full name">
+    </div>
+    <div class="form-group">
+      <label>Permission Preset</label>
+      <select id="ca-preset">
+        <option value="viewer">Viewer — Read-only</option>
+        <option value="moderator">Moderator — Content & messages</option>
+        <option value="support">Support Agent — Dispute resolution</option>
+        <option value="operations">Operations Manager — Transaction lifecycle</option>
+        <option value="finance">Finance Admin — Escrow & payments</option>
+        <option value="seller_manager">Seller Manager — Seller lifecycle</option>
+        <option value="content">Content Admin — Catalog & search</option>
+        <option value="supervisor">Supervisor — Cross-area oversight</option>
+        <option value="full_admin">Full Admin — Maximum permissions</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Require MFA</label>
+      <select id="ca-mfa">
+        <option value="false">No</option>
+        <option value="true">Yes</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('createAdminModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitCreateAdmin()"><i class="fas fa-plus"></i> Create Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- Permission Edit Modal -->
+<div class="modal-overlay" id="permModal">
+  <div class="modal modal-xl">
+    <div class="modal-header">
+      <h3>Edit Permissions — <span id="perm-admin-email" style="color:var(--muted);font-weight:400"></span></h3>
+      <button class="modal-close" onclick="closeModal('permModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="perm-grid-wrap" style="max-height:50vh;overflow-y:auto"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('permModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="savePermissions()"><i class="fas fa-floppy-disk"></i> Save Permissions</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let _editingAdminId = null;
+let _editingPerms   = {};
+
+async function loadAdminAccounts() {
+  hideErr('aa-error');
+  if (window._isSuperuser) document.getElementById('aa-create-btn').style.display = 'inline-flex';
+  const el = document.getElementById('aa-table');
+  el.innerHTML = `<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading accounts...</div>`;
+  try {
+    const data = await adminApi('GET', '/accounts');
+    const accounts = data.accounts || data || [];
+    if (!accounts.length) {
+      el.innerHTML = `<div class="empty-state"><i class="fas fa-users-gear"></i>No spawned admin accounts<p>Create the first one with the button above.</p></div>`;
+      return;
+    }
+    el.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>Email</th><th>Name</th><th>Preset / Permissions</th><th>Status</th><th>Last Active</th><th>MFA</th><th>Actions</th></tr></thead>
+      <tbody>${accounts.map(a => `<tr>
+        <td style="font-weight:600">${a.email || '—'}</td>
+        <td style="color:var(--muted2)">${a.name || '—'}</td>
+        <td><span style="background:var(--bg2);color:var(--muted2);padding:0.12rem 0.5rem;border-radius:6px;font-size:0.7rem">${a.preset || 'custom'}</span></td>
+        <td>${badge(a.status || 'active')}</td>
+        <td style="color:var(--muted);font-size:0.72rem">${fmtTime(a.lastActive)}</td>
+        <td style="text-align:center">${a.mfaRequired ? '<i class="fas fa-shield-check" style="color:var(--success)"></i>' : '<i class="fas fa-minus" style="color:var(--muted)"></i>'}</td>
+        <td>
+          <div class="btn-gap">
+            ${window._isSuperuser ? `
+              <button class="btn btn-info btn-xs" onclick="openPermEdit('${a._id}','${a.email}')"><i class="fas fa-key"></i> Perms</button>
+              ${a.status === 'active'
+                ? `<button class="btn btn-warn btn-xs" onclick="suspendAdmin('${a._id}')"><i class="fas fa-pause"></i> Suspend</button>`
+                : `<button class="btn btn-success btn-xs" onclick="unsuspendAdmin('${a._id}')"><i class="fas fa-play"></i> Restore</button>`}
+              <button class="btn btn-danger btn-xs" onclick="revokeAdmin('${a._id}','${a.email}')"><i class="fas fa-ban"></i> Revoke</button>
+            ` : ''}
+          </div>
+        </td>
+      </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+  } catch (err) {
+    showErr('aa-error', err.message);
+    el.innerHTML = '';
+  }
+}
+
+function openCreateAdmin() {
+  document.getElementById('ca-email').value = '';
+  document.getElementById('ca-password').value = '';
+  document.getElementById('ca-name').value = '';
+  openModal('createAdminModal');
+}
+
+async function submitCreateAdmin() {
+  const email = document.getElementById('ca-email').value.trim();
+  const password = document.getElementById('ca-password').value;
+  const name = document.getElementById('ca-name').value.trim();
+  const preset = document.getElementById('ca-preset').value;
+  const mfaRequired = document.getElementById('ca-mfa').value === 'true';
+  if (!email || !password) { toast('Email and password are required.', 'error'); return; }
+  try {
+    await adminApi('POST', '/accounts', { email, password, name, preset, mfaRequired });
+    toast(`Admin account created for ${email}.`, 'success');
+    closeModal('createAdminModal');
+    loadAdminAccounts();
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function suspendAdmin(id) {
+  const r = await showConfirm({ title: 'Suspend Admin', body: 'Temporarily suspend this admin account. They will lose access immediately.', withReason: true, danger: true });
+  if (!r.confirmed) return;
+  try {
+    await adminApi('POST', `/accounts/${id}/suspend`, { reason: r.reason });
+    toast('Admin account suspended.', 'warn');
+    loadAdminAccounts();
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function unsuspendAdmin(id) {
+  const r = await showConfirm({ title: 'Restore Admin', body: 'Restore access for this suspended admin account?' });
+  if (!r.confirmed) return;
+  try {
+    await adminApi('POST', `/accounts/${id}/reactivate`, {});
+    toast('Admin account restored.', 'success');
+    loadAdminAccounts();
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function revokeAdmin(id, email) {
+  const r = await showConfirm({ title: 'Revoke Admin Account', body: `PERMANENT: Revoke ${email}? This cannot be undone. The account will be permanently closed.`, withReason: true, danger: true });
+  if (!r.confirmed) return;
+  try {
+    await adminApi('POST', `/accounts/${id}/revoke`, { reason: r.reason });
+    toast(`${email} permanently revoked.`, 'warn');
+    loadAdminAccounts();
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function openPermEdit(id, email) {
+  _editingAdminId = id;
+  document.getElementById('perm-admin-email').textContent = email;
+  const wrap = document.getElementById('perm-grid-wrap');
+  wrap.innerHTML = `<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading permissions...</div>`;
+  openModal('permModal');
+  try {
+    const data = await adminApi('GET', `/accounts/${id}`);
+    const perms = data.permissions || {};
+    _editingPerms = JSON.parse(JSON.stringify(perms));
+    const domains = {
+      auth: ['read','write','ban','impersonate'], catalog: ['read','write','approve','reject','feature','categoryMgmt','bulk'],
+      orders: ['read','forceStatus','cancel','bulk'], payments: ['read','refund','release','partialRefund','freeze','splitRefund','resolveDisputes','payoutHold'],
+      sellers: ['read','write','verify','suspend','ban','regApproval','tier'], reviews: ['read','moderate','delete','bulk'],
+      messages: ['read','moderate','inject','ban'], notifications: ['read','send','broadcast','editTemplates'],
+      analytics: ['read','readAll','export'], search: ['read','feature','reindex','hide','autocomplete'],
+      inventory: ['read','adjust','freeze'], shipping: ['read','forceStatus'],
+      intelligence: ['sellerScores','buyerScores','fraudSignals','anomalies'],
+      config: ['read','write'], audit: ['readOwn','readAll','export']
+    };
+    const superuserOnly = { auth: ['impersonate'], system: true };
+
+    wrap.innerHTML = Object.entries(domains).map(([domain, actions]) => `
+      <div style="margin-bottom:1.1rem">
+        <div style="font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.5rem;padding-bottom:0.3rem;border-bottom:1px solid var(--border)">${domain.toUpperCase()}</div>
+        <div class="perm-grid">
+          ${actions.map(action => {
+            const isSOOnly = superuserOnly[domain]?.includes?.(action);
+            const enabled = !!perms[domain]?.[action];
+            return `<div class="perm-row">
+              <span class="perm-label">${action.replace(/([A-Z])/g,' $1').toLowerCase()}${isSOOnly?' 🔒':''}</span>
+              <label class="toggle">
+                <input type="checkbox" id="perm-${domain}-${action}" ${enabled?'checked':''} ${isSOOnly&&!window._isSuperuser?'disabled':''} onchange="_editingPerms['${domain}'] = _editingPerms['${domain}']||{}; _editingPerms['${domain}']['${action}'] = this.checked">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`).join('');
+  } catch (err) {
+    wrap.innerHTML = `<div class="error-banner"><i class="fas fa-triangle-exclamation"></i> ${err.message}</div>`;
+  }
+}
+
+async function savePermissions() {
+  if (!_editingAdminId) return;
+  // Collect current checkbox states
+  document.querySelectorAll('#perm-grid-wrap input[type=checkbox]').forEach(cb => {
+    const [,domain,action] = cb.id.split('-');
+    if (!_editingPerms[domain]) _editingPerms[domain] = {};
+    _editingPerms[domain][action] = cb.checked;
+  });
+  try {
+    await adminApi('PATCH', `/accounts/${_editingAdminId}/permissions`, { permissions: _editingPerms });
+    toast('Permissions saved. Changes take effect on the admin\'s next API call.', 'success');
+    closeModal('permModal');
+    loadAdminAccounts();
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+</script>

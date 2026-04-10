@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
@@ -10,6 +10,10 @@ const PORT = process.env.PORT || 5001;
 
 // Connect to Database
 connectDB();
+
+const path = require('path');
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 
 // Middleware configuration
 app.use(express.json());
@@ -29,6 +33,10 @@ const oauthRoutes = require('./routes/oauth');
 
 app.use('/oauth', oauthRoutes);
 app.use('/', authRoutes);
+
+app.get('/health', (req, res) => {
+  res.json({ service: 'auth-service', status: 'ok', port: PORT });
+});
 
 app.listen(PORT, () => {
   console.log(`Authorization Server running on http://localhost:${PORT}`);

@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile | Markee</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js"></script>
+    <script src="/js/cart.js"></script>
+    <style>
+        .profile-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.75rem;
+            align-items: start;
+        }
+
+        @media (max-width: 760px) { .profile-grid { grid-template-columns: 1fr; } }
+
+        .profile-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .profile-card-header {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border-light);
+            background: var(--bg-secondary);
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .profile-card-header h4 { margin: 0; font-size: 0.9rem; font-weight: 700; }
+
+        .profile-card-body { padding: 1.25rem; }
+
+        .quick-link {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid var(--border-light);
+            cursor: pointer;
+            transition: background 0.15s;
+            text-decoration: none;
+            color: var(--text-main);
+        }
+
+        .quick-link:hover { background: var(--bg-secondary); }
+        .quick-link:last-child { border-bottom: none; }
+
+        .quick-link-left { display: flex; align-items: center; gap: 0.75rem; font-weight: 500; font-size: 0.875rem; }
+        .quick-link-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; flex-shrink: 0; }
+
+        /* Avatar circle (uploadable) */
+        .avatar-circle {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            border: 3px solid var(--accent-red);
+            overflow: hidden;
+            cursor: pointer;
+            position: relative;
+            margin: 0 auto 1rem;
+            background: var(--bg-secondary);
+            flex-shrink: 0;
+        }
+
+        .avatar-circle:hover .avatar-overlay { opacity: 1; }
+
+        .avatar-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+            color: white;
+            font-size: 1.3rem;
+            border-radius: 50%;
+        }
+
+        /* Editor modal */
+        .avatar-editor-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.72);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .avatar-editor-overlay.open { display: flex; }
+
+        .avatar-editor-box {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            width: 320px;
+            max-width: 95vw;
+        }
+
+        .editor-circle-wrap {
+            width: 220px;
+            height: 220px;
+            border-radius: 50%;
+            overflow: hidden;
+            margin: 0 auto 1.25rem;
+            border: 3px solid var(--accent-red);
+            position: relative;
+            cursor: move;
+            background: var(--bg-secondary);
+            touch-action: none;
+        }
+
+        /* Role pill */
+        .role-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .role-seller { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .role-buyer  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+        .role-admin  { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+
+        /* Store settings form state */
+        .store-form-group { margin-bottom: 1rem; }
+        .store-form-group label { font-size: 0.82rem; font-weight: 600; display: block; margin-bottom: 0.4rem; }
+        .store-form-group input,
+        .store-form-group textarea { font-size: 0.875rem; }
+
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-secondary) 25%, #e9eaec 50%, var(--bg-secondary) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+            border-radius: 6px;
+        }
+
+        @keyframes shimmer { to { background-position: -200% 0; } }
+    </style>
+</head>
+<body class="bg-light">
+
+<!-- ============ NAVBAR ============ -->
+<nav class="navbar">
+    <div class="brand-combo">
+        <a href="/"><span class="brand">Markee</span></a>
+    </div>
+    <%- include('_nav') %>
+</nav>
+
+<!-- ============ MAIN ============ -->
+<div class="container py-4 animate-fade">
+    <h2 class="mb-4">Account Profile</h2>
+
+    <div class="profile-grid">
+
+        <!-- LEFT: Account info + quick links -->
+        <div>
+            <!-- Identity card -->
+            <div class="profile-card" style="margin-bottom:1.5rem;">
+                <div class="profile-card-header">
+                    <i class="fa fa-user-circle" style="color:var(--accent-red);"></i>
+                    <h4>Account Details</h4>
+                </div>
+                <div class="profile-card-body" style="text-align:center; padding:1.75rem;">
+                    <!-- Clickable avatar circle -->
+                    <div class="avatar-circle" id="avatar-wrap" onclick="triggerAvatarUpload()" title="Change profile picture">
+                        <img id="avatar-img" src="" alt="Avatar"
+                             style="width:100%; height:100%; object-fit:cover; display:none;"
+                             onerror="this.onerror=null; this.style.display='none'; document.getElementById('avatar-initial-wrap').style.display='flex';">
+                        <div id="avatar-initial-wrap"
+                             style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:2.25rem; font-weight:700; color:white; background:var(--accent-red);">
+                            <span id="avatar-initial">?</span>
+                        </div>
+                        <div class="avatar-overlay"><i class="fa fa-camera"></i></div>
+                    </div>
+                    <input type="file" id="avatar-input" accept="image/*" style="display:none;"
+                           onchange="handleAvatarFile(this.files[0])">
+
+                    <div style="font-weight:700; font-size:1.05rem; margin-bottom:0.25rem;" id="profile-name-display">—</div>
+                    <div style="color:var(--text-muted); font-size:0.875rem; margin-bottom:0.75rem;" id="profile-email-display">—</div>
+                    <span class="role-pill" id="role-pill">—</span>
+                </div>
+                <div style="border-top:1px solid var(--border-light); padding:1rem 1.25rem;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label style="font-size:0.8rem;">Email address</label>
+                        <input type="text" id="profile-email-input" value="—" disabled
+                               style="background:var(--bg-secondary); font-size:0.875rem;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bio card -->
+            <div class="profile-card" style="margin-bottom:1.5rem;">
+                <div class="profile-card-header">
+                    <i class="fa fa-id-card" style="color:var(--accent-red);"></i>
+                    <h4>About Me</h4>
+                </div>
+                <div class="profile-card-body">
+                    <div class="store-form-group">
+                        <label>Display Name</label>
+                        <input type="text" id="bio-name" placeholder="Your full name">
+                    </div>
+                    <div class="store-form-group">
+                        <label>Bio</label>
+                        <textarea id="bio-text" placeholder="Tell people a little about yourself..." rows="2" style="resize:vertical;"></textarea>
+                    </div>
+                    <div class="store-form-group" style="margin-bottom:0;">
+                        <label>Location</label>
+                        <input type="text" id="bio-location" placeholder="City, Country">
+                    </div>
+                </div>
+                <div style="border-top:1px solid var(--border-light); padding:1rem 1.25rem; display:flex; justify-content:flex-end;">
+                    <button class="btn" style="background:var(--accent-red); width:auto;" onclick="saveBio()">
+                        <i class="fa fa-save" style="margin-right:0.4rem;"></i> Save Bio
+                    </button>
+                </div>
+            </div>
+
+            <!-- Addresses card -->
+            <div class="profile-card" style="margin-bottom:1.5rem;" id="addresses-card">
+                <div class="profile-card-header" style="justify-content:space-between;">
+                    <div style="display:flex;align-items:center;gap:0.6rem;">
+                        <i class="fa fa-map-marker-alt" style="color:var(--accent-red);"></i>
+                        <h4>Saved Addresses</h4>
+                    </div>
+                    <button class="btn" style="background:var(--accent-red); width:auto; padding:0.3rem 0.75rem; font-size:0.78rem;"
+                            onclick="showAddressForm()">
+                        <i class="fa fa-plus" style="margin-right:0.3rem;"></i> Add
+                    </button>
+                </div>
+                <div id="addresses-list" style="padding:0;">
+                    <p class="text-muted" style="padding:1.25rem; font-size:0.875rem;">Loading addresses...</p>
+                </div>
+                <!-- Add / Edit form (hidden by default) -->
+                <div id="address-form-wrap" style="display:none; border-top:1px solid var(--border-light); padding:1.25rem;">
+                    <input type="hidden" id="addr-editing-id">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:0.75rem;">
+                        <div class="store-form-group" style="margin:0;">
+                            <label>Label</label>
+                            <select id="addr-label" style="font-size:0.875rem;">
+                                <option>Home</option>
+                                <option>Work</option>
+                                <option>Other</option>
+                            </select>
+                        </div>
+                        <div class="store-form-group" style="margin:0; display:flex; align-items:flex-end; gap:0.5rem;">
+                            <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-weight:normal; margin-bottom:0.5rem;">
+                                <input type="checkbox" id="addr-default"> Set as default
+                            </label>
+                        </div>
+                    </div>
+                    <div class="store-form-group">
+                        <label>Street Address</label>
+                        <input type="text" id="addr-street" placeholder="123 Main Street">
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                        <div class="store-form-group" style="margin:0;">
+                            <label>City</label>
+                            <input type="text" id="addr-city" placeholder="Toronto">
+                        </div>
+                        <div class="store-form-group" style="margin:0;">
+                            <label>Province / State</label>
+                            <input type="text" id="addr-province" placeholder="ON">
+                        </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:0.75rem;">
+                        <div class="store-form-group" style="margin:0;">
+                            <label>Postal Code</label>
+                            <input type="text" id="addr-postal" placeholder="M5V 2T6">
+                        </div>
+                        <div class="store-form-group" style="margin:0;">
+                            <label>Country</label>
+                            <input type="text" id="addr-country" value="Canada">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:0.75rem; margin-top:1rem;">
+                        <button class="btn" style="background:var(--accent-red); width:auto; padding:0.45rem 1rem; font-size:0.82rem;"
+                                onclick="saveAddress()">
+                            <i class="fa fa-save" style="margin-right:0.35rem;"></i> Save Address
+                        </button>
+                        <button class="btn btn-outline" style="width:auto; padding:0.45rem 0.85rem; font-size:0.82rem;"
+                                onclick="cancelAddressForm()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick links -->
+            <div class="profile-card">
+                <div class="profile-card-header">
+                    <i class="fa fa-link" style="color:var(--accent-red);"></i>
+                    <h4>Quick Links</h4>
+                </div>
+                <a href="/orders" class="quick-link">
+                    <div class="quick-link-left">
+                        <div class="quick-link-icon" style="background:#eff6ff; color:#1d4ed8;"><i class="fa fa-box"></i></div>
+                        My Orders
+                    </div>
+                    <i class="fa fa-chevron-right text-muted small"></i>
+                </a>
+                <a href="/dashboard" class="quick-link" id="link-dashboard" style="display:none;">
+                    <div class="quick-link-left">
+                        <div class="quick-link-icon" style="background:#f5f3ff; color:#6d28d9;"><i class="fa fa-chart-bar"></i></div>
+                        Seller Dashboard
+                    </div>
+                    <i class="fa fa-chevron-right text-muted small"></i>
+                </a>
+                <a href="/inventory" class="quick-link" id="link-inventory" style="display:none;">
+                    <div class="quick-link-left">
+                        <div class="quick-link-icon" style="background:#ecfeff; color:#0e7490;"><i class="fa fa-boxes"></i></div>
+                        Manage Inventory
+                    </div>
+                    <i class="fa fa-chevron-right text-muted small"></i>
+                </a>
+                <a href="/messages" class="quick-link">
+                    <div class="quick-link-left">
+                        <div class="quick-link-icon" style="background:#f0fdf4; color:#15803d;"><i class="fa fa-comments"></i></div>
+                        Messages
+                    </div>
+                    <i class="fa fa-chevron-right text-muted small"></i>
+                </a>
+                <a href="/admin" class="quick-link" id="link-admin" style="display:none;">
+                    <div class="quick-link-left">
+                        <div class="quick-link-icon" style="background:#fef2f2; color:#b91c1c;"><i class="fa fa-shield-alt"></i></div>
+                        <strong style="color:var(--accent-red);">Admin Panel</strong>
+                    </div>
+                    <i class="fa fa-chevron-right text-muted small"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- RIGHT: Store settings (seller only) + danger zone -->
+        <div>
+            <!-- Notifications Card -->
+            <div class="profile-card" id="notifications-card" style="margin-bottom:1.5rem;">
+                <div class="profile-card-header">
+                    <i class="fa fa-bell" style="color:var(--accent-red);"></i>
+                    <h4>Recent Alerts</h4>
+                </div>
+                <div class="profile-card-body" id="notifications-list" style="padding:0;">
+                    <p class="text-muted" style="padding:1.25rem; font-size:0.875rem;">Loading alerts...</p>
+                </div>
+            </div>
+
+            <!-- Store settings (shown for sellers) -->
+            <div class="profile-card" id="store-settings-card" style="display:none; margin-bottom:1.5rem;">
+                <div class="profile-card-header">
+                    <i class="fa fa-store" style="color:var(--accent-red);"></i>
+                    <h4>Store Settings</h4>
+                </div>
+                <div class="profile-card-body">
+                    <!-- Loading skeleton -->
+                    <div id="store-skeleton">
+                        <div class="skeleton" style="height:14px; width:100px; margin-bottom:0.5rem;"></div>
+                        <div class="skeleton" style="height:36px; width:100%; margin-bottom:1rem;"></div>
+                        <div class="skeleton" style="height:14px; width:120px; margin-bottom:0.5rem;"></div>
+                        <div class="skeleton" style="height:60px; width:100%;"></div>
+                    </div>
+                    <!-- Form -->
+                    <div id="store-form" style="display:none;">
+                        <div class="store-form-group">
+                            <label>Store Name</label>
+                            <input type="text" id="store-name" placeholder="Your store name">
+                        </div>
+                        <div class="store-form-group">
+                            <label>Description</label>
+                            <textarea id="store-desc" placeholder="Tell buyers about your store..." rows="2"></textarea>
+                        </div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                            <div class="store-form-group">
+                                <label>Contact Phone</label>
+                                <input type="tel" id="store-phone" placeholder="+1 (555) 000-0000">
+                            </div>
+                            <div class="store-form-group">
+                                <label>Response Time</label>
+                                <select id="store-response-time" style="font-size:0.875rem;">
+                                    <option>Within 1 hour</option>
+                                    <option>Within 24 hours</option>
+                                    <option>Within 48 hours</option>
+                                    <option>Within a week</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                            <div class="store-form-group">
+                                <label>Opens at</label>
+                                <input type="time" id="store-open-time" value="09:00">
+                            </div>
+                            <div class="store-form-group">
+                                <label>Closes at</label>
+                                <input type="time" id="store-close-time" value="18:00">
+                            </div>
+                        </div>
+                        <div class="store-form-group">
+                            <label>Store Status</label>
+                            <div style="display:flex; align-items:center; gap:0.75rem; margin-top:0.25rem;">
+                                <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-weight:normal;">
+                                    <input type="radio" name="store-status" id="store-open" value="open"> Open
+                                </label>
+                                <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-weight:normal;">
+                                    <input type="radio" name="store-status" id="store-closed" value="closed"> Closed
+                                </label>
+                            </div>
+                        </div>
+                        <div class="store-form-group">
+                            <label>Store-wide Discount</label>
+                            <div style="display:flex; align-items:center; gap:0.75rem;">
+                                <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-weight:normal;">
+                                    <input type="checkbox" id="discount-enabled"> Enable discount
+                                </label>
+                                <input type="number" id="discount-percent" placeholder="%" min="0" max="100" style="width:80px; font-size:0.875rem;">
+                                <span class="text-muted small">% off all products</span>
+                            </div>
+                        </div>
+                        <div class="store-form-group">
+                            <label>Return Policy</label>
+                            <textarea id="store-return-policy" placeholder="e.g. 30-day returns accepted..." rows="2"></textarea>
+                        </div>
+                        <div class="store-form-group" style="margin-bottom:0;">
+                            <label>Shipping Policy</label>
+                            <textarea id="store-shipping-policy" placeholder="e.g. Ships within 2 business days..." rows="2"></textarea>
+                        </div>
+                    </div>
+                    <!-- Error state -->
+                    <div id="store-error" style="display:none;" class="alert alert-info">
+                        <i class="fa fa-info-circle" style="margin-right:0.5rem;"></i>
+                        No store found. Register your store first.
+                    </div>
+                </div>
+                <div style="border-top:1px solid var(--border-light); padding:1rem 1.25rem; display:none; justify-content:flex-end; gap:0.75rem;" id="store-actions">
+                    <button class="btn btn-outline" style="width:auto;" onclick="resetStoreForm()">Reset</button>
+                    <button class="btn" style="background:var(--accent-red); width:auto;" id="store-save-btn" onclick="saveStore()">
+                        <i class="fa fa-save" style="margin-right:0.4rem;"></i> Save Changes
+                    </button>
+                </div>
+            </div>
+
+            <!-- Password change -->
+            <div class="profile-card" style="margin-bottom:1.5rem;">
+                <div class="profile-card-header">
+                    <i class="fa fa-lock" style="color:var(--accent-red);"></i>
+                    <h4>Change Password</h4>
+                </div>
+                <div class="profile-card-body">
+                    <div class="store-form-group">
+                        <label>Current Password</label>
+                        <input type="password" id="pw-current" placeholder="Enter current password" autocomplete="current-password">
+                    </div>
+                    <div class="store-form-group">
+                        <label>New Password</label>
+                        <input type="password" id="pw-new" placeholder="At least 8 characters" autocomplete="new-password">
+                    </div>
+                    <div class="store-form-group" style="margin-bottom:0;">
+                        <label>Confirm New Password</label>
+                        <input type="password" id="pw-confirm" placeholder="Repeat new password" autocomplete="new-password">
+                    </div>
+                </div>
+                <div style="border-top:1px solid var(--border-light); padding:1rem 1.25rem; display:flex; justify-content:flex-end;">
+                    <button class="btn" style="background:var(--accent-red); width:auto;" id="pw-save-btn" onclick="changePassword()">
+                        <i class="fa fa-key" style="margin-right:0.4rem;"></i> Update Password
+                    </button>
+                </div>
+            </div>
+
+            <!-- Reviewer Score (B.5) -->
+            <div class="profile-card" id="reviewer-score-card" style="display:none; margin-bottom:1.5rem;">
+                <div class="profile-card-header">
+                    <i class="fa fa-star" style="color:#f59e0b;"></i>
+                    <h4>Your Reviewer Score</h4>
+                </div>
+                <div class="profile-card-body" id="reviewer-score-body"></div>
+            </div>
+
+            <!-- Your Reviews (B.5) -->
+            <div class="profile-card" id="my-reviews-card" style="display:none; margin-bottom:1.5rem;">
+                <div class="profile-card-header" style="justify-content:space-between;">
+                    <div style="display:flex; align-items:center; gap:0.65rem;">
+                        <i class="fa fa-comment-alt" style="color:var(--accent-red);"></i>
+                        <h4>Your Reviews</h4>
+                    </div>
+                    <span id="my-reviews-count" style="font-size:0.75rem; color:var(--text-muted);"></span>
+                </div>
+                <div class="profile-card-body" style="padding:0;" id="my-reviews-list">
+                    <p class="text-muted small" style="padding:1rem;">Loading...</p>
+                </div>
+            </div>
+
+            <!-- Danger zone -->
+            <div class="profile-card">
+                <div class="profile-card-header">
+                    <i class="fa fa-exclamation-triangle" style="color:#b91c1c;"></i>
+                    <h4 style="color:#b91c1c;">Danger Zone</h4>
+                </div>
+                <div class="profile-card-body">
+                    <p class="text-muted" style="font-size:0.875rem; margin-bottom:1rem;">
+                        Permanently deletes your account and all associated data. This cannot be undone. Type your email address below to confirm.
+                    </p>
+                    <div class="store-form-group" style="margin-bottom:1rem;">
+                        <label>Confirm your email</label>
+                        <input type="email" id="delete-confirm-email" placeholder="<%= '' %>your@email.com">
+                    </div>
+                    <button class="btn btn-outline" style="width:auto; border-color:#fecaca; color:#b91c1c;" id="delete-account-btn" onclick="deleteAccount()">
+                        <i class="fa fa-trash-alt" style="margin-right:0.5rem;"></i> Delete My Account
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- ============ AVATAR EDITOR MODAL ============ -->
+<div class="avatar-editor-overlay" id="avatar-editor-overlay">
+    <div class="avatar-editor-box">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+            <h4 style="margin:0;">Position your photo</h4>
+            <button onclick="closeEditorModal()" style="background:none; border:none; cursor:pointer; font-size:1.3rem; color:var(--text-muted);">&times;</button>
+        </div>
+
+        <!-- Draggable circle viewport -->
+        <div class="editor-circle-wrap" id="editor-circle"
+             onmousedown="startDrag(event)"
+             ontouchstart="startDragTouch(event)">
+            <img id="editor-img" src="" alt=""
+                 style="position:absolute; transform-origin:center center; user-select:none; pointer-events:none; left:50%; top:50%;">
+        </div>
+
+        <!-- Zoom slider -->
+        <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1.25rem;">
+            <i class="fa fa-search-minus" style="color:var(--text-muted);"></i>
+            <input type="range" id="zoom-slider" min="0.5" max="3" step="0.01" value="1"
+                   style="flex:1; accent-color:var(--accent-red);" oninput="applyTransform()">
+            <i class="fa fa-search-plus" style="color:var(--text-muted);"></i>
+        </div>
+
+        <p class="text-muted small" style="text-align:center; margin-bottom:1rem;">
+            Drag to reposition · Scroll or slider to zoom
+        </p>
+
+        <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
+            <button class="btn btn-outline" style="width:auto;" onclick="closeEditorModal()">Cancel</button>
+            <button class="btn" style="background:var(--accent-red); width:auto;" onclick="applyAvatar()">
+                <i class="fa fa-check" style="margin-right:0.4rem;"></i> Apply
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ── Auth ──────────────────────────────────────────────────────────────────
+    const token = localStorage.getItem('access_token');
+    if (!token) window.location.replace('/login');
+
+    function parseJwt(t) {
+        try { return JSON.parse(atob(t.split('.')[1])); }
+        catch { return null; }
+    }
+
+    const user = parseJwt(token);
+    if (!user) window.location.replace('/login');
+
+    function handleLogout() {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        window.location.replace('/');
+    }
+
+    // ── Populate identity card ────────────────────────────────────────────────
+    const emailName = (user.email || '').split('@')[0];
+    const initial = emailName.charAt(0).toUpperCase() || '?';
+
+    document.getElementById('avatar-initial').textContent = initial;
+    document.getElementById('profile-name-display').textContent = emailName;
+    document.getElementById('profile-email-display').textContent = user.email || '—';
+    document.getElementById('profile-email-input').value = user.email || '—';
+
+    const roleEl = document.getElementById('role-pill');
+    const roleClass = { seller: 'role-seller', buyer: 'role-buyer', admin: 'role-admin' }[user.role] || 'role-buyer';
+    roleEl.className = `role-pill ${roleClass}`;
+    roleEl.textContent = (user.role || 'buyer').toUpperCase();
+
+    // Role-based navigation
+    const isSeller = user.storeActive === true || user.role === 'admin';
+    if (isSeller) {
+        document.getElementById('nav-dashboard').style.display = 'inline';
+        document.getElementById('link-dashboard').style.display = 'flex';
+        document.getElementById('link-inventory').style.display = 'flex';
+        document.getElementById('store-settings-card').style.display = 'block';
+        loadStoreSettings();
+    }
+    if (user.role === 'admin') {
+        document.getElementById('nav-admin').style.display = 'inline';
+        document.getElementById('link-admin').style.display = 'flex';
+    }
+
+    loadNotifications();
+
+    // ── Store settings ────────────────────────────────────────────────────────
+    let _originalStore = null;
+    let _storeId = user.storeId;
+
+    async function loadNotifications() {
+        try {
+            const res = await fetch(`/api/notifications/${user.sub}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error();
+            const notifications = await res.json();
+            const list = document.getElementById('notifications-list');
+
+            if (!notifications || notifications.length === 0) {
+                list.innerHTML = '<p class="text-muted" style="padding:1.25rem; font-size:0.875rem;">No recent alerts.</p>';
+                return;
+            }
+
+            list.innerHTML = notifications.map(n => {
+                const isPriceDrop = n.type === 'PRICE_DROP_ALERT';
+                const dateStr = new Date(n.sentAt || new Date()).toLocaleDateString();
+                const icon = isPriceDrop ? '<i class="fa fa-arrow-down" style="color:#15803d; background:#f0fdf4; padding:0.4rem; border-radius:50%;"></i>' 
+                                         : '<i class="fa fa-info" style="color:#1d4ed8; background:#eff6ff; padding:0.4rem 0.6rem; border-radius:50%;"></i>';
+                
+                let linkTarget = '#';
+                if (isPriceDrop && n.eventData && n.eventData.productId) {
+                    linkTarget = `/product/${n.eventData.productId}?ref=notification_price_drop`;
+                }
+
+                return `
+                <a href="${linkTarget}" style="text-decoration:none; color:inherit; display:block; border-bottom:1px solid var(--border-light); padding:1rem 1.25rem; transition:background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
+                    <div style="display:flex; gap:0.75rem; align-items:flex-start;">
+                        ${icon}
+                        <div>
+                            <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.2rem;">${n.subject || 'Alert'}</div>
+                            <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.4;">${ (n.body || '').replace(/\n/g, '<br>') }</div>
+                            <div style="font-size:0.7rem; color:#9ca3af; margin-top:0.4rem;">${dateStr}</div>
+                        </div>
+                    </div>
+                </a>`;
+            }).join('');
+        } catch (e) {
+            document.getElementById('notifications-list').innerHTML = '<p class="text-muted" style="padding:1.25rem; font-size:0.875rem;">Could not load alerts.</p>';
+        }
+    }
+
+    async function loadStoreSettings() {
+        if (!_storeId) {
+            document.getElementById('store-skeleton').style.display = 'none';
+            document.getElementById('store-error').style.display = 'block';
+            return;
+        }
+        try {
+            let res = await fetch(`/api/public-seller/${_storeId}`);
+
+            // First-time seller: store document doesn't exist yet — auto-register it
+            if (res.status === 404) {
+                const defaultName = emailName.charAt(0).toUpperCase() + emailName.slice(1) + "'s Store";
+                const regRes = await fetch('/api/seller/register', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body:    JSON.stringify({ name: defaultName, description: '', phone: '' })
+                });
+                if (!regRes.ok) throw new Error('Could not create store');
+                res = await fetch(`/api/public-seller/${_storeId}`);
+            }
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const store = await res.json();
+            _originalStore = store;
+
+            document.getElementById('store-name').value  = store.name || '';
+            document.getElementById('store-desc').value  = store.description || '';
+            document.getElementById('store-phone').value = store.phone || '';
+
+            // Response time
+            const rtSel = document.getElementById('store-response-time');
+            if (store.responseTime) rtSel.value = store.responseTime;
+
+            // Business hours
+            document.getElementById('store-open-time').value  = store.businessHours?.openTime  || '09:00';
+            document.getElementById('store-close-time').value = store.businessHours?.closeTime || '18:00';
+
+            // Store status
+            const isOpen = store.isOpen !== false;
+            document.getElementById('store-open').checked   = isOpen;
+            document.getElementById('store-closed').checked = !isOpen;
+
+            // Store-wide discount
+            document.getElementById('discount-enabled').checked = !!(store.discount?.storeWide?.enabled);
+            document.getElementById('discount-percent').value   = store.discount?.storeWide?.percent || '';
+
+            // Policies
+            document.getElementById('store-return-policy').value   = store.returnPolicy   || '';
+            document.getElementById('store-shipping-policy').value = store.shippingPolicy || '';
+
+            document.getElementById('store-skeleton').style.display = 'none';
+            document.getElementById('store-form').style.display     = 'block';
+            document.getElementById('store-actions').style.display  = 'flex';
+        } catch (err) {
+            document.getElementById('store-skeleton').style.display = 'none';
+            document.getElementById('store-error').style.display    = 'block';
+            document.getElementById('store-error').innerHTML =
+                `<i class="fa fa-exclamation-circle" style="margin-right:0.5rem;"></i>Could not load store: ${err.message}`;
+        }
+    }
+
+    function resetStoreForm() {
+        if (!_originalStore) return;
+        const s = _originalStore;
+        document.getElementById('store-name').value  = s.name || '';
+        document.getElementById('store-desc').value  = s.description || '';
+        document.getElementById('store-phone').value = s.phone || '';
+
+        const rtSel = document.getElementById('store-response-time');
+        if (s.responseTime) rtSel.value = s.responseTime;
+
+        document.getElementById('store-open-time').value  = s.businessHours?.openTime  || '09:00';
+        document.getElementById('store-close-time').value = s.businessHours?.closeTime || '18:00';
+
+        const isOpen = s.isOpen !== false;
+        document.getElementById('store-open').checked   = isOpen;
+        document.getElementById('store-closed').checked = !isOpen;
+
+        document.getElementById('discount-enabled').checked = !!(s.discount?.storeWide?.enabled);
+        document.getElementById('discount-percent').value   = s.discount?.storeWide?.percent || '';
+
+        document.getElementById('store-return-policy').value   = s.returnPolicy   || '';
+        document.getElementById('store-shipping-policy').value = s.shippingPolicy || '';
+        showToast('Reset to saved values.', 'info');
+    }
+
+    async function saveStore() {
+        const btn = document.getElementById('store-save-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.4rem;"></i> Saving...';
+
+        const payload = {
+            name:           document.getElementById('store-name').value.trim(),
+            description:    document.getElementById('store-desc').value.trim(),
+            phone:          document.getElementById('store-phone').value.trim(),
+            responseTime:   document.getElementById('store-response-time').value,
+            isOpen:         document.getElementById('store-open').checked,
+            businessHours: {
+                openTime:  document.getElementById('store-open-time').value,
+                closeTime: document.getElementById('store-close-time').value,
+                days:      ['Mon','Tue','Wed','Thu','Fri']
+            },
+            discount: {
+                storeWide: {
+                    enabled: document.getElementById('discount-enabled').checked,
+                    percent: parseFloat(document.getElementById('discount-percent').value) || 0
+                }
+            },
+            returnPolicy:   document.getElementById('store-return-policy').value.trim(),
+            shippingPolicy: document.getElementById('store-shipping-policy').value.trim()
+        };
+
+        try {
+            const res = await fetch(`/api/seller/${_storeId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+            _originalStore = data;
+            showToast('Store settings saved!', 'success');
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa fa-save" style="margin-right:0.4rem;"></i> Save Changes';
+        }
+    }
+
+    // ── Change password ───────────────────────────────────────────────────────
+    async function changePassword() {
+        const currentPw  = document.getElementById('pw-current').value;
+        const newPw      = document.getElementById('pw-new').value;
+        const confirmPw  = document.getElementById('pw-confirm').value;
+
+        if (!currentPw || !newPw || !confirmPw) return showToast('Please fill in all password fields.', 'error');
+        if (newPw.length < 8) return showToast('New password must be at least 8 characters.', 'error');
+        if (newPw !== confirmPw) return showToast('New passwords do not match.', 'error');
+
+        const btn = document.getElementById('pw-save-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.4rem;"></i> Updating...';
+
+        try {
+            const res = await fetch('/api/auth/change-password', {
+                method:  'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body:    JSON.stringify({ currentPassword: currentPw, newPassword: newPw })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            document.getElementById('pw-current').value = '';
+            document.getElementById('pw-new').value     = '';
+            document.getElementById('pw-confirm').value = '';
+            showToast('Password updated successfully!', 'success');
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa fa-key" style="margin-right:0.4rem;"></i> Update Password';
+        }
+    }
+
+    // ── Delete account (2FA: must type email) ────────────────────────────────
+    async function deleteAccount() {
+        const typed = (document.getElementById('delete-confirm-email').value || '').trim().toLowerCase();
+        const actual = (user.email || '').toLowerCase();
+        if (!typed) return showToast('Type your email address to confirm deletion.', 'error');
+        if (typed !== actual) return showToast('Email does not match. Please try again.', 'error');
+
+        const btn = document.getElementById('delete-account-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.4rem;"></i> Deleting...';
+
+        try {
+            const res = await fetch('/api/auth/account-jwt', {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.success || res.ok) {
+                showToast('Account deleted.', 'success');
+                setTimeout(() => {
+                    localStorage.removeItem('access_token');
+                    localStorage.removeItem('refresh_token');
+                    window.location.replace('/');
+                }, 1500);
+            } else {
+                throw new Error(data.error || 'Unknown error');
+            }
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa fa-trash-alt" style="margin-right:0.5rem;"></i> Delete My Account';
+        }
+    }
+
+    // ── Avatar upload ─────────────────────────────────────────────────────────
+    let _panX = 0, _panY = 0, _zoom = 1;
+    let _dragging = false, _lastX = 0, _lastY = 0;
+
+    function triggerAvatarUpload() {
+        document.getElementById('avatar-input').click();
+    }
+
+    function handleAvatarFile(file) {
+        if (!file || !file.type.startsWith('image/')) return;
+        const url = URL.createObjectURL(file);
+        const edImg = document.getElementById('editor-img');
+        edImg.src = url;
+        edImg.onload = () => {
+            const S = 220; // circle diameter
+            const scale = Math.max(S / edImg.naturalWidth, S / edImg.naturalHeight);
+            _zoom = scale;
+            _panX = 0; _panY = 0;
+            const slider = document.getElementById('zoom-slider');
+            slider.min   = scale * 0.8;
+            slider.max   = scale * 4;
+            slider.value = scale;
+            applyTransform();
+            document.getElementById('avatar-editor-overlay').classList.add('open');
+        };
+    }
+
+    function applyTransform() {
+        _zoom = parseFloat(document.getElementById('zoom-slider').value);
+        const edImg = document.getElementById('editor-img');
+        edImg.style.transform = `translate(-50%, -50%) translate(${_panX}px, ${_panY}px) scale(${_zoom})`;
+    }
+
+    function startDrag(e) {
+        _dragging = true;
+        _lastX = e.clientX; _lastY = e.clientY;
+        e.preventDefault();
+    }
+
+    function startDragTouch(e) {
+        _dragging = true;
+        _lastX = e.touches[0].clientX; _lastY = e.touches[0].clientY;
+    }
+
+    document.addEventListener('mousemove', e => {
+        if (!_dragging) return;
+        _panX += e.clientX - _lastX; _panY += e.clientY - _lastY;
+        _lastX = e.clientX; _lastY = e.clientY;
+        applyTransform();
+    });
+
+    document.addEventListener('mouseup', () => { _dragging = false; });
+
+    document.addEventListener('touchmove', e => {
+        if (!_dragging) return;
+        _panX += e.touches[0].clientX - _lastX;
+        _panY += e.touches[0].clientY - _lastY;
+        _lastX = e.touches[0].clientX; _lastY = e.touches[0].clientY;
+        applyTransform();
+    }, { passive: true });
+
+    document.addEventListener('touchend', () => { _dragging = false; });
+
+    // Scroll-to-zoom inside the editor circle
+    document.getElementById('avatar-editor-overlay').addEventListener('wheel', e => {
+        if (!document.getElementById('avatar-editor-overlay').classList.contains('open')) return;
+        e.preventDefault();
+        const slider = document.getElementById('zoom-slider');
+        const delta  = -e.deltaY * 0.001;
+        slider.value = Math.min(slider.max, Math.max(slider.min, parseFloat(slider.value) + delta));
+        applyTransform();
+    }, { passive: false });
+
+    function closeEditorModal() {
+        document.getElementById('avatar-editor-overlay').classList.remove('open');
+        document.getElementById('avatar-input').value = '';
+    }
+
+    async function applyAvatar() {
+        const S      = 220;
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = S;
+        const ctx    = canvas.getContext('2d');
+        const edImg  = document.getElementById('editor-img');
+
+        // Clip circle
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(S / 2, S / 2, S / 2, 0, Math.PI * 2);
+        ctx.clip();
+
+        // Draw at current pan + zoom
+        const iw = edImg.naturalWidth  * _zoom;
+        const ih = edImg.naturalHeight * _zoom;
+        ctx.drawImage(edImg, S / 2 - iw / 2 + _panX, S / 2 - ih / 2 + _panY, iw, ih);
+        ctx.restore();
+
+        // Binary-search JPEG quality to stay under ~50 KB
+        let lo = 0.1, hi = 1, dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        for (let i = 0; i < 12; i++) {
+            const mid  = (lo + hi) / 2;
+            const candidate = canvas.toDataURL('image/jpeg', mid);
+            if (candidate.length * 0.75 > 51200) hi = mid;
+            else { lo = mid; dataUrl = candidate; }
+        }
+
+        try { localStorage.setItem(`markee_avatar_${user.email}`, dataUrl); }
+        catch (e) { /* storage full — still display it */ }
+
+        const img = document.getElementById('avatar-img');
+        img.src = dataUrl;
+        img.style.display = 'block';
+        document.getElementById('avatar-initial-wrap').style.display = 'none';
+
+        closeEditorModal();
+        showToast('Profile picture updated!', 'success');
+    }
+
+    function loadAvatar() {
+        const saved = localStorage.getItem(`markee_avatar_${user.email}`);
+        if (saved) {
+            const img = document.getElementById('avatar-img');
+            img.src = saved;
+            img.style.display = 'block';
+            document.getElementById('avatar-initial-wrap').style.display = 'none';
+        }
+    }
+
+    // ── Bio ───────────────────────────────────────────────────────────────────
+    function loadBio() {
+        try {
+            const saved = localStorage.getItem(`markee_bio_${user.email}`);
+            if (!saved) return;
+            const bio = JSON.parse(saved);
+            document.getElementById('bio-name').value     = bio.name     || '';
+            document.getElementById('bio-text').value     = bio.bio      || '';
+            document.getElementById('bio-location').value = bio.location || '';
+            if (bio.name) document.getElementById('profile-name-display').textContent = bio.name;
+        } catch {}
+    }
+
+    function saveBio() {
+        const bio = {
+            name:     document.getElementById('bio-name').value.trim(),
+            bio:      document.getElementById('bio-text').value.trim(),
+            location: document.getElementById('bio-location').value.trim()
+        };
+        localStorage.setItem(`markee_bio_${user.email}`, JSON.stringify(bio));
+        if (bio.name) document.getElementById('profile-name-display').textContent = bio.name;
+        showToast('Bio saved!', 'success');
+    }
+
+    // ── Addresses ─────────────────────────────────────────────────────────────
+    async function loadAddresses() {
+        try {
+            const res = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
+            if (!res.ok) throw new Error();
+            const profile = await res.json();
+            renderAddresses(profile.addresses || []);
+        } catch {
+            document.getElementById('addresses-list').innerHTML =
+                '<p class="text-muted" style="padding:1.25rem; font-size:0.875rem;">Could not load addresses.</p>';
+        }
+    }
+
+    function renderAddresses(addresses) {
+        const list = document.getElementById('addresses-list');
+        if (!addresses.length) {
+            list.innerHTML = '<p class="text-muted" style="padding:1.25rem; font-size:0.875rem;">No saved addresses yet.</p>';
+            return;
+        }
+        list.innerHTML = addresses.map(a => `
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; padding:1rem 1.25rem; border-bottom:1px solid var(--border-light);">
+                <div>
+                    <div style="font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:0.5rem;">
+                        ${a.label || 'Address'}
+                        ${a.isDefault ? '<span style="font-size:0.7rem; background:var(--accent-red); color:#fff; border-radius:4px; padding:0.1rem 0.45rem; font-weight:700;">DEFAULT</span>' : ''}
+                    </div>
+                    <div style="font-size:0.82rem; color:var(--text-muted); margin-top:0.25rem; line-height:1.5;">
+                        ${a.street || ''}<br>
+                        ${[a.city, a.province, a.postalCode].filter(Boolean).join(', ')}<br>
+                        ${a.country || ''}
+                    </div>
+                </div>
+                <div style="display:flex; gap:0.5rem; flex-shrink:0; margin-left:0.75rem;">
+                    <button onclick="editAddress('${a._id}')" style="background:none; border:1px solid var(--border-light); border-radius:6px; padding:0.3rem 0.65rem; font-size:0.78rem; cursor:pointer; color:var(--text-main);">
+                        <i class="fa fa-pen"></i>
+                    </button>
+                    <button onclick="deleteAddress('${a._id}')" style="background:none; border:1px solid #fca5a5; border-radius:6px; padding:0.3rem 0.65rem; font-size:0.78rem; cursor:pointer; color:#dc2626;">
+                        <i class="fa fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    let _allAddresses = [];
+
+    async function _fetchAddresses() {
+        const res = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) throw new Error('Failed to load profile');
+        const profile = await res.json();
+        _allAddresses = profile.addresses || [];
+        return _allAddresses;
+    }
+
+    function showAddressForm(addr) {
+        const wrap = document.getElementById('address-form-wrap');
+        wrap.style.display = 'block';
+        document.getElementById('addr-editing-id').value = addr ? addr._id : '';
+        document.getElementById('addr-label').value      = addr ? (addr.label    || 'Home') : 'Home';
+        document.getElementById('addr-default').checked  = addr ? !!addr.isDefault : false;
+        document.getElementById('addr-street').value     = addr ? (addr.street   || '') : '';
+        document.getElementById('addr-city').value       = addr ? (addr.city     || '') : '';
+        document.getElementById('addr-province').value   = addr ? (addr.province || '') : '';
+        document.getElementById('addr-postal').value     = addr ? (addr.postalCode || '') : '';
+        document.getElementById('addr-country').value    = addr ? (addr.country  || 'Canada') : 'Canada';
+        wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function cancelAddressForm() {
+        document.getElementById('address-form-wrap').style.display = 'none';
+        document.getElementById('addr-editing-id').value = '';
+    }
+
+    async function editAddress(id) {
+        try {
+            const addresses = await _fetchAddresses();
+            const addr = addresses.find(a => a._id === id);
+            if (addr) showAddressForm(addr);
+        } catch { showToast('Could not load address', 'error'); }
+    }
+
+    async function saveAddress() {
+        const editingId = document.getElementById('addr-editing-id').value.trim();
+        const payload = {
+            label:      document.getElementById('addr-label').value,
+            isDefault:  document.getElementById('addr-default').checked,
+            street:     document.getElementById('addr-street').value.trim(),
+            city:       document.getElementById('addr-city').value.trim(),
+            province:   document.getElementById('addr-province').value.trim(),
+            postalCode: document.getElementById('addr-postal').value.trim(),
+            country:    document.getElementById('addr-country').value.trim()
+        };
+        if (!payload.street || !payload.city || !payload.country) {
+            return showToast('Street, city and country are required.', 'error');
+        }
+        const url    = editingId ? `/api/users/me/addresses/${editingId}` : '/api/users/me/addresses';
+        const method = editingId ? 'PUT' : 'POST';
+        try {
+            const res = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) throw new Error((await res.json()).message || 'Save failed');
+            const updated = await res.json();
+            _allAddresses = updated;
+            renderAddresses(updated);
+            cancelAddressForm();
+            showToast(editingId ? 'Address updated.' : 'Address added.', 'success');
+        } catch (e) { showToast(e.message || 'Could not save address.', 'error'); }
+    }
+
+    async function deleteAddress(id) {
+        if (!confirm('Remove this address?')) return;
+        try {
+            const res = await fetch(`/api/users/me/addresses/${id}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error();
+            const updated = await res.json();
+            _allAddresses = updated;
+            renderAddresses(updated);
+            showToast('Address removed.', 'success');
+        } catch { showToast('Could not delete address.', 'error'); }
+    }
+
+    // ── Reviewer score + own reviews (B.5) ───────────────────────────────────
+    function renderReviewStars(rating) {
+        return ['','','','',''].map((_,i) =>
+            `<i class="fa fa-star" style="color:${i < rating ? '#f59e0b' : '#d1d5db'}; font-size:0.8rem;"></i>`
+        ).join('');
+    }
+
+    async function loadReviewerScore() {
+        try {
+            const res = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
+            if (!res.ok) return;
+            const profile = await res.json();
+            const score = profile.buyerScore ?? 50;
+            const written = profile.reviewsWritten ?? 0;
+            const card  = document.getElementById('reviewer-score-card');
+            const body  = document.getElementById('reviewer-score-body');
+            let badgeColor, badgeText, badgeIcon, desc;
+            if (score >= 80) {
+                badgeColor='#15803d'; badgeText='Trusted Reviewer'; badgeIcon='fa-medal';
+                desc = 'Your review history shows you\'re a trusted buyer. Sellers value your input.';
+            } else if (score >= 60) {
+                badgeColor='#1d4ed8'; badgeText='Established Reviewer'; badgeIcon='fa-user-check';
+                desc = 'You have a solid review track record. Keep reviewing to reach Trusted status.';
+            } else {
+                badgeColor='#6b7280'; badgeText='New Reviewer'; badgeIcon='fa-user';
+                desc = 'Leave more verified reviews to build your buyer reputation score.';
+            }
+            body.innerHTML = `
+                <div style="display:flex; align-items:center; gap:1rem; margin-bottom:0.75rem;">
+                    <div style="width:56px; height:56px; border-radius:50%; background:${badgeColor}15; display:flex; align-items:center; justify-content:center; font-size:1.5rem; color:${badgeColor}; flex-shrink:0;">
+                        <i class="fa ${badgeIcon}"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight:700; font-size:1rem; color:${badgeColor};">${badgeText}</div>
+                        <div style="font-size:0.82rem; color:var(--text-muted);">${written} review${written!==1?'s':''} written · Score: ${score}/100</div>
+                    </div>
+                </div>
+                <div style="background:var(--bg-secondary); border-radius:6px; padding:0.6rem 0.85rem; font-size:0.8rem; color:var(--text-muted); line-height:1.5;">${desc}</div>
+                <div style="margin-top:0.75rem; height:6px; background:var(--bg-secondary); border-radius:3px; overflow:hidden;">
+                    <div style="height:100%; width:${score}%; background:${badgeColor}; border-radius:3px; transition:width 0.6s;"></div>
+                </div>
+                <div style="font-size:0.68rem; color:var(--text-muted); text-align:right; margin-top:0.2rem;">${score} / 100</div>`;
+            card.style.display = 'block';
+        } catch {}
+    }
+
+    async function loadMyReviews() {
+        try {
+            const res = await fetch('/api/reviews/my-reviews', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) return;
+            const reviews = await res.json();
+            const card = document.getElementById('my-reviews-card');
+            const list = document.getElementById('my-reviews-list');
+            const countEl = document.getElementById('my-reviews-count');
+            card.style.display = 'block';
+            countEl.textContent = `${reviews.length} review${reviews.length!==1?'s':''}`;
+            if (!reviews.length) {
+                list.innerHTML = '<p class="text-muted small" style="padding:1rem; margin:0;">No reviews yet. Reviews you leave after purchases will appear here.</p>';
+                return;
+            }
+            list.innerHTML = reviews.map(r => {
+                const statusBadge = r.status === 'approved'
+                    ? '<span style="font-size:0.62rem; font-weight:700; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; border-radius:4px; padding:0.05rem 0.35rem;">Approved</span>'
+                    : r.status === 'flagged'
+                    ? '<span style="font-size:0.62rem; font-weight:700; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; border-radius:4px; padding:0.05rem 0.35rem;">Flagged</span>'
+                    : '<span style="font-size:0.62rem; font-weight:700; background:var(--bg-secondary); color:var(--text-muted); border:1px solid var(--border-light); border-radius:4px; padding:0.05rem 0.35rem;">Pending</span>';
+                const date = new Date(r.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+                const imgHtml = r.imageUrl
+                    ? `<img src="${r.imageUrl}" alt="Review photo" style="max-width:80px; height:60px; object-fit:cover; border-radius:6px; border:1px solid var(--border-light); margin-top:0.4rem;">`
+                    : '';
+                const replyHtml = r.sellerReply?.body
+                    ? `<div style="margin-top:0.5rem; background:var(--bg-secondary); border-left:3px solid var(--accent-red); border-radius:0 6px 6px 0; padding:0.45rem 0.65rem; font-size:0.78rem; color:var(--text-muted);">
+                           <strong style="color:var(--accent-red);">Seller:</strong> ${r.sellerReply.body.slice(0,100)}${r.sellerReply.body.length>100?'…':''}
+                       </div>` : '';
+                return `
+                <div style="padding:0.85rem 1.25rem; border-bottom:1px solid var(--border-light);">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.3rem; margin-bottom:0.3rem;">
+                        <div style="display:flex; align-items:center; gap:0.4rem;">
+                            <span>${renderReviewStars(r.rating)}</span>
+                            ${statusBadge}
+                        </div>
+                        <span style="font-size:0.72rem; color:var(--text-muted);">${date}</span>
+                    </div>
+                    <div style="font-size:0.875rem; color:var(--text-main); line-height:1.55;">${r.body || '<em style="color:var(--text-muted);">No review text</em>'}</div>
+                    ${imgHtml}
+                    ${replyHtml}
+                    <a href="/product/${r.productId}" style="font-size:0.72rem; color:var(--accent-red); text-decoration:none; margin-top:0.4rem; display:inline-block;">View Product →</a>
+                </div>`;
+            }).join('');
+        } catch {}
+    }
+
+    // ── Boot ──────────────────────────────────────────────────────────────────
+    loadAvatar();
+    loadBio();
+    loadAddresses();
+    loadReviewerScore();
+    loadMyReviews();
+    if (window.MarkeeCart) MarkeeCart.updateAllCartBadges();
+</script>
+</body>
+</html>

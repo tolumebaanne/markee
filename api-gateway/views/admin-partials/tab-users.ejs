@@ -1,0 +1,150 @@
+<!-- ══════════════════════ TAB: USERS ══════════════════════ -->
+<div class="tab-panel" id="tab-users">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-users" style="color:var(--accent);margin-right:0.4rem;font-size:1.1rem"></i> Users</h1>
+      <p>Platform user accounts — suspend, ban, role changes, deletion</p>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="loadUsers()"><i class="fas fa-rotate-right"></i> Refresh</button>
+  </div>
+
+  <div class="filter-bar">
+    <select id="u-role-filter" onchange="loadUsers()">
+      <option value="">All Roles</option>
+      <option value="buyer">Buyers</option>
+      <option value="seller">Sellers</option>
+      <option value="admin">Admins</option>
+    </select>
+    <select id="u-status-filter" onchange="loadUsers()">
+      <option value="">All Statuses</option>
+      <option value="active">Active</option>
+      <option value="suspended">Suspended</option>
+      <option value="banned">Banned</option>
+    </select>
+    <input id="u-search" type="text" placeholder="Search by email or ID..." style="min-width:220px" oninput="debounce(loadUsers,400)()">
+  </div>
+
+  <div id="u-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+  <div id="u-table"><div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading users...</div></div>
+  <div class="pagination" id="u-pagination"></div>
+</div>
+
+<script>
+let _uPage = 1;
+
+async function loadUsers(page) {
+  if (page != null) _uPage = page; else _uPage = 1;
+  hideErr('u-error');
+  const el = document.getElementById('u-table');
+  el.innerHTML = `<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
+
+  const role   = document.getElementById('u-role-filter').value;
+  const status = document.getElementById('u-status-filter').value;
+  const search = document.getElementById('u-search').value.trim();
+  const qs     = new URLSearchParams({ page: _uPage, limit: 25 });
+  if (role)   qs.set('role', role);
+  if (status) qs.set('status', status);
+  if (search) qs.set('search', search);
+
+  try {
+    const data  = await adminApi('GET', `/proxy/users?${qs}`);
+    const users = data.users || data || [];
+    const total = data.total || users.length;
+    if (!users.length) {
+      el.innerHTML = `<div class="empty-state"><i class="fas fa-user-slash"></i>No users match your filters</div>`;
+      document.getElementById('u-pagination').innerHTML = '';
+      return;
+    }
+
+    el.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>Email</th><th>ID</th><th>Role</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+      <tbody>${users.map(u => `<tr>
+        <td style="font-weight:600">${u.email || '—'}</td>
+        <td class="mono">${trunc(u._id||u.userId, 16)}</td>
+        <td>${badge(u.role||'buyer')}</td>
+        <td>${badge(u.status||'active')}</td>
+        <td style="color:var(--muted);font-size:0.7rem">${fmtDate(u.createdAt)}</td>
+        <td>
+          <div class="btn-gap">
+            ${u.status !== 'suspended' && u.status !== 'banned'
+              ? `<button class="btn btn-warn btn-xs" onclick="suspendUser('${u._id||u.userId}')"><i class="fas fa-pause"></i> Suspend</button>`
+              : `<button class="btn btn-success btn-xs" onclick="unbanUser('${u._id||u.userId}')"><i class="fas fa-rotate-right"></i> Restore</button>`}
+            ${u.status !== 'banned'
+              ? `<button class="btn btn-danger btn-xs" onclick="banUser('${u._id||u.userId}')"><i class="fas fa-ban"></i> Ban</button>`
+              : ''}
+            <button class="btn btn-ghost btn-xs" onclick="changeUserRole('${u._id||u.userId}','${u.role||'buyer'}')"><i class="fas fa-user-gear"></i> Role</button>
+            <button class="btn btn-danger btn-xs" onclick="deleteUser('${u._id||u.userId}','${u.email||''}')"><i class="fas fa-trash"></i></button>
+          </div>
+        </td>
+      </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+
+    const pages = Math.ceil(total / 25);
+    document.getElementById('u-pagination').innerHTML =
+      `<span style="margin-right:auto">Showing ${users.length} of ${total}</span>` +
+      (_uPage > 1 ? `<button class="btn btn-ghost btn-xs" onclick="loadUsers(${_uPage-1})">← Prev</button>` : '') +
+      `<span style="color:var(--text);font-weight:600">Page ${_uPage} / ${pages}</span>` +
+      (_uPage < pages ? `<button class="btn btn-ghost btn-xs" onclick="loadUsers(${_uPage+1})">Next →</button>` : '');
+  } catch (err) {
+    showErr('u-error', err.message);
+    el.innerHTML = '';
+  }
+}
+
+async function suspendUser(id) {
+  const r = await showConfirm({ title: 'Suspend User', body: 'Suspend this account? Existing tokens remain valid until expiry. New logins blocked.', withReason: true, danger: true });
+  if (!r.confirmed) return;
+  try {
+    await adminApi('PATCH', `/proxy/users/${id}/suspend`, { reason: r.reason });
+    toast('User suspended.', 'warn');
+    loadUsers(_uPage);
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function banUser(id) {
+  const r = await showConfirm({ title: 'Ban User', body: 'Hard ban this account? All refresh tokens revoked immediately. Login permanently blocked.', withReason: true, danger: true });
+  if (!r.confirmed) return;
+  try {
+    await adminApi('PATCH', `/proxy/users/${id}/ban`, { reason: r.reason });
+    toast('User banned and tokens revoked.', 'warn');
+    loadUsers(_uPage);
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function unbanUser(id) {
+  const r = await showConfirm({ title: 'Restore User', body: 'Lift suspension or ban and restore login access for this account?' });
+  if (!r.confirmed) return;
+  try {
+    await adminApi('PATCH', `/proxy/users/${id}/unban`, {});
+    toast('User restored.', 'success');
+    loadUsers(_uPage);
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function changeUserRole(id, currentRole) {
+  const roles = ['buyer','seller'].filter(r => r !== currentRole);
+  const r = await showConfirm({
+    title: 'Change User Role',
+    body: `Current role: ${currentRole}. Select new role. Scopes update on user's next token refresh.`,
+    withSelect: roles.map(r => ({ value: r, label: r.charAt(0).toUpperCase()+r.slice(1) })),
+    selectLabel: 'New Role'
+  });
+  if (!r.confirmed) return;
+  try {
+    await adminApi('PATCH', `/proxy/users/${id}/role`, { role: r.selected });
+    toast(`Role changed to ${r.selected}.`, 'success');
+    loadUsers(_uPage);
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function deleteUser(id, email) {
+  const r = await showConfirm({ title: 'Delete User Account', body: `Delete ${email || id}? Emits user.deleted event — cascades cleanup across catalog, seller, search. Account is flagged and access is revoked.`, withReason: true, danger: true });
+  if (!r.confirmed) return;
+  try {
+    await adminApi('DELETE', `/proxy/users/${id}`, { reason: r.reason });
+    toast('User deleted and cleanup event emitted.', 'warn');
+    loadUsers(_uPage);
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+</script>

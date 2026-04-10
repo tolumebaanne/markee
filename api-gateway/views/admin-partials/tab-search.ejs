@@ -1,0 +1,191 @@
+<!-- tab-search.ejs: Search index management -->
+<div class="tab-panel" id="tab-search">
+  <div class="page-header">
+    <h2><i class="fas fa-search"></i> Search Index</h2>
+    <div class="btn-gap">
+      <button class="btn btn-sm btn-ghost" onclick="loadSearch()"><i class="fas fa-refresh"></i> Refresh</button>
+      <button class="btn btn-sm btn-danger" onclick="reindexAll()"><i class="fas fa-database"></i> Reindex All</button>
+      <button class="btn btn-sm btn-warn" onclick="clearSearchCache()"><i class="fas fa-broom"></i> Clear Cache</button>
+    </div>
+  </div>
+
+  <div id="search-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+  <div id="search-loading" class="loading" style="display:none"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+
+  <!-- Stats Row -->
+  <div class="stats-grid" id="search-stats-grid"></div>
+
+  <!-- Grid: Health + Autocomplete -->
+  <div class="grid-2 section-gap">
+    <!-- Index Health Bar -->
+    <div class="card">
+      <div class="card-title"><i class="fas fa-heartbeat"></i> Index Health</div>
+      <div id="search-health-bar" style="height:32px;border-radius:6px;overflow:hidden;display:flex;margin-top:0.75rem"></div>
+      <div id="search-health-legend" style="margin-top:0.65rem;display:flex;gap:1rem;flex-wrap:wrap;font-size:0.8rem"></div>
+      <div id="search-health-loading" class="loading" style="display:none;font-size:0.85rem"><i class="fas fa-spinner fa-spin"></i></div>
+    </div>
+
+    <!-- Autocomplete Terms -->
+    <div class="card">
+      <div class="card-title"><i class="fas fa-list"></i> Autocomplete Terms</div>
+      <div id="search-autocomplete-loading" class="loading" style="display:none;font-size:0.85rem"><i class="fas fa-spinner fa-spin"></i></div>
+      <div id="search-autocomplete-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+      <div id="search-autocomplete-list" style="max-height:240px;overflow-y:auto;margin-top:0.5rem"></div>
+    </div>
+  </div>
+
+  <!-- Hidden Products Section -->
+  <div class="card section-gap">
+    <div class="card-title"><i class="fas fa-eye-slash"></i> Unhide Product</div>
+    <p style="color:#94a3b8;font-size:0.85rem;margin-bottom:0.75rem">
+      Paste a product ID below and click Unhide to restore it to active in the search index.
+    </p>
+    <div class="filter-bar" style="display:flex;gap:0.75rem;align-items:center">
+      <input type="text" id="search-unhide-input" placeholder="Product ID to unhide…" style="flex:1">
+      <button class="btn btn-sm btn-success" onclick="unhideSearchProduct()"><i class="fas fa-eye"></i> Unhide Product</button>
+    </div>
+    <div id="search-unhide-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+  </div>
+</div>
+
+<script>
+  async function loadSearch() {
+    hideErr('search-error');
+    document.getElementById('search-loading').style.display = 'none';
+    await Promise.all([loadIndexHealth(), loadAutocompleteTerms()]);
+  }
+
+  async function loadIndexHealth() {
+    const statsGrid = document.getElementById('search-stats-grid');
+    const bar = document.getElementById('search-health-bar');
+    const legend = document.getElementById('search-health-legend');
+    const loading = document.getElementById('search-health-loading');
+    loading.style.display = 'block';
+    statsGrid.innerHTML = '';
+    bar.innerHTML = '';
+    legend.innerHTML = '';
+    try {
+      const data = await adminApi('GET', '/proxy/search/health');
+      const status = data.status || data || {};
+      const active = status.active || 0;
+      const stale = status.stale || 0;
+      const pending = status.pending || 0;
+      const hidden = status.hidden || 0;
+      const total = active + stale + pending + hidden || 1;
+      loading.style.display = 'none';
+
+      statsGrid.innerHTML = `
+        <div class="stat-card"><div class="stat-label">Active</div><div class="stat-value" style="color:#4ade80">${active.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-label">Stale</div><div class="stat-value" style="color:#fbbf24">${stale.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-label">Pending</div><div class="stat-value" style="color:#60a5fa">${pending.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-label">Hidden</div><div class="stat-value" style="color:#f87171">${hidden.toLocaleString()}</div></div>
+      `;
+
+      const segments = [
+        { label: 'Active', count: active, pct: Math.round(active/total*100), color: '#4ade80' },
+        { label: 'Stale', count: stale, pct: Math.round(stale/total*100), color: '#fbbf24' },
+        { label: 'Pending', count: pending, pct: Math.round(pending/total*100), color: '#60a5fa' },
+        { label: 'Hidden', count: hidden, pct: Math.round(hidden/total*100), color: '#f87171' }
+      ].filter(s => s.count > 0);
+
+      bar.innerHTML = segments.map(s => `
+        <div title="${s.label}: ${s.count} (${s.pct}%)" style="background:${s.color};width:${s.pct}%;min-width:${s.pct>0?4:0}px;transition:width 0.4s"></div>
+      `).join('');
+
+      legend.innerHTML = segments.map(s => `
+        <span style="display:flex;align-items:center;gap:0.3rem">
+          <span style="width:10px;height:10px;border-radius:2px;background:${s.color};display:inline-block"></span>
+          <span style="color:#94a3b8">${s.label}: ${s.pct}%</span>
+        </span>
+      `).join('');
+    } catch (err) {
+      loading.style.display = 'none';
+      showErr('search-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  async function loadAutocompleteTerms() {
+    const list = document.getElementById('search-autocomplete-list');
+    const loading = document.getElementById('search-autocomplete-loading');
+    hideErr('search-autocomplete-error');
+    loading.style.display = 'block';
+    list.innerHTML = '';
+    try {
+      const data = await adminApi('GET', '/proxy/search/autocomplete');
+      const terms = data.terms || (Array.isArray(data) ? data : []);
+      loading.style.display = 'none';
+      if (!terms.length) {
+        list.innerHTML = '<div class="empty-state" style="padding:1rem 0">No autocomplete terms found.</div>';
+        return;
+      }
+      list.innerHTML = terms.map(term => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.35rem 0;border-bottom:1px solid #1e2d45">
+          <span style="color:#e2e8f0;font-size:0.88rem">${term}</span>
+          <button class="btn btn-xs btn-ghost" style="font-size:0.75rem" onclick="toast('Autocomplete management is handled server-side in the current version.','info',4000)">
+            <i class="fas fa-times"></i> Remove
+          </button>
+        </div>
+      `).join('');
+    } catch (err) {
+      loading.style.display = 'none';
+      showErr('search-autocomplete-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  async function reindexAll() {
+    const result = await showConfirm({
+      title: 'Reindex All Products',
+      body: 'This will mark all products as stale and flush the search cache. The re-indexing process may take several minutes. Proceed?',
+      danger: true
+    });
+    if (!result.confirmed) return;
+    try {
+      await adminApi('POST', '/proxy/search/reindex-all');
+      toast('Reindex triggered successfully. Products will re-index in the background.', 'success', 6000);
+      setTimeout(loadSearch, 3000);
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  async function clearSearchCache() {
+    const result = await showConfirm({
+      title: 'Clear Search Cache',
+      body: 'Clear all LRU search caches? Search queries will be slower temporarily until caches warm up again.',
+      danger: false
+    });
+    if (!result.confirmed) return;
+    try {
+      await adminApi('POST', '/proxy/search/cache/clear');
+      toast('Search caches cleared successfully.', 'success');
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  async function unhideSearchProduct() {
+    const productId = document.getElementById('search-unhide-input').value.trim();
+    hideErr('search-unhide-error');
+    if (!productId) {
+      showErr('search-unhide-error', 'Please enter a product ID.');
+      return;
+    }
+    const result = await showConfirm({
+      title: 'Unhide Product',
+      body: `Restore product <code>${productId}</code> to active status in the search index?`,
+      danger: false
+    });
+    if (!result.confirmed) return;
+    try {
+      await adminApi('PATCH', `/proxy/search/products/${encodeURIComponent(productId)}/unhide`);
+      toast(`Product ${trunc(productId,14)} is now active in the search index.`, 'success');
+      document.getElementById('search-unhide-input').value = '';
+      loadIndexHealth();
+    } catch (err) {
+      showErr('search-unhide-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+</script>

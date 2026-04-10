@@ -1,0 +1,298 @@
+<!-- tab-notifications.ejs: Notification logs, templates, broadcast, and stats -->
+<div class="tab-panel" id="tab-notifications">
+  <div class="page-header">
+    <h2><i class="fas fa-bell"></i> Notifications</h2>
+    <button class="btn btn-sm btn-ghost" onclick="loadNotifications()"><i class="fas fa-refresh"></i> Refresh</button>
+  </div>
+
+  <div class="sub-tabs" id="notif-tabs">
+    <button class="sub-tab active" onclick="switchSubTab('notif','logs',this);loadNotifLogs(1)">Logs</button>
+    <button class="sub-tab" onclick="switchSubTab('notif','templates',this);loadTemplates()">Templates</button>
+    <button class="sub-tab" onclick="switchSubTab('notif','broadcast',this);loadBroadcastTab()">Broadcast</button>
+    <button class="sub-tab" onclick="switchSubTab('notif','stats',this);loadNotifStats()">Stats</button>
+  </div>
+
+  <!-- Logs -->
+  <div class="sub-panel" id="notif-logs" style="display:block">
+    <div class="card">
+      <div id="notif-logs-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+      <div id="notif-logs-loading" class="loading" style="display:none"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>ID</th><th>Type</th><th>Recipient</th><th>Subject</th><th>Status</th><th>Sent At</th>
+          </tr></thead>
+          <tbody id="notif-logs-body"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="notif-logs-pagination"></div>
+    </div>
+  </div>
+
+  <!-- Templates -->
+  <div class="sub-panel" id="notif-templates" style="display:none">
+    <div class="card">
+      <div id="notif-templates-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+      <div id="notif-templates-loading" class="loading" style="display:none"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+      <div id="notif-templates-list"></div>
+    </div>
+  </div>
+
+  <!-- Broadcast -->
+  <div class="sub-panel" id="notif-broadcast" style="display:none">
+    <div class="card" style="max-width:640px">
+      <div class="card-title"><i class="fas fa-broadcast-tower"></i> Send Broadcast</div>
+      <div class="form-group">
+        <label>Type</label>
+        <select id="bc-type">
+          <option value="email">Email</option>
+          <option value="push">Push</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Segment</label>
+        <select id="bc-segment">
+          <option value="all">All Users</option>
+          <option value="buyers">Buyers Only</option>
+          <option value="sellers">Sellers Only</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Subject</label>
+        <input type="text" id="bc-subject" placeholder="Notification subject…">
+      </div>
+      <div class="form-group">
+        <label>Body</label>
+        <textarea id="bc-body" rows="5" placeholder="Notification body text…" style="width:100%;resize:vertical"></textarea>
+      </div>
+      <div id="notif-broadcast-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+      <button class="btn btn-primary" onclick="sendBroadcast()"><i class="fas fa-paper-plane"></i> Send Broadcast</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="sub-panel" id="notif-stats" style="display:none">
+    <div id="notif-stats-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="notif-stats-loading" class="loading" style="display:none"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+    <div class="stats-grid" id="notif-stats-cards"></div>
+    <div class="card section-gap">
+      <div class="card-title">Breakdown by Type</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Type</th><th>Count</th></tr></thead>
+          <tbody id="notif-stats-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Template Modal -->
+<div class="modal-overlay" id="editTemplateModal" onclick="if(event.target===this)closeModal('editTemplateModal')">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>Edit Notification Template</h3>
+      <button class="modal-close" onclick="closeModal('editTemplateModal')">&times;</button>
+    </div>
+    <div style="padding:1.25rem">
+      <div class="form-group">
+        <label>Type</label>
+        <input type="text" id="tpl-type" readonly style="opacity:0.6;cursor:not-allowed">
+      </div>
+      <div class="form-group">
+        <label>Subject</label>
+        <input type="text" id="tpl-subject" placeholder="Template subject…">
+      </div>
+      <div class="form-group">
+        <label>Body</label>
+        <textarea id="tpl-body" rows="8" placeholder="Template body…" style="width:100%;resize:vertical"></textarea>
+      </div>
+      <div id="notif-tpl-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('editTemplateModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTemplate()"><i class="fas fa-save"></i> Save Template</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let _notifLogsPage = 1;
+
+  async function loadNotifications() {
+    await loadNotifLogs(1);
+  }
+
+  async function loadNotifLogs(page) {
+    _notifLogsPage = page || 1;
+    const body = document.getElementById('notif-logs-body');
+    const loading = document.getElementById('notif-logs-loading');
+    hideErr('notif-logs-error');
+    loading.style.display = 'block';
+    body.innerHTML = '';
+    try {
+      const data = await adminApi('GET', `/proxy/notifications/logs?page=${_notifLogsPage}&limit=25`);
+      const notifications = data.notifications || data || [];
+      const total = data.total || 0;
+      loading.style.display = 'none';
+      if (!notifications.length) {
+        body.innerHTML = '<tr><td colspan="6"><div class="empty-state">No notification logs found.</div></td></tr>';
+        return;
+      }
+      body.innerHTML = notifications.map(n => `
+        <tr>
+          <td class="mono">${trunc(n._id,12)}</td>
+          <td>${badge(n.type||'—')}</td>
+          <td class="mono">${trunc(n.recipientId||'—',14)}</td>
+          <td>${trunc(n.subject||'—',40)}</td>
+          <td>${badge(n.status||'—')}</td>
+          <td>${fmtDate(n.createdAt)}</td>
+        </tr>
+      `).join('');
+      renderNotifLogsPagination(total, _notifLogsPage);
+    } catch (err) {
+      loading.style.display = 'none';
+      showErr('notif-logs-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  function renderNotifLogsPagination(total, page) {
+    const el = document.getElementById('notif-logs-pagination');
+    const pages = Math.ceil(total / 25);
+    if (pages <= 1) { el.innerHTML = ''; return; }
+    let html = '';
+    if (page > 1) html += `<button class="btn btn-xs btn-ghost" onclick="loadNotifLogs(${page-1})">&#8249; Prev</button>`;
+    html += `<span style="padding:0 0.75rem;color:#94a3b8">Page ${page} of ${pages}</span>`;
+    if (page < pages) html += `<button class="btn btn-xs btn-ghost" onclick="loadNotifLogs(${page+1})">Next &#8250;</button>`;
+    el.innerHTML = html;
+  }
+
+  async function loadTemplates() {
+    const list = document.getElementById('notif-templates-list');
+    const loading = document.getElementById('notif-templates-loading');
+    hideErr('notif-templates-error');
+    loading.style.display = 'block';
+    list.innerHTML = '';
+    try {
+      const data = await adminApi('GET', '/proxy/notifications/templates');
+      const templates = data.templates || data || [];
+      loading.style.display = 'none';
+      if (!templates.length) {
+        list.innerHTML = '<div class="empty-state">No templates found.</div>';
+        return;
+      }
+      list.innerHTML = templates.map(t => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.85rem 0;border-bottom:1px solid #1e2d45">
+          <div>
+            <div style="font-weight:600;margin-bottom:0.25rem"><span class="mono" style="color:#38bdf8">${t.type}</span></div>
+            <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:0.2rem">Subject: ${t.subject||'—'}</div>
+            <div style="font-size:0.8rem;color:#64748b">${trunc(t.body||'',80)}</div>
+            <div style="font-size:0.75rem;color:#475569;margin-top:0.2rem">
+              Updated ${fmtDate(t.updatedAt)}${t.updatedBy?' by '+t.updatedBy:''}
+            </div>
+          </div>
+          <button class="btn btn-xs btn-ghost" onclick="openEditTemplate('${t.type}', ${JSON.stringify(t.subject||'').replace(/</g,'&lt;')}, ${JSON.stringify(t.body||'').replace(/</g,'&lt;')})">
+            <i class="fas fa-edit"></i> Edit
+          </button>
+        </div>
+      `).join('');
+    } catch (err) {
+      loading.style.display = 'none';
+      showErr('notif-templates-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  function loadBroadcastTab() {
+    // Form is static — no API call needed
+  }
+
+  async function loadNotifStats() {
+    const cards = document.getElementById('notif-stats-cards');
+    const tbody = document.getElementById('notif-stats-body');
+    const loading = document.getElementById('notif-stats-loading');
+    hideErr('notif-stats-error');
+    loading.style.display = 'block';
+    cards.innerHTML = '';
+    tbody.innerHTML = '';
+    try {
+      const data = await adminApi('GET', '/proxy/notifications/stats');
+      loading.style.display = 'none';
+      const total = data.total || 0;
+      const sent = data.sent || 0;
+      const failed = data.failed || (total - sent);
+      const byType = data.byType || {};
+      cards.innerHTML = `
+        <div class="stat-card"><div class="stat-label">Total Sent</div><div class="stat-value">${total.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-label">Delivered</div><div class="stat-value" style="color:#4ade80">${sent.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-label">Failed</div><div class="stat-value" style="color:#f87171">${failed.toLocaleString()}</div></div>
+      `;
+      if (Object.keys(byType).length) {
+        tbody.innerHTML = Object.entries(byType).map(([type, count]) => `
+          <tr><td class="mono">${type}</td><td>${(count||0).toLocaleString()}</td></tr>
+        `).join('');
+      } else {
+        tbody.innerHTML = '<tr><td colspan="2"><div class="empty-state">No breakdown data available.</div></td></tr>';
+      }
+    } catch (err) {
+      loading.style.display = 'none';
+      showErr('notif-stats-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  function openEditTemplate(type, subject, body) {
+    document.getElementById('tpl-type').value = type;
+    document.getElementById('tpl-subject').value = subject;
+    document.getElementById('tpl-body').value = body;
+    hideErr('notif-tpl-error');
+    openModal('editTemplateModal');
+  }
+
+  async function saveTemplate() {
+    const type = document.getElementById('tpl-type').value;
+    const subject = document.getElementById('tpl-subject').value.trim();
+    const body = document.getElementById('tpl-body').value.trim();
+    if (!subject || !body) {
+      showErr('notif-tpl-error', 'Subject and body are required.');
+      return;
+    }
+    try {
+      await adminApi('PATCH', `/proxy/notifications/templates/${encodeURIComponent(type)}`, { subject, body });
+      toast('Template updated successfully.', 'success');
+      closeModal('editTemplateModal');
+      loadTemplates();
+    } catch (err) {
+      showErr('notif-tpl-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  async function sendBroadcast() {
+    const type = document.getElementById('bc-type').value;
+    const segment = document.getElementById('bc-segment').value;
+    const subject = document.getElementById('bc-subject').value.trim();
+    const body = document.getElementById('bc-body').value.trim();
+    if (!subject || !body) {
+      showErr('notif-broadcast-error', 'Subject and body are required.');
+      return;
+    }
+    const result = await showConfirm({
+      title: 'Send Broadcast',
+      body: `Send a <strong>${type}</strong> broadcast to <strong>${segment}</strong>? Subject: "${trunc(subject,50)}". This will notify potentially all users.`,
+      danger: true
+    });
+    if (!result.confirmed) return;
+    try {
+      await adminApi('POST', '/proxy/notifications/broadcast', { type, subject, body, segment });
+      toast('Broadcast sent successfully.', 'success');
+      document.getElementById('bc-subject').value = '';
+      document.getElementById('bc-body').value = '';
+      hideErr('notif-broadcast-error');
+    } catch (err) {
+      showErr('notif-broadcast-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+</script>

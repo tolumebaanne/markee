@@ -1,0 +1,262 @@
+<!-- tab-intelligence.ejs: Marketplace intelligence, fraud signals, seller health -->
+<div class="tab-panel" id="tab-intelligence">
+  <div class="page-header">
+    <h2><i class="fas fa-brain"></i> Intelligence</h2>
+    <button class="btn btn-sm btn-ghost" onclick="loadIntelligence()"><i class="fas fa-refresh"></i> Refresh</button>
+  </div>
+
+  <div class="sub-tabs" id="intel-tabs">
+    <button class="sub-tab active" onclick="switchSubTab('intel','balance',this);loadMarketplaceBalance()">Marketplace Balance</button>
+    <button class="sub-tab" onclick="switchSubTab('intel','funnel',this);loadOnboardingFunnel()">Onboarding Funnel</button>
+    <button class="sub-tab" onclick="switchSubTab('intel','fraud',this);loadFraudSignals()">Fraud Signals</button>
+    <button class="sub-tab" onclick="switchSubTab('intel','lookup',this)">Seller Lookup</button>
+  </div>
+
+  <!-- Marketplace Balance -->
+  <div class="sub-panel" id="intel-balance" style="display:block">
+    <div id="intel-balance-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="intel-balance-loading" class="loading" style="display:none"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+    <div class="stats-grid" id="intel-balance-grid"></div>
+    <div class="card section-gap" id="intel-payment-summary" style="display:none">
+      <div class="card-title"><i class="fas fa-wallet"></i> Payment Summary</div>
+      <div class="grid-2" id="intel-payment-cards"></div>
+    </div>
+  </div>
+
+  <!-- Onboarding Funnel -->
+  <div class="sub-panel" id="intel-funnel" style="display:none">
+    <div id="intel-funnel-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="intel-funnel-loading" class="loading" style="display:none"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+    <div class="card">
+      <div class="card-title"><i class="fas fa-filter"></i> Seller Onboarding Funnel</div>
+      <div id="intel-funnel-steps"></div>
+    </div>
+  </div>
+
+  <!-- Fraud Signals -->
+  <div class="sub-panel" id="intel-fraud" style="display:none">
+    <div id="intel-fraud-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="intel-fraud-loading" class="loading" style="display:none"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+    <div class="grid-2 section-gap">
+      <div>
+        <div class="card-title" style="margin-bottom:0.75rem"><i class="fas fa-shield-alt"></i> Fraud Signals</div>
+        <div id="intel-fraud-list"></div>
+      </div>
+      <div>
+        <div class="card-title" style="margin-bottom:0.75rem"><i class="fas fa-exclamation-triangle"></i> Platform Anomalies</div>
+        <div id="intel-anomalies-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Seller Lookup -->
+  <div class="sub-panel" id="intel-lookup" style="display:none">
+    <div class="card" style="max-width:540px">
+      <div class="card-title"><i class="fas fa-store"></i> Seller Health Lookup</div>
+      <p style="color:#94a3b8;font-size:0.85rem;margin-bottom:0.75rem">Enter a store ID to view seller health metrics.</p>
+      <div class="filter-bar" style="display:flex;gap:0.75rem;align-items:center;margin-bottom:1rem">
+        <input type="text" id="intel-store-input" placeholder="Store ID…" style="flex:1" onkeydown="if(event.key==='Enter')lookupSellerHealth()">
+        <button class="btn btn-sm btn-primary" onclick="lookupSellerHealth()"><i class="fas fa-search"></i> Look Up</button>
+      </div>
+      <div id="intel-lookup-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+      <div id="intel-lookup-loading" class="loading" style="display:none"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+      <div id="intel-lookup-result"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  async function loadIntelligence() {
+    await loadMarketplaceBalance();
+  }
+
+  async function loadMarketplaceBalance() {
+    const grid = document.getElementById('intel-balance-grid');
+    const loading = document.getElementById('intel-balance-loading');
+    const paymentCard = document.getElementById('intel-payment-summary');
+    const paymentCards = document.getElementById('intel-payment-cards');
+    hideErr('intel-balance-error');
+    loading.style.display = 'block';
+    grid.innerHTML = '';
+    paymentCard.style.display = 'none';
+    try {
+      const data = await adminApi('GET', '/intelligence/marketplace-balance');
+      loading.style.display = 'none';
+
+      const tier = data.tierDistribution || {};
+      const pay = data.paymentSummary || {};
+
+      grid.innerHTML = `
+        <div class="stat-card"><div class="stat-label">Total Active Stores</div><div class="stat-value" id="intel-c-stores">0</div></div>
+        <div class="stat-card"><div class="stat-label">Verified Stores</div><div class="stat-value" id="intel-c-verified">0</div></div>
+        <div class="stat-card"><div class="stat-label" style="color:#fbbf24">Top Sellers</div><div class="stat-value" id="intel-c-top">0</div></div>
+        <div class="stat-card"><div class="stat-label" style="color:#60a5fa">Rising Sellers</div><div class="stat-value" id="intel-c-rising">0</div></div>
+        <div class="stat-card"><div class="stat-label">Standard Sellers</div><div class="stat-value" id="intel-c-standard">0</div></div>
+        <div class="stat-card"><div class="stat-label">Total Orders</div><div class="stat-value" id="intel-c-orders">0</div></div>
+      `;
+
+      animateCounter(document.getElementById('intel-c-stores'), data.totalActiveStores||0, '', '');
+      animateCounter(document.getElementById('intel-c-verified'), data.verifiedStores||0, '', '');
+      animateCounter(document.getElementById('intel-c-top'), tier.top||0, '', '');
+      animateCounter(document.getElementById('intel-c-rising'), tier.rising||0, '', '');
+      animateCounter(document.getElementById('intel-c-standard'), tier.standard||0, '', '');
+      animateCounter(document.getElementById('intel-c-orders'), data.totalOrders||0, '', '');
+
+      if (pay.totalHeldCents !== undefined || pay.platformRevenueCents !== undefined) {
+        paymentCard.style.display = 'block';
+        paymentCards.innerHTML = `
+          <div class="stat-card"><div class="stat-label">Held in Escrow</div><div class="stat-value">${fmt$(pay.totalHeldCents||0)}</div></div>
+          <div class="stat-card"><div class="stat-label">Platform Revenue</div><div class="stat-value" style="color:#4ade80">${fmt$(pay.platformRevenueCents||0)}</div></div>
+        `;
+      }
+    } catch (err) {
+      loading.style.display = 'none';
+      showErr('intel-balance-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  async function loadOnboardingFunnel() {
+    const steps = document.getElementById('intel-funnel-steps');
+    const loading = document.getElementById('intel-funnel-loading');
+    hideErr('intel-funnel-error');
+    loading.style.display = 'block';
+    steps.innerHTML = '';
+    try {
+      const data = await adminApi('GET', '/intelligence/onboarding-funnel');
+      loading.style.display = 'none';
+
+      const funnelSteps = [
+        { key: 'total', pctKey: null, label: 'Total Registered', icon: 'fa-users', color: '#94a3b8' },
+        { key: 'profilePhotoSet', pctKey: 'profilePhotoSetPct', label: 'Profile Photo Set', icon: 'fa-camera', color: '#38bdf8' },
+        { key: 'descriptionWritten', pctKey: 'descriptionWrittenPct', label: 'Description Written', icon: 'fa-pen', color: '#818cf8' },
+        { key: 'firstProductListed', pctKey: 'firstProductListedPct', label: 'First Product Listed', icon: 'fa-box', color: '#fb923c' },
+        { key: 'firstSaleMade', pctKey: 'firstSaleMadePct', label: 'First Sale Made', icon: 'fa-shopping-cart', color: '#fbbf24' },
+        { key: 'fullyOnboarded', pctKey: 'fullyOnboardedPct', label: 'Fully Onboarded', icon: 'fa-check-circle', color: '#4ade80' }
+      ];
+
+      const total = data.total || 1;
+      steps.innerHTML = funnelSteps.map(step => {
+        const count = data[step.key] || 0;
+        const pct = step.pctKey ? (data[step.pctKey] || 0) : 100;
+        const displayPct = step.pctKey ? pct : (count > 0 ? 100 : 0);
+        return `
+          <div style="margin-bottom:1.1rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem">
+              <span style="color:#e2e8f0;font-size:0.9rem"><i class="fas ${step.icon}" style="color:${step.color};margin-right:0.5rem"></i>${step.label}</span>
+              <span style="color:#94a3b8;font-size:0.85rem">${count.toLocaleString()} <span style="color:${step.color}">(${displayPct}%)</span></span>
+            </div>
+            <div class="health-bar-wrap" style="height:8px;background:#1e2d45;border-radius:4px;overflow:hidden">
+              <div class="health-bar" style="height:100%;width:${Math.min(displayPct,100)}%;background:${step.color};border-radius:4px;transition:width 0.5s ease"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch (err) {
+      loading.style.display = 'none';
+      showErr('intel-funnel-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  async function loadFraudSignals() {
+    const fraudList = document.getElementById('intel-fraud-list');
+    const anomaliesList = document.getElementById('intel-anomalies-list');
+    const loading = document.getElementById('intel-fraud-loading');
+    hideErr('intel-fraud-error');
+    loading.style.display = 'block';
+    fraudList.innerHTML = '';
+    anomaliesList.innerHTML = '';
+    try {
+      const [fraudData, anomalyData] = await Promise.all([
+        adminApi('GET', '/intelligence/fraud-signals'),
+        adminApi('GET', '/proxy/intelligence/anomalies')
+      ]);
+      loading.style.display = 'none';
+
+      const signals = fraudData.signals || (Array.isArray(fraudData) ? fraudData : []);
+      const anomalies = anomalyData.anomalies || (Array.isArray(anomalyData) ? anomalyData : []);
+
+      function renderSignalCard(item, isAnomaly) {
+        const sev = (item.severity||'').toLowerCase();
+        const borderColor = sev === 'high' ? '#f87171' : sev === 'medium' ? '#fbbf24' : '#64748b';
+        const sevColor = sev === 'high' ? '#f87171' : sev === 'medium' ? '#fbbf24' : '#94a3b8';
+        return `
+          <div style="border-left:3px solid ${borderColor};padding:0.65rem 0.85rem;margin-bottom:0.75rem;background:#0f1c2e;border-radius:0 6px 6px 0">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
+              <span class="mono" style="color:${sevColor};font-size:0.82rem;font-weight:600">${item.type||'unknown'}</span>
+              <div style="display:flex;gap:0.5rem;align-items:center">
+                ${item.count !== undefined ? `<span style="color:#64748b;font-size:0.75rem">×${item.count}</span>` : ''}
+                ${badge(item.severity||'low')}
+              </div>
+            </div>
+            <div style="color:#94a3b8;font-size:0.82rem">${item.detail||'—'}</div>
+          </div>
+        `;
+      }
+
+      fraudList.innerHTML = signals.length
+        ? signals.map(s => renderSignalCard(s, false)).join('')
+        : '<div class="empty-state" style="padding:1rem 0"><i class="fas fa-shield-check"></i><p>No fraud signals detected.</p></div>';
+
+      anomaliesList.innerHTML = anomalies.length
+        ? anomalies.map(a => renderSignalCard(a, true)).join('')
+        : '<div class="empty-state" style="padding:1rem 0"><i class="fas fa-check-circle"></i><p>No anomalies detected.</p></div>';
+    } catch (err) {
+      loading.style.display = 'none';
+      showErr('intel-fraud-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  async function lookupSellerHealth() {
+    const storeId = document.getElementById('intel-store-input').value.trim();
+    const resultEl = document.getElementById('intel-lookup-result');
+    const loading = document.getElementById('intel-lookup-loading');
+    hideErr('intel-lookup-error');
+    resultEl.innerHTML = '';
+    if (!storeId) {
+      showErr('intel-lookup-error', 'Please enter a store ID.');
+      return;
+    }
+    loading.style.display = 'block';
+    try {
+      const data = await adminApi('GET', `/intelligence/seller-health/${encodeURIComponent(storeId)}`);
+      loading.style.display = 'none';
+
+      const score = data.healthScore || 0;
+      const scoreColor = score >= 70 ? '#4ade80' : score >= 40 ? '#fbbf24' : '#f87171';
+
+      resultEl.innerHTML = `
+        <div class="card" style="border:1px solid #1e2d45;margin-top:0.5rem">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.75rem">
+            <div>
+              <div style="font-size:1.1rem;font-weight:700;color:#e2e8f0;margin-bottom:0.3rem">
+                ${data.storeName || trunc(storeId, 20)}
+              </div>
+              <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.5rem">
+                ${badge(data.tier||'standard')}
+                ${data.verified ? '<span class="badge" style="background:#064e3b;color:#4ade80;border-radius:4px;padding:0.1rem 0.5rem;font-size:0.75rem"><i class="fas fa-check-circle"></i> Verified</span>' : ''}
+              </div>
+              <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:0.2rem">
+                ${stars(Math.round(data.avgRating||0))} <span style="color:#64748b">${(data.avgRating||0).toFixed(1)}/5</span>
+              </div>
+              <div style="font-size:0.83rem;color:#94a3b8">
+                Reply Rate: <strong style="color:#e2e8f0">${data.replyRate !== undefined ? data.replyRate + '%' : '—'}</strong>
+                &nbsp;|&nbsp; Total Sales: <strong style="color:#e2e8f0">${(data.totalSales||0).toLocaleString()}</strong>
+              </div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-size:2.5rem;font-weight:800;color:${scoreColor};line-height:1">${score}</div>
+              <div style="font-size:0.75rem;color:#64748b;margin-top:0.15rem">Health Score</div>
+            </div>
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      loading.style.display = 'none';
+      showErr('intel-lookup-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+</script>

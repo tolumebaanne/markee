@@ -1,0 +1,257 @@
+<!-- Inventory Tab: stock management, out-of-stock, dormant, reservations -->
+<div class="tab-panel" id="tab-inventory">
+  <div class="page-header">
+    <h2>Inventory</h2>
+    <span id="inv-count" style="color:var(--muted);font-size:.85rem"></span>
+  </div>
+
+  <!-- Sub-tabs -->
+  <div class="sub-tabs">
+    <button class="sub-tab active" onclick="switchSubTab('inv','all',this);loadInventoryAll(1)">All Stock</button>
+    <button class="sub-tab" onclick="switchSubTab('inv','oos',this);if(!this.dataset.loaded){this.dataset.loaded=1;loadOutOfStock();}">Out of Stock</button>
+    <button class="sub-tab" onclick="switchSubTab('inv','dormant',this);if(!this.dataset.loaded){this.dataset.loaded=1;loadDormantStock();}">Dormant</button>
+    <button class="sub-tab" onclick="switchSubTab('inv','res',this);if(!this.dataset.loaded){this.dataset.loaded=1;loadReservations();}">Reservations</button>
+  </div>
+
+  <!-- Sub-panel: All Stock -->
+  <div id="inv-all" class="sub-panel" style="display:block">
+    <div class="filter-bar">
+      <input type="text" id="inv-seller-filter" placeholder="Seller ID…" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text)" oninput="debounce(()=>loadInventoryAll(1),400)()" />
+      <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer">
+        <div class="toggle"><input type="checkbox" id="inv-oos-toggle" onchange="loadInventoryAll(1)" /><span class="toggle-slider"></span></div>
+        Out of Stock Only
+      </label>
+      <button class="btn btn-sm btn-ghost" onclick="loadInventoryAll(1)"><i class="fas fa-rotate-right"></i></button>
+    </div>
+    <div id="inv-all-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Product ID</th><th>Qty</th><th>Reserved</th><th>Available</th><th>Threshold</th><th>Seller</th><th>Last Updated</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="inv-all-body"></tbody>
+      </table>
+    </div>
+    <div id="inv-all-pagination" style="display:flex;align-items:center;gap:10px;margin-top:1rem;font-size:.85rem"></div>
+  </div>
+
+  <!-- Sub-panel: Out of Stock -->
+  <div id="inv-oos" class="sub-panel" style="display:none">
+    <div id="inv-oos-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Product ID</th><th>Qty</th><th>Reserved</th><th>Threshold</th><th>Seller</th><th>Last Updated</th><th>Actions</th></tr></thead>
+        <tbody id="inv-oos-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Sub-panel: Dormant -->
+  <div id="inv-dormant" class="sub-panel" style="display:none">
+    <p style="color:var(--muted);font-size:.85rem;margin-bottom:.5rem">Products with stock but no orders in 60+ days.</p>
+    <div id="inv-dormant-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Product ID</th><th>Qty</th><th>Reserved</th><th>Seller</th><th>Last Updated</th></tr></thead>
+        <tbody id="inv-dormant-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Sub-panel: Reservations -->
+  <div id="inv-res" class="sub-panel" style="display:none">
+    <div id="inv-res-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Product ID</th><th>Reserved Qty</th><th>Reservation Count</th></tr></thead>
+        <tbody id="inv-res-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+let _invPage = 1;
+const _invLimit = 25;
+let _invTotal = 0;
+
+function loadInventory() {
+  loadInventoryAll(1);
+}
+
+async function loadInventoryAll(page) {
+  _invPage = page || 1;
+  hideErr('inv-all-error');
+  const tbody = document.getElementById('inv-all-body');
+  tbody.innerHTML = '<tr><td colspan="8" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
+  const sellerId = document.getElementById('inv-seller-filter').value.trim();
+  const oos = document.getElementById('inv-oos-toggle').checked;
+  let qs = `page=${_invPage}&limit=${_invLimit}`;
+  if (sellerId) qs += `&sellerId=${encodeURIComponent(sellerId)}`;
+  if (oos) qs += `&outOfStock=true`;
+  try {
+    const data = await adminApi('GET', `/proxy/inventory?${qs}`);
+    const inv = data.inventory || [];
+    _invTotal = data.total || inv.length;
+    document.getElementById('inv-count').textContent = `${_invTotal} records`;
+    if (!inv.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No inventory records found.</td></tr>';
+      document.getElementById('inv-all-pagination').innerHTML = '';
+      return;
+    }
+    tbody.innerHTML = inv.map(i => _invRow(i, true)).join('');
+    const totalPages = Math.ceil(_invTotal / _invLimit);
+    const start = (_invPage - 1) * _invLimit + 1;
+    const end = Math.min(_invPage * _invLimit, _invTotal);
+    document.getElementById('inv-all-pagination').innerHTML = `
+      <span>Showing ${start}–${end} of ${_invTotal}</span>
+      <button class="btn btn-xs btn-ghost" onclick="loadInventoryAll(${_invPage-1})" ${_invPage<=1?'disabled':''}>‹ Prev</button>
+      <span>Page ${_invPage}/${totalPages}</span>
+      <button class="btn btn-xs btn-ghost" onclick="loadInventoryAll(${_invPage+1})" ${_invPage>=totalPages?'disabled':''}>Next ›</button>`;
+  } catch(err) {
+    showErr('inv-all-error', err.message);
+    tbody.innerHTML = '';
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+function _invRow(i, showActions) {
+  const avail = (i.quantity||0) - (i.reservedQuantity||0);
+  const lowStock = avail <= (i.threshold||0);
+  return `<tr style="${lowStock?'background:rgba(239,68,68,.05)':''}">
+    <td style="font-family:monospace;font-size:.74rem">${trunc(i.productId,20)}</td>
+    <td><b style="color:${i.quantity===0?'#ef4444':'inherit'}">${i.quantity||0}</b></td>
+    <td>${i.reservedQuantity||0}</td>
+    <td style="color:${avail<=0?'#ef4444':avail<=(i.threshold||0)?'#f59e0b':'inherit'}"><b>${avail}</b></td>
+    ${showActions ? `<td>${i.threshold||0}</td>` : ''}
+    <td style="font-family:monospace;font-size:.74rem">${trunc(i.sellerId,16)}</td>
+    <td>${fmtDate(i.updatedAt)}</td>
+    ${showActions ? `<td class="btn-gap">
+      <button class="btn btn-xs btn-info" onclick="adjustInventory('${i.productId}')"><i class="fas fa-sliders"></i> Adjust</button>
+      <button class="btn btn-xs btn-warn" onclick="freezeInventory('${i.productId}')"><i class="fas fa-snowflake"></i> Freeze</button>
+    </td>` : ''}
+  </tr>`;
+}
+
+async function loadOutOfStock() {
+  hideErr('inv-oos-error');
+  const tbody = document.getElementById('inv-oos-body');
+  tbody.innerHTML = '<tr><td colspan="7" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
+  try {
+    const data = await adminApi('GET', '/proxy/inventory/out-of-stock');
+    const inv = data.inventory || (Array.isArray(data) ? data : []);
+    if (!inv.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No out-of-stock products found.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = inv.map(i => `
+      <tr>
+        <td style="font-family:monospace;font-size:.74rem">${trunc(i.productId,20)}</td>
+        <td><b style="color:#ef4444">0</b></td>
+        <td>${i.reservedQuantity||0}</td>
+        <td>${i.threshold||0}</td>
+        <td style="font-family:monospace;font-size:.74rem">${trunc(i.sellerId,16)}</td>
+        <td>${fmtDate(i.updatedAt)}</td>
+        <td><button class="btn btn-xs btn-info" onclick="adjustInventory('${i.productId}')"><i class="fas fa-sliders"></i> Adjust</button></td>
+      </tr>`).join('');
+  } catch(err) {
+    showErr('inv-oos-error', err.message);
+    tbody.innerHTML = '';
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+async function loadDormantStock() {
+  hideErr('inv-dormant-error');
+  const tbody = document.getElementById('inv-dormant-body');
+  tbody.innerHTML = '<tr><td colspan="5" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
+  try {
+    const data = await adminApi('GET', '/proxy/inventory/dormant');
+    const inv = data.inventory || (Array.isArray(data) ? data : []);
+    if (!inv.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No dormant stock found.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = inv.map(i => `
+      <tr>
+        <td style="font-family:monospace;font-size:.74rem">${trunc(i.productId,22)}</td>
+        <td>${i.quantity||0}</td>
+        <td>${i.reservedQuantity||0}</td>
+        <td style="font-family:monospace;font-size:.74rem">${trunc(i.sellerId,16)}</td>
+        <td>${fmtDate(i.updatedAt)}</td>
+      </tr>`).join('');
+  } catch(err) {
+    showErr('inv-dormant-error', err.message);
+    tbody.innerHTML = '';
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+async function loadReservations() {
+  hideErr('inv-res-error');
+  const tbody = document.getElementById('inv-res-body');
+  tbody.innerHTML = '<tr><td colspan="3" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
+  try {
+    const data = await adminApi('GET', '/proxy/inventory/reservation-summary');
+    const reservations = data.reservations || (Array.isArray(data) ? data : []);
+    if (!reservations.length) {
+      tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No active reservations.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = reservations.map(r => `
+      <tr>
+        <td style="font-family:monospace;font-size:.74rem">${trunc(r.productId,24)}</td>
+        <td><b>${r.quantity||r.reserved||0}</b></td>
+        <td>${r.count||r.reservationCount||'—'}</td>
+      </tr>`).join('');
+  } catch(err) {
+    showErr('inv-res-error', err.message);
+    tbody.innerHTML = '';
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+async function adjustInventory(productId) {
+  const {confirmed, selected, reason} = await showConfirm({
+    title: 'Adjust Stock Quantity',
+    body: `Enter delta for product <code>${trunc(productId,18)}</code>. Use +N to add, -N to remove:`,
+    withSelect: true,
+    selectLabel: 'Delta',
+    selectOptions: [
+      {value:'+5',label:'+5'},
+      {value:'+10',label:'+10'},
+      {value:'+25',label:'+25'},
+      {value:'+50',label:'+50'},
+      {value:'+100',label:'+100'},
+      {value:'-1',label:'-1'},
+      {value:'-5',label:'-5'},
+      {value:'-10',label:'-10'},
+      {value:'-25',label:'-25'}
+    ],
+    withReason: true
+  });
+  if (!confirmed || !selected) return;
+  const delta = parseInt(selected);
+  if (isNaN(delta)) { toast('Invalid delta value', 'warn'); return; }
+  try {
+    await adminApi('POST', `/proxy/inventory/${productId}/adjust`, {delta, reason: reason||'Admin adjustment'});
+    toast(`Stock adjusted by ${selected}`, 'success');
+    loadInventoryAll(_invPage);
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function freezeInventory(productId) {
+  const {confirmed, reason} = await showConfirm({
+    title: 'Freeze Stock?',
+    body: `Freeze inventory for product <code>${trunc(productId,18)}</code>. This will prevent any stock changes.`,
+    withReason: true,
+    danger: true
+  });
+  if (!confirmed) return;
+  try {
+    await adminApi('POST', `/proxy/inventory/${productId}/freeze`, {reason: reason||'Admin freeze'});
+    toast('Inventory frozen', 'warn');
+    loadInventoryAll(_invPage);
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+</script>

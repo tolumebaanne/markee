@@ -3,56 +3,637 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Markee | The Modern Marketplace</title>
+    <title>Markee | Buy & Sell Quality Goods</title>
+    <meta name="description" content="Markee is the premier marketplace to buy and sell quality goods. Browse thousands of listings or list your own today.">
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js"></script>
+    <script src="/js/cart.js"></script>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="brand">Markee.</div>
-        <div class="nav-links">
-            <a href="/">Explore</a>
-            <a href="/login" class="btn" style="width:auto; padding: 0.5rem 1rem;">Sign In</a>
+
+<!-- ============ NAVBAR ============ -->
+<nav class="navbar">
+    <div class="brand-combo">
+        <a href="/"><span class="brand">Markee</span></a>
+    </div>
+    <div class="nav-links">
+        <!-- Cart -->
+        <a href="/cart" class="nav-cart-btn" id="nav-cart-link" title="View Cart">
+            <i class="fa fa-shopping-cart"></i>
+            <span class="cart-count-badge" id="cart-count-badge">0</span>
+        </a>
+
+        <!-- Guest state -->
+        <div id="auth-links" style="display:flex; gap:0.5rem; align-items:center;">
+            <button class="nav-pill nav-pill-outline" onclick="openSignInModal()">Sign In</button>
+            <button class="nav-pill nav-pill-red" onclick="navigateSell()">
+                <i class="fa fa-tag" style="margin-right:0.4rem;"></i> Sell
+            </button>
         </div>
-    </nav>
 
-    <div class="container animate-fade">
-        <h1>Discover the Future of Commerce.</h1>
-        <p style="text-align: center; color: var(--text-muted); margin-bottom: 3rem; max-width: 600px; margin-inline: auto;">
-            Explore thousands of curated digital and physical assets directly from our verified network of global sellers.
-        </p>
-
-        <div id="products" class="grid">
-            <!-- Products injected via JS -->
-            <p style="text-align: center; width: 100%;">Connecting to Catalog Engine...</p>
+        <!-- Logged-in state -->
+        <div id="user-links" style="display:none; align-items:center; gap:0.35rem;">
+            <button class="nav-icon-btn" id="nav-msg-btn" title="Messages" onclick="window.location='/messages'">
+                <i class="fa fa-comments"></i>
+                <span class="nav-icon-badge" id="msg-nav-badge" style="display:none;"></span>
+            </button>
+            <button class="nav-icon-btn" id="nav-bell-btn" title="Notifications" onclick="window.location='/profile#notifications'">
+                <i class="fa fa-bell"></i>
+                <span class="nav-icon-badge" id="bell-badge" style="display:none;"></span>
+            </button>
+            <button class="nav-pill nav-pill-red" style="margin-left:0.15rem;" onclick="navigateSell()">
+                <i class="fa fa-tag" style="margin-right:0.4rem;"></i> Sell
+            </button>
+            <div style="position:relative; margin-left:0.15rem;">
+                <button class="nav-avatar-btn" id="nav-avatar-btn" onclick="toggleUserDropdown()" aria-label="Account menu" aria-expanded="false">
+                    <i class="fa fa-user-circle"></i>
+                </button>
+                <div class="nav-dropdown" id="user-dropdown" style="display:none;">
+                    <div class="nav-dropdown-header">
+                        <div class="nav-dropdown-name" id="nav-display-name">—</div>
+                        <div class="nav-dropdown-role" id="nav-display-role"></div>
+                    </div>
+                    <a href="/profile" class="nav-dropdown-item">
+                        <i class="fa fa-user"></i> Profile &amp; Settings
+                    </a>
+                    <a href="/dashboard" class="nav-dropdown-item">
+                        <i class="fa fa-th-large"></i> Dashboard
+                    </a>
+                    <a href="/orders" class="nav-dropdown-item">
+                        <i class="fa fa-shopping-bag"></i> My Orders
+                    </a>
+                    <button class="nav-dropdown-item logout" onclick="handleLogout()">
+                        <i class="fa fa-sign-out-alt"></i> Log Out
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
+</nav>
 
-    <script>
-        fetch('/api/catalog/products')
-            .then(r => r.json())
-            .then(data => {
-                const container = document.getElementById('products');
-                container.innerHTML = '';
-                if (!data || data.length === 0) {
-                    container.innerHTML = '<p style="text-align:center; width:100%;">No products available right now.</p>';
-                } else {
-                    data.forEach((p, index) => {
-                        container.innerHTML += `
-                            <div class="glass-card animate-fade" style="animation-delay: ${index * 0.1}s">
-                                <h3>${p.title}</h3>
-                                <p>${p.description || 'No description available.'}</p>
-                                <div class="price-tag">
-                                    <span>$${(p.price/100).toFixed(2)}</span>
-                                    <span style="font-size: 0.8rem; font-weight: normal; color: var(--accent-secondary); border: 1px solid var(--accent-secondary); padding: 0.2rem 0.5rem; border-radius: 12px;">${p.category}</span>
-                                </div>
-                            </div>
-                        `;
-                    });
-                }
-            })
-            .catch(err => {
-                 document.getElementById('products').innerHTML = '<p style="color:var(--accent-secondary); text-align:center; width: 100%;">Catalog Service is currently unreachable.</p>';
+<!-- ============ HERO ============ -->
+<header class="hero-jiji">
+    <div class="container animate-fade">
+        <h1 class="mb-3 text-white">What are you looking for?</h1>
+        <div class="search-bar-jiji">
+            <input type="text" id="main-search" placeholder="Search products, brands & categories..."
+                   oninput="onSearchInput()"
+                   onkeydown="if(event.key==='Enter'){ clearTimeout(_searchDebounce); executeSearch(); } if(event.key==='Escape'){ clearSearch(); }">
+            <button class="search-clear-btn" id="search-clear-btn" onclick="clearSearch()" title="Clear search" style="display:none;">
+                <i class="fa fa-times"></i>
+            </button>
+            <button class="btn" onclick="executeSearch()"><i class="fa fa-search"></i></button>
+        </div>
+    </div>
+</header>
+
+<!-- ============ ON SALE STRIP ============ -->
+<section id="on-sale-strip" style="display:none; background:var(--bg-secondary); border-bottom:1px solid var(--border-light); padding:0.75rem 0;">
+    <div class="container" style="display:flex; align-items:center; gap:1rem; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;">
+        <div style="font-size:0.7rem; font-weight:800; color:var(--accent-red); text-transform:uppercase; letter-spacing:0.08em; white-space:nowrap; flex-shrink:0;">
+            <i class="fa fa-tag" style="margin-right:0.3rem;"></i> Sales on Now
+        </div>
+        <div id="on-sale-stores" style="display:flex; gap:0.65rem; flex-shrink:0;"></div>
+    </div>
+</section>
+
+<!-- ============ MAIN CONTENT ============ -->
+<div class="container content-grid-jiji animate-fade">
+    <!-- Category Sidebar -->
+    <aside class="sidebar-categories">
+        <h4 class="mb-3">Categories</h4>
+        <ul class="cat-list" id="cat-list">
+            <li class="cat-active" onclick="filterCategory('', this)"><i class="fa fa-th-large"></i> All Categories</li>
+            <li onclick="filterCategory('Electronics', this)"><i class="fa fa-laptop"></i> Electronics</li>
+            <li onclick="filterCategory('Fashion', this)"><i class="fa fa-tshirt"></i> Fashion</li>
+            <li onclick="filterCategory('Gaming & Consoles', this)"><i class="fa fa-gamepad"></i> Gaming & Consoles</li>
+            <li onclick="filterCategory('Toys & Games', this)"><i class="fa fa-chess"></i> Toys & Games</li>
+            <li onclick="filterCategory('Home & Garden', this)"><i class="fa fa-home"></i> Home & Garden</li>
+            <li onclick="filterCategory('Health & Wellness', this)"><i class="fa fa-heart"></i> Health & Wellness</li>
+            <li onclick="filterCategory('Vehicles', this)"><i class="fa fa-car"></i> Vehicles</li>
+            <li onclick="filterCategory('Phones & Tablets', this)"><i class="fa fa-mobile-alt"></i> Phones & Tablets</li>
+            <li onclick="filterCategory('Property', this)"><i class="fa fa-building"></i> Property</li>
+        </ul>
+    </aside>
+
+    <!-- Product Feed -->
+    <main class="product-feed">
+        <div class="flex-between mb-3">
+            <h3 id="feed-title">Trending Ads</h3>
+            <div style="display:flex; align-items:center; gap:1rem;">
+                <select id="sort-select" onchange="changeSort(this.value)" style="padding:0.4rem; border-radius:6px; border:1px solid #d1d5db; outline:none; font-size:0.85rem; cursor:pointer;">
+                    <option value="momentum" selected>Trending (Momentum)</option>
+                    <option value="price_asc">Price: Low to High</option>
+                    <option value="price_desc">Price: High to Low</option>
+                    <option value="rating">Top Rated</option>
+                </select>
+                <span class="text-muted small" id="result-count"></span>
+            </div>
+        </div>
+        <div id="product-list" class="product-grid"></div>
+        <div id="load-sentinel" class="load-more-sentinel" style="display:none;">
+            <div class="load-more-spinner"></div> Loading more...
+        </div>
+        <div id="end-of-results" class="load-more-sentinel" style="display:none; color:var(--text-muted);">
+            <i class="fa fa-check-circle" style="margin-right:0.5rem; color:#22c55e;"></i> You've seen all listings
+        </div>
+    </main>
+</div>
+
+<!-- ============ SIGN IN MODAL ============ -->
+<div class="modal-overlay" id="signin-modal" onclick="handleModalOutsideClick(event)">
+    <div class="modal-box">
+        <button class="modal-close-btn" onclick="closeSignInModal()" title="Close">&times;</button>
+        <div style="text-align:center; margin-bottom:1.5rem;">
+            <span class="brand" style="font-size:1.5rem;">Markee</span>
+            <p style="color:var(--text-muted); margin-top:0.5rem; font-size:0.9rem;">Sign in to continue</p>
+        </div>
+        <form id="signin-form" onsubmit="submitSignIn(event)">
+            <div class="form-group mb-3">
+                <label>Email address</label>
+                <input type="email" id="modal-email" placeholder="you@example.com" required autocomplete="email">
+            </div>
+            <div class="form-group mb-4">
+                <label>Password</label>
+                <input type="password" id="modal-password" placeholder="••••••••" required autocomplete="current-password">
+            </div>
+            <button type="submit" id="modal-submit-btn" class="btn w-100" style="background:var(--accent-red);">
+                Sign In
+            </button>
+        </form>
+        <p class="text-muted small text-center" style="margin-top:1rem;">
+            Don't have an account? <a href="/register" style="color:var(--accent-red);font-weight:600;">Register</a>
+        </p>
+    </div>
+</div>
+
+<!-- ============ SCRIPTS ============ -->
+<script>
+// ===== State =====
+let currentPage = 1;
+let currentCategory = '';
+let currentSearch = '';
+let currentSort = 'momentum';
+let isLoading = false;
+let hasMore = true;
+const PAGE_LIMIT = 20;
+let _searchDebounce = null;
+
+function changeSort(val) {
+    currentSort = val;
+    currentPage = 1;
+    hasMore = true;
+    loadProducts(false);
+}
+
+// ===== Auth State =====
+function parseJwt(token) {
+    try { return JSON.parse(atob(token.split('.')[1])); } catch { return null; }
+}
+
+function updateAuthState() {
+    const token = localStorage.getItem('access_token');
+    const user = token ? parseJwt(token) : null;
+    // Check expiry
+    if (user && user.exp * 1000 < Date.now()) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        updateAuthState();
+        return;
+    }
+    const authLinks = document.getElementById('auth-links');
+    const userLinks = document.getElementById('user-links');
+    if (user) {
+        authLinks.style.display = 'none';
+        userLinks.style.display = 'flex';
+        const name = user.displayName || user.email?.split('@')[0] || 'Account';
+        const dn = document.getElementById('nav-display-name');
+        if (dn) dn.textContent = name;
+        const dr = document.getElementById('nav-display-role');
+        if (dr) dr.textContent = user.role || 'buyer';
+        if (token) {
+            // Bell badge
+            fetch('/api/notifications/unread-count', { headers: { Authorization: 'Bearer ' + token } })
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (data?.count > 0) {
+                        const b = document.getElementById('bell-badge');
+                        if (b) { b.textContent = data.count > 9 ? '9+' : data.count; b.style.display = 'block'; }
+                    }
+                }).catch(() => {});
+            // Messages badge
+            fetch('/api/messages/unread-count', { headers: { Authorization: 'Bearer ' + token } })
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (data?.total > 0) {
+                        const b = document.getElementById('msg-nav-badge');
+                        if (b) { b.textContent = data.total > 9 ? '9+' : data.total; b.style.display = 'block'; }
+                    }
+                }).catch(() => {});
+        }
+    } else {
+        authLinks.style.display = 'flex';
+        userLinks.style.display = 'none';
+    }
+}
+
+function toggleUserDropdown() {
+    const dd  = document.getElementById('user-dropdown');
+    const btn = document.getElementById('nav-avatar-btn');
+    if (!dd) return;
+    const open = dd.style.display === 'none';
+    dd.style.display = open ? 'block' : 'none';
+    if (btn) btn.setAttribute('aria-expanded', String(open));
+}
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#user-links')) {
+        const dd = document.getElementById('user-dropdown');
+        if (dd) dd.style.display = 'none';
+        const btn = document.getElementById('nav-avatar-btn');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+});
+
+function navigateSell() {
+    const t = localStorage.getItem('access_token');
+    if (!t) { openSignInModal(); return; }
+    try {
+        const u = JSON.parse(atob(t.split('.')[1]));
+        window.location.href = (u.storeActive === true || u.role === 'admin') ? '/dashboard' : '/profile';
+    } catch { openSignInModal(); }
+}
+
+function handleLogout() {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    showToast('Logged out successfully', 'info');
+    updateAuthState();
+}
+
+// ===== Sign In Modal =====
+let _pendingAction = null;
+
+function openSignInModal(pendingAction) {
+    _pendingAction = pendingAction || null;
+    document.getElementById('signin-modal').classList.add('modal-open');
+    setTimeout(() => document.getElementById('modal-email').focus(), 200);
+}
+
+function closeSignInModal() {
+    document.getElementById('signin-modal').classList.remove('modal-open');
+    document.getElementById('signin-form').reset();
+    const btn = document.getElementById('modal-submit-btn');
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+}
+
+function handleModalOutsideClick(e) {
+    if (e.target === document.getElementById('signin-modal')) {
+        closeSignInModal();
+    }
+}
+
+async function submitSignIn(e) {
+    e.preventDefault();
+    const btn = document.getElementById('modal-submit-btn');
+    const email = document.getElementById('modal-email').value;
+    const password = document.getElementById('modal-password').value;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i>Signing in...';
+
+    try {
+        const res = await fetch('/oauth/quick-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            showToast(data.error || 'Invalid credentials', 'error');
+            btn.disabled = false;
+            btn.textContent = 'Sign In';
+            return;
+        }
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('refresh_token', data.refresh_token);
+        if (window.MarkeeCart) MarkeeCart.migrateGuestCart();
+        closeSignInModal();
+        updateAuthState();
+        showToast(`Welcome back!`, 'success');
+        if (_pendingAction) _pendingAction();
+    } catch (err) {
+        showToast('Connection error. Please try again.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
+    }
+}
+
+// ===== Cart =====
+function addToCartFromListing(product, e) {
+    if (e) e.stopPropagation();
+    MarkeeCart.addItem(product);
+    showToast(`Added "${product.title.slice(0, 30)}..." to cart`, 'success');
+}
+
+function chatSeller(sellerId, e) {
+    if (e) e.stopPropagation();
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        openSignInModal(() => window.location.href = `/messages?target=${sellerId}`);
+        return;
+    }
+    window.location.href = `/messages?target=${sellerId}`;
+}
+
+// ===== Products =====
+function renderProductCard(p) {
+    const price = `$${((p.price || 0) / 100).toLocaleString()}`;
+    const img = (p.images && p.images[0]) ? p.images[0] : 'https://via.placeholder.com/300?text=No+Image';
+    const safeTitle = p.title.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const productData = JSON.stringify({ _id: p._id, title: p.title, price: p.price, images: p.images || [], sellerId: p.sellerId || null, fastDeliveryFee: p.fastDeliveryFee || 0 }).replace(/"/g, '&quot;');
+
+    return `
+        <div class="product-card" onclick="window.location='/product/${p._id}'">
+            <div class="product-img-wrapper">
+                <img src="${img}" alt="${safeTitle}" loading="lazy" onerror="this.onerror=null; this.style.visibility='hidden'">
+            </div>
+            <div class="product-info">
+                <span class="price-pill">${price}</span>
+                ${p.reviewCount >= 5 ? `<div style="font-size:0.72rem; color:#f59e0b; margin-top:0.15rem; margin-bottom:0.1rem;"><i class="fa fa-star"></i> ${(p.rating||0).toFixed(1)} <span style="color:var(--text-muted);">(${p.reviewCount})</span></div>` : ''}
+                <h4>${p.title}</h4>
+                <p class="text-muted small">${p.category || 'Uncategorized'}</p>
+            </div>
+            <div class="card-cta-row">
+                <button class="cta-btn cta-btn-cart" onclick='addToCartFromListing(${productData}, event)' title="Add to Cart">
+                    <i class="fa fa-cart-plus"></i> Cart
+                </button>
+                <button class="cta-btn cta-btn-view" onclick="event.stopPropagation(); window.location='/product/${p._id}'" title="View Details">
+                    <i class="fa fa-eye"></i> View
+                </button>
+                <button class="cta-btn cta-btn-chat" onclick="chatSeller('${p.sellerId}', event)" title="Chat Seller">
+                    <i class="fa fa-comment"></i> Chat
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+async function loadProducts(append = false) {
+    if (isLoading || !hasMore) return;
+    isLoading = true;
+
+    const sentinel = document.getElementById('load-sentinel');
+    const grid = document.getElementById('product-list');
+
+    if (append) {
+        sentinel.style.display = 'flex';
+    } else {
+        grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:2rem;"><div class="load-more-spinner" style="margin:0 auto;"></div></div>`;
+    }
+
+    try {
+        const params = new URLSearchParams({ page: currentPage, limit: PAGE_LIMIT });
+        if (currentCategory) params.set('category', currentCategory);
+        if (currentSearch) params.set('search', currentSearch);
+        if (currentSort) params.set('sort', currentSort);
+        // First load shuffled for variety if no sort/search/category
+        if (currentPage === 1 && !currentSearch && !currentCategory && currentSort === 'momentum') params.set('shuffle', 'true');
+
+        const res = await fetch(`/api/catalog/products?${params}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const products = await res.json();
+
+        if (!Array.isArray(products)) throw new Error('Invalid response');
+
+        if (!append) grid.innerHTML = '';
+        sentinel.style.display = 'none';
+
+        if (products.length === 0 && !append) {
+            grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--text-muted);">No listings found. Try a different search.</p>';
+            hasMore = false;
+        } else {
+            products.forEach(p => {
+                const div = document.createElement('div');
+                div.innerHTML = renderProductCard(p);
+                grid.appendChild(div.firstElementChild);
             });
-    </script>
+
+            if (products.length < PAGE_LIMIT) {
+                hasMore = false;
+                document.getElementById('end-of-results').style.display = 'flex';
+            } else {
+                currentPage++;
+            }
+
+            // Update result count if searching
+            if (currentSearch || currentCategory) {
+                document.getElementById('result-count').textContent = `${grid.children.length} listings`;
+            }
+        }
+    } catch (err) {
+        sentinel.style.display = 'none';
+        if (!append) {
+            grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:3rem;">
+                <p style="color:var(--accent-red);font-weight:600;">Marketplace unavailable</p>
+                <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.5rem;">${err.message}</p>
+                <button onclick="resetAndReload()" style="margin-top:1rem;" class="nav-pill nav-pill-outline">
+                    <i class="fa fa-redo" style="margin-right:0.4rem;"></i> Try Again
+                </button>
+            </div>`;
+        }
+    } finally {
+        isLoading = false;
+    }
+}
+
+function filterCategory(cat, el) {
+    // Update active state on sidebar
+    document.querySelectorAll('.cat-list li').forEach(li => li.classList.remove('cat-active'));
+    if (el) el.classList.add('cat-active');
+
+    currentCategory = cat;
+    currentSearch = '';
+    currentPage = 1;
+    hasMore = true;
+    document.getElementById('main-search').value = '';
+    document.getElementById('end-of-results').style.display = 'none';
+    document.getElementById('feed-title').textContent = cat ? cat : 'Trending Ads';
+    document.getElementById('result-count').textContent = '';
+    loadProducts(false);
+}
+
+function onSearchInput() {
+    const val = document.getElementById('main-search').value;
+    document.getElementById('search-clear-btn').style.display = val ? 'flex' : 'none';
+    clearTimeout(_searchDebounce);
+    _searchDebounce = setTimeout(() => {
+        if (val.trim()) {
+            executeSearch();
+        } else {
+            clearSearch();
+        }
+    }, 350);
+}
+
+function clearSearch() {
+    clearTimeout(_searchDebounce);
+    document.getElementById('main-search').value = '';
+    document.getElementById('search-clear-btn').style.display = 'none';
+    currentSearch = '';
+    currentCategory = '';
+    currentPage = 1;
+    hasMore = true;
+    document.querySelectorAll('.cat-list li').forEach(li => li.classList.remove('cat-active'));
+    document.querySelector('.cat-list li').classList.add('cat-active');
+    document.getElementById('end-of-results').style.display = 'none';
+    document.getElementById('feed-title').textContent = 'Trending Ads';
+    document.getElementById('result-count').textContent = '';
+    history.pushState({}, '', '/');
+    loadProducts(false);
+}
+
+function executeSearch() {
+    const q = document.getElementById('main-search').value.trim();
+    if (!q) { clearSearch(); return; }
+    currentSearch = q;
+    currentCategory = '';
+    currentPage = 1;
+    hasMore = true;
+    document.querySelectorAll('.cat-list li').forEach(li => li.classList.remove('cat-active'));
+    document.querySelector('.cat-list li').classList.add('cat-active');
+    document.getElementById('end-of-results').style.display = 'none';
+    document.getElementById('feed-title').textContent = `Results for "${q}"`;
+    history.pushState({ q }, '', `/?q=${encodeURIComponent(q)}`);
+    loadProducts(false);
+}
+
+function resetAndReload() {
+    currentPage = 1;
+    hasMore = true;
+    loadProducts(false);
+}
+
+// ===== Infinity Scroll (IntersectionObserver) =====
+function initInfinityScroll() {
+    const sentinel = document.getElementById('load-sentinel');
+    const observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && !isLoading && hasMore) {
+            loadProducts(true);
+        }
+    }, { threshold: 0.1 });
+    // Observe a div placed after the grid
+    const trigger = document.createElement('div');
+    trigger.id = 'infinity-trigger';
+    trigger.style.height = '1px';
+    document.querySelector('.product-feed').appendChild(trigger);
+    observer.observe(trigger);
+}
+
+// ===== Browser back/forward =====
+window.addEventListener('popstate', () => {
+    const q = new URLSearchParams(location.search).get('q') || '';
+    const input = document.getElementById('main-search');
+    input.value = q;
+    document.getElementById('search-clear-btn').style.display = q ? 'flex' : 'none';
+    currentSearch = q;
+    currentCategory = '';
+    currentPage = 1;
+    hasMore = true;
+    document.getElementById('end-of-results').style.display = 'none';
+    document.getElementById('feed-title').textContent = q ? `Results for "${q}"` : 'Trending Ads';
+    document.getElementById('result-count').textContent = '';
+    loadProducts(false);
+});
+
+// ===== Init =====
+window.addEventListener('DOMContentLoaded', () => {
+    updateAuthState();
+    MarkeeCart.updateAllCartBadges();
+    document.querySelectorAll('#cart-count-badge').forEach(el => {
+        const count = MarkeeCart.getTotalCount();
+        el.textContent = count;
+        el.style.display = count > 0 ? 'inline-flex' : 'none';
+    });
+    // Restore search from URL on load (e.g. if user refreshes a search result)
+    const q = new URLSearchParams(location.search).get('q') || '';
+    if (q) {
+        document.getElementById('main-search').value = q;
+        document.getElementById('search-clear-btn').style.display = 'flex';
+        currentSearch = q;
+        document.getElementById('feed-title').textContent = `Results for "${q}"`;
+    }
+    loadProducts(false);
+    initInfinityScroll();
+    loadOnSaleStores();
+});
+
+// ── On-sale discovery strip ───────────────────────────────────────────────────
+async function loadOnSaleStores() {
+    try {
+        const res = await fetch('/api/catalog/on-sale');
+        if (!res.ok) return;
+        const stores = await res.json();
+        if (!Array.isArray(stores) || stores.length === 0) return;
+
+        const container = document.getElementById('on-sale-stores');
+        container.innerHTML = stores.map(s => {
+            const sb = s.salesBanner;
+            const pct = sb?.discountPercent ? `Up to ${sb.discountPercent}% off` : 'Sale on now';
+            return `
+                <a href="/store/${s._id}" style="display:inline-flex; align-items:center; gap:0.5rem; flex-shrink:0;
+                    background:var(--card-bg); border:1px solid var(--border-light); border-radius:8px;
+                    padding:0.4rem 0.75rem; text-decoration:none; color:var(--text-main);
+                    box-shadow:var(--shadow-sm); white-space:nowrap; transition:box-shadow 0.15s;"
+                    onmouseover="this.style.boxShadow='var(--shadow-md)'"
+                    onmouseout="this.style.boxShadow='var(--shadow-sm)'">
+                    <span style="width:24px; height:24px; border-radius:50%; background:var(--accent-red);
+                        color:#fff; display:flex; align-items:center; justify-content:center;
+                        font-size:0.65rem; font-weight:800; flex-shrink:0;">
+                        ${(s.name || '?').charAt(0).toUpperCase()}
+                    </span>
+                    <div>
+                        <div style="font-size:0.78rem; font-weight:700; line-height:1.1;">${s.name || 'Store'}</div>
+                        <div style="font-size:0.65rem; color:var(--accent-red); font-weight:600;">${pct}</div>
+                    </div>
+                </a>`;
+        }).join('');
+
+        document.getElementById('on-sale-strip').style.display = 'block';
+    } catch {
+        // fail silently — homepage must always load
+    }
+}
+</script>
+
+<!-- Sidebar active category style -->
+<style>
+.cat-list li.cat-active {
+    background: var(--bg-secondary);
+    color: var(--accent-red);
+    font-weight: 700;
+    border-left: 3px solid var(--accent-red);
+}
+.search-clear-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0 0.5rem;
+    font-size: 0.9rem;
+    position: absolute;
+    right: 3rem;
+    top: 50%;
+    transform: translateY(-50%);
+    transition: color 0.15s;
+}
+.search-clear-btn:hover { color: var(--accent-red); }
+.search-bar-jiji { position: relative; }
+</style>
+
 </body>
 </html>

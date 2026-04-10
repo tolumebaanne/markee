@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authorize Access | Markee Auth</title>
+    <link rel="stylesheet" href="http://localhost:4000/css/style.css">
+</head>
+<body>
+
+<div class="auth-wrapper">
+    <div class="auth-panel animate-fade" style="max-width: 500px;">
+        <center><a href="http://localhost:4000/"><img src="http://localhost:4000/assets/logo.svg" alt="Markee Logo" style="width: 60px; margin-bottom: 1rem;"></a></center>
+        <h2>Authorization Request</h2>
+        <p class="text-muted mb-4">A third-party application wants to access your account data.</p>
+        
+        <div class="alert alert-info mb-4" style="text-align: center;">
+            <p>Signed in as: <strong><%= email %></strong></p>
+        </div>
+        
+        <p class="mb-4" style="font-size: 0.95rem;">By approving, you allow this application to interact with Markee on your behalf according to your role.</p>
+
+        <div style="display: flex; gap: 1rem; flex-direction: column;">
+            <form method="POST" action="/oauth/authorize/approve">
+                <button type="submit" class="btn btn-red">Approve Access</button>
+            </form>
+            <form method="POST" action="/oauth/authorize/deny">
+                <button type="submit" class="btn btn-outline">Deny</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

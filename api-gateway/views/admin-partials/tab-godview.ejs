@@ -1,0 +1,174 @@
+<!-- ══════════════════════ TAB: GOD VIEW ══════════════════════ -->
+<div class="tab-panel active" id="tab-godview">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-globe" style="color:var(--accent);margin-right:0.4rem;font-size:1.1rem"></i> God View</h1>
+      <p>Real-time platform snapshot — <span class="refresh-ts" id="gv-ts"></span></p>
+    </div>
+    <div class="page-header-actions">
+      <button class="btn btn-ghost btn-sm" onclick="loadGodView()"><i class="fas fa-rotate-right"></i> Refresh</button>
+    </div>
+  </div>
+
+  <div id="gv-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+
+  <!-- 8 stat cards -->
+  <div class="stats-grid section-gap">
+    <div class="stat-card" style="--stat-color:#60a5fa">
+      <div class="stat-label">Orders Today</div>
+      <div class="stat-value" id="gv-today">—</div>
+      <div class="stat-sub">live count</div>
+      <i class="fas fa-box stat-icon"></i>
+    </div>
+    <div class="stat-card" style="--stat-color:#a78bfa">
+      <div class="stat-label">This Week</div>
+      <div class="stat-value" id="gv-week">—</div>
+      <div class="stat-sub">last 7 days</div>
+      <i class="fas fa-calendar-week stat-icon"></i>
+    </div>
+    <div class="stat-card" style="--stat-color:#818cf8">
+      <div class="stat-label">This Month</div>
+      <div class="stat-value" id="gv-month">—</div>
+      <div class="stat-sub">last 30 days</div>
+      <i class="fas fa-calendar stat-icon"></i>
+    </div>
+    <div class="stat-card" style="--stat-color:#94a3b8">
+      <div class="stat-label">All-Time Orders</div>
+      <div class="stat-value" id="gv-total">—</div>
+      <div class="stat-sub">since launch</div>
+      <i class="fas fa-infinity stat-icon"></i>
+    </div>
+    <div class="stat-card" style="--stat-color:#4ade80">
+      <div class="stat-label">GMV Today</div>
+      <div class="stat-value" id="gv-gmv" style="font-size:1.25rem">—</div>
+      <div class="stat-sub">gross merch. value</div>
+      <i class="fas fa-coins stat-icon"></i>
+    </div>
+    <div class="stat-card" style="--stat-color:#22c55e">
+      <div class="stat-label">Platform Revenue</div>
+      <div class="stat-value" id="gv-revenue" style="font-size:1.25rem">—</div>
+      <div class="stat-sub">fees collected</div>
+      <i class="fas fa-chart-line stat-icon"></i>
+    </div>
+    <div class="stat-card" style="--stat-color:#f59e0b">
+      <div class="stat-label">Active Disputes</div>
+      <div class="stat-value" id="gv-disputes" style="color:#fbbf24">—</div>
+      <div class="stat-sub"><button class="btn btn-ghost btn-xs" style="padding:0;border:none;font-size:0.65rem;color:var(--muted)" onclick="switchTab('payments',document.querySelectorAll('.sidebar-link')[10])">→ Payments</button></div>
+      <i class="fas fa-gavel stat-icon"></i>
+    </div>
+    <div class="stat-card" style="--stat-color:#f87171">
+      <div class="stat-label">Pending Reviews</div>
+      <div class="stat-value" id="gv-reviews" style="color:#fca5a5">—</div>
+      <div class="stat-sub"><button class="btn btn-ghost btn-xs" style="padding:0;border:none;font-size:0.65rem;color:var(--muted)" onclick="switchTab('reviews',document.querySelectorAll('.sidebar-link')[15])">→ Reviews</button></div>
+      <i class="fas fa-star-half-stroke stat-icon"></i>
+    </div>
+  </div>
+
+  <div class="grid-2 section-gap">
+    <!-- Anomalies -->
+    <div class="card">
+      <div class="card-title"><i class="fas fa-triangle-exclamation"></i> Platform Anomalies</div>
+      <div id="gv-anomalies"><div class="loading"><i class="fas fa-spinner fa-spin"></i> Scanning...</div></div>
+    </div>
+    <!-- Recent orders mini -->
+    <div class="card">
+      <div class="card-title"><i class="fas fa-clock-rotate-left"></i> Recent Orders</div>
+      <div id="gv-recent"><div class="loading"><i class="fas fa-spinner fa-spin"></i></div></div>
+    </div>
+  </div>
+
+  <!-- Quick actions -->
+  <div class="card">
+    <div class="card-title"><i class="fas fa-wand-magic-sparkles"></i> Quick Actions</div>
+    <div class="btn-gap">
+      <button class="btn btn-info btn-sm" onclick="switchTab('catalog',document.querySelectorAll('.sidebar-link')[9])"><i class="fas fa-box-open"></i> Review Pending Products</button>
+      <button class="btn btn-warn btn-sm" onclick="switchTab('shipping',document.querySelectorAll('.sidebar-link')[13])"><i class="fas fa-truck"></i> Stuck Shipments</button>
+      <button class="btn btn-danger btn-sm" onclick="switchTab('payments',document.querySelectorAll('.sidebar-link')[10])"><i class="fas fa-gavel"></i> Resolve Disputes</button>
+      <button class="btn btn-purple btn-sm" onclick="switchTab('intelligence',document.querySelectorAll('.sidebar-link')[19])"><i class="fas fa-brain"></i> Intelligence Panel</button>
+      <button class="btn btn-success btn-sm" onclick="switchTab('sellers',document.querySelectorAll('.sidebar-link')[7])"><i class="fas fa-store"></i> Manage Sellers</button>
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadGodView() {
+  hideErr('gv-error');
+  document.getElementById('gv-ts').textContent = '';
+
+  const [pulse, paySum, disputes, anomaliesRes] = await Promise.allSettled([
+    adminApi('GET', '/proxy/analytics/platform/pulse'),
+    adminApi('GET', '/proxy/payments/summary'),
+    adminApi('GET', '/proxy/payments/disputes'),
+    adminApi('GET', '/proxy/intelligence/anomalies')
+  ]);
+
+  if (pulse.status === 'fulfilled') {
+    const p = pulse.value || {};
+    animateCounter(document.getElementById('gv-today'),  p.ordersToday  || 0);
+    animateCounter(document.getElementById('gv-week'),   p.ordersWeek   || 0);
+    animateCounter(document.getElementById('gv-month'),  p.ordersMonth  || 0);
+    animateCounter(document.getElementById('gv-total'),  p.totalOrders  || 0);
+    document.getElementById('gv-gmv').textContent     = p.gmvTodayFormatted || fmt$(p.gmvTodayCents) || '$0.00';
+    const rev = document.getElementById('gv-reviews');
+    rev.textContent = (p.reviewsPending || 0).toString();
+    const bm = document.getElementById('badge-reviews');
+    if (p.reviewsPending > 0) { bm.textContent = p.reviewsPending; bm.style.display = 'inline-flex'; }
+    const bc = document.getElementById('badge-catalog');
+    if (p.catalogPending > 0) { bc.textContent = p.catalogPending; bc.style.display = 'inline-flex'; }
+  } else {
+    showErr('gv-error', 'Analytics service unavailable — pulse data could not load.');
+  }
+
+  if (paySum.status === 'fulfilled') {
+    const s = paySum.value || {};
+    document.getElementById('gv-revenue').textContent = fmt$(s.platformRevenueCents);
+  }
+  if (disputes.status === 'fulfilled') {
+    const d = disputes.value || {};
+    const count = d.total || (d.disputes || []).length || 0;
+    document.getElementById('gv-disputes').textContent = count.toString();
+    const bp = document.getElementById('badge-pay');
+    if (count > 0) { bp.textContent = count; bp.style.display = 'inline-flex'; }
+  }
+
+  // Anomalies
+  const ac = document.getElementById('gv-anomalies');
+  if (anomaliesRes.status === 'fulfilled') {
+    const items = anomaliesRes.value.anomalies || [];
+    if (!items.length) {
+      ac.innerHTML = `<div class="empty-state" style="padding:1.5rem"><i class="fas fa-check-circle" style="color:var(--success)"></i>All clear — no anomalies detected</div>`;
+    } else {
+      ac.innerHTML = `<div class="anomaly-list">${items.slice(0,8).map(a => `
+        <div class="anomaly-item ${a.severity||'medium'}">
+          <div style="font-size:1.1rem;margin-top:0.05rem">${a.severity==='high'?'🔴':'🟡'}</div>
+          <div>
+            <div class="anomaly-type ${a.severity==='high'?'sev-high':'sev-medium'}">${a.type || 'UNKNOWN'}</div>
+            <div class="anomaly-detail">${a.detail || a.message || ''}</div>
+          </div>
+        </div>`).join('')}</div>`;
+    }
+  } else {
+    ac.innerHTML = `<div style="color:var(--muted);font-size:0.78rem;padding:1rem">Intelligence service unavailable</div>`;
+  }
+
+  // Recent orders
+  const rc = document.getElementById('gv-recent');
+  try {
+    const data = await adminApi('GET', '/proxy/orders?limit=8');
+    const orders = data.orders || [];
+    if (!orders.length) { rc.innerHTML = `<div class="empty-state" style="padding:1.5rem"><i class="fas fa-inbox"></i>No orders yet</div>`; }
+    else {
+      rc.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Order</th><th>Status</th><th>Total</th><th>Date</th></tr></thead><tbody>
+        ${orders.map(o=>`<tr>
+          <td class="mono">${trunc(o._id,12)}</td>
+          <td>${badge(o.status)}</td>
+          <td style="font-weight:600">${fmt$(o.totalAmount)}</td>
+          <td style="color:var(--muted);font-size:0.7rem">${fmtDate(o.createdAt)}</td>
+        </tr>`).join('')}
+      </tbody></table></div>`;
+    }
+  } catch { rc.innerHTML = `<div style="color:var(--muted);font-size:0.78rem;padding:1rem">Could not load recent orders</div>`; }
+
+  document.getElementById('gv-ts').textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+</script>

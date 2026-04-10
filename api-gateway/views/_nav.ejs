@@ -1,0 +1,146 @@
+<%# Unified nav partial — included by all pages %>
+    <div class="nav-links">
+        <a href="/cart" class="nav-cart-btn" id="nav-cart-link" title="View Cart">
+            <i class="fa fa-shopping-cart"></i>
+            <span class="cart-count-badge" id="cart-count-badge">0</span>
+        </a>
+
+        <%# Guest state %>
+        <div id="auth-links" style="display:flex; gap:0.5rem; align-items:center;">
+            <button class="nav-pill nav-pill-outline" onclick="window.location='/login'">Sign In</button>
+            <button class="nav-pill nav-pill-red" onclick="navigateSell()">
+                <i class="fa fa-tag" style="margin-right:0.4rem;"></i> Sell
+            </button>
+        </div>
+
+        <%# Logged-in state %>
+        <div id="user-links" style="display:none; align-items:center; gap:0.35rem;">
+
+            <%# Messages %>
+            <button class="nav-icon-btn" id="nav-msg-btn" title="Messages" onclick="window.location='/messages'">
+                <i class="fa fa-comments"></i>
+                <span class="nav-icon-badge" id="msg-nav-badge" style="display:none;"></span>
+            </button>
+
+            <%# Bell %>
+            <button class="nav-icon-btn" id="nav-bell-btn" title="Notifications" onclick="window.location='/profile#notifications'">
+                <i class="fa fa-bell"></i>
+                <span class="nav-icon-badge" id="bell-badge" style="display:none;"></span>
+            </button>
+
+            <%# Sell %>
+            <button class="nav-pill nav-pill-red" style="margin-left:0.15rem;" onclick="navigateSell()">
+                <i class="fa fa-tag" style="margin-right:0.4rem;"></i> Sell
+            </button>
+
+            <%# Avatar dropdown %>
+            <div style="position:relative; margin-left:0.15rem;">
+                <button class="nav-avatar-btn" id="nav-avatar-btn" onclick="toggleUserDropdown()" aria-label="Account menu" aria-expanded="false">
+                    <i class="fa fa-user-circle"></i>
+                </button>
+                <div class="nav-dropdown" id="user-dropdown" style="display:none;">
+                    <div class="nav-dropdown-header">
+                        <div class="nav-dropdown-name" id="nav-display-name">—</div>
+                        <div class="nav-dropdown-role" id="nav-display-role"></div>
+                    </div>
+                    <a href="/profile" class="nav-dropdown-item">
+                        <i class="fa fa-user"></i> Profile &amp; Settings
+                    </a>
+                    <a href="/dashboard" class="nav-dropdown-item">
+                        <i class="fa fa-th-large"></i> Dashboard
+                    </a>
+                    <a href="/orders" class="nav-dropdown-item">
+                        <i class="fa fa-shopping-bag"></i> My Orders
+                    </a>
+                    <button class="nav-dropdown-item logout" onclick="handleLogout()">
+                        <i class="fa fa-sign-out-alt"></i> Log Out
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+<script>
+(function initNav() {
+    const t = localStorage.getItem('access_token');
+    if (!t) return;
+    try {
+        const u = JSON.parse(atob(t.split('.')[1]));
+        document.getElementById('auth-links').style.display = 'none';
+        document.getElementById('user-links').style.display = 'flex';
+
+        const name = u.displayName || u.email?.split('@')[0] || 'Account';
+        const dn = document.getElementById('nav-display-name');
+        if (dn) dn.textContent = name;
+        const dr = document.getElementById('nav-display-role');
+        if (dr) dr.textContent = u.role || 'buyer';
+    } catch {}
+
+    // Bell badge — non-blocking
+    fetch('/api/notifications/unread-count', {
+        headers: { Authorization: 'Bearer ' + t }
+    }).then(r => r.ok ? r.json() : null).then(data => {
+        if (data?.count > 0) {
+            const b = document.getElementById('bell-badge');
+            if (b) { b.textContent = data.count > 9 ? '9+' : data.count; b.style.display = 'block'; }
+        }
+    }).catch(() => {});
+
+    // Messages badge — non-blocking, refreshed every 30s
+    function refreshMsgBadge() {
+        fetch('/api/messages/unread-count', {
+            headers: { Authorization: 'Bearer ' + t }
+        }).then(r => r.ok ? r.json() : null).then(data => {
+            const b = document.getElementById('msg-nav-badge');
+            if (!b) return;
+            if (data?.total > 0) {
+                b.textContent = data.total > 9 ? '9+' : data.total;
+                b.style.display = 'block';
+            } else {
+                b.style.display = 'none';
+            }
+        }).catch(() => {});
+    }
+    refreshMsgBadge();
+    setInterval(refreshMsgBadge, 30000);
+})();
+
+function toggleUserDropdown() {
+    const dd  = document.getElementById('user-dropdown');
+    const btn = document.getElementById('nav-avatar-btn');
+    if (!dd) return;
+    const open = dd.style.display === 'none';
+    dd.style.display = open ? 'block' : 'none';
+    if (btn) btn.setAttribute('aria-expanded', String(open));
+}
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#user-links')) {
+        const dd = document.getElementById('user-dropdown');
+        if (dd) dd.style.display = 'none';
+        const btn = document.getElementById('nav-avatar-btn');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+});
+
+function navigateSell() {
+    const t = localStorage.getItem('access_token');
+    if (!t) { window.location = '/login'; return; }
+    try {
+        const u = JSON.parse(atob(t.split('.')[1]));
+        window.location = (u.storeActive === true || u.role === 'admin') ? '/dashboard' : '/profile';
+    } catch { window.location = '/login'; }
+}
+
+function handleLogout() {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    window.location.href = '/login';
+}
+
+// Shared monetary formatting (used across all pages)
+window.formatCurrency = function(amountCents, currency) {
+    currency = currency || 'CAD';
+    return (amountCents / 100).toLocaleString('en-CA', { style: 'currency', currency: currency });
+};
+</script>

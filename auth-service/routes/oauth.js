@@ -6,6 +6,60 @@ const AuthCode = require('../models/AuthCode');
 const RefreshToken = require('../models/RefreshToken');
 const User = require('../models/User');
 
+// ── Dynamic scope computation ─────────────────────────────────────────────────
+// Queries the Seller Service to determine if the user's store is currently active,
+// then returns the correct scope set and storeActive flag for JWT issuance.
+const BUYER_SCOPES  = ['catalog:read', 'orders:create', 'orders:read', 'reviews:write', 'messages:read', 'messages:write'];
+const SELLER_SCOPES = ['catalog:write', 'inventory:write', 'orders:fulfil', 'shipping:write', 'analytics:read'];
+const ADMIN_SCOPES  = ['orders:*', 'catalog:*', 'sellers:*', 'payments:*', 'reviews:moderate', 'analytics:*', 'inventory:*', 'shipping:*', 'messages:*'];
+
+async function computeScopes(user) {
+  if (user.role === 'admin') {
+    return { scopes: ADMIN_SCOPES, storeActive: false };
+  }
+
+  let scopes = [...BUYER_SCOPES];
+  let storeActive = false;
+
+  if (user.storeId) {
+    // 3-second timeout prevents a slow/hung Seller Service from blocking token issuance.
+    const controller = new AbortController();
+    const timeout    = setTimeout(() => controller.abort(), 3000);
+
+    try {
+      const sellerPort = process.env.SELLER_PORT || 5005;
+      const res = await fetch(`http://localhost:${sellerPort}/${user.storeId}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
+      if (res.ok) {
+        const store = await res.json();
+        // `active` defaults to true if the field hasn't been written yet (existing stores).
+        storeActive = store.active !== false;
+        if (storeActive) scopes = [...scopes, ...SELLER_SCOPES];
+      } else if (res.status === 404) {
+        // Store document not created yet — new user, no seller scopes.
+        storeActive = false;
+      } else {
+        // Non-404 error from Seller Service — fail open: any user with a storeId
+        // gets seller scopes rather than losing access due to a transient service error.
+        storeActive = true;
+        scopes = [...scopes, ...SELLER_SCOPES];
+      }
+    } catch (e) {
+      clearTimeout(timeout);
+      // Seller Service unreachable or request timed out.
+      // Fail open: grant seller scopes to users who have a storeId so a Seller Service
+      // outage does not log out all sellers. A buyer has no storeId so is unaffected.
+      storeActive = true;
+      scopes = [...scopes, ...SELLER_SCOPES];
+    }
+  }
+
+  return { scopes, storeActive };
+}
+
 const requireAuth = (req, res, next) => {
   if (!req.session.user) {
     req.session.returnTo = req.originalUrl;
@@ -30,22 +84,7 @@ router.get('/authorize', requireAuth, (req, res) => {
     scope: scope ? scope.split(' ') : []
   };
 
-  res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head><title>Authorize App</title></head>
-      <body>
-        <h1>Authorize Approval</h1>
-        <p>Allow the app to access your account as ${req.session.user.email}?</p>
-        <form method="POST" action="/oauth/authorize/approve">
-            <button type="submit">Approve</button>
-        </form>
-        <form method="POST" action="/oauth/authorize/deny">
-            <button type="submit">Deny</button>
-        </form>
-      </body>
-      </html>
-  `);
+  res.render('authorize', { email: req.session.user.email });
 });
 
 router.post('/authorize/approve', requireAuth, async (req, res) => {
@@ -54,20 +93,25 @@ router.post('/authorize/approve', requireAuth, async (req, res) => {
 
   const code = generateAuthCode();
   try {
+    console.log(`[AUTH] Approving for clientId: ${authReq.client_id}, redirect: ${authReq.redirect_uri}`);
     await AuthCode.create({
       code,
       userId: req.session.user.id,
       clientId: authReq.client_id,
       scope: authReq.scope,
-      redirectUri: authReq.redirect_uri
+      redirectUri: authReq.redirect_uri,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000)
     });
     delete req.session.authRequest;
 
     const redirectUrl = new URL(authReq.redirect_uri);
     redirectUrl.searchParams.append('code', code);
     redirectUrl.searchParams.append('state', authReq.state);
-    res.redirect(redirectUrl.toString());
+    const destination = redirectUrl.toString();
+    console.log(`[AUTH] Redirecting to: ${destination}`);
+    res.redirect(destination);
   } catch (error) {
+    console.error(`[AUTH] Approval Error:`, error);
     res.status(500).send('Internal server error');
   }
 });
@@ -83,26 +127,75 @@ router.post('/authorize/deny', requireAuth, (req, res) => {
   res.redirect(redirectUrl.toString());
 });
 
+// POST /oauth/quick-login — direct credential to JWT (for same-origin modal sign-in)
+router.post('/quick-login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Missing credentials' });
+
+  try {
+    const user = await User.validatePassword(email, password);
+    if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+
+    const { scopes, storeActive } = await computeScopes(user);
+
+    const payload = {
+      sub:         user._id.toString(),
+      email:       user.email,
+      role:        user.role === 'admin' ? 'admin' : 'user',
+      storeId:     user.storeId?.toString() || null,
+      storeActive,
+      displayName: user.displayName || '',
+      scopes,
+      exp: Math.floor(Date.now() / 1000) + (60 * 60), // 1 hour
+    };
+
+    const accessToken = jwt.sign(payload, process.env.JWT_SECRET || 'fallback-secret');
+    const refreshToken = crypto.randomBytes(40).toString('hex');
+    await RefreshToken.create({ token: refreshToken, userId: user._id });
+
+    res.json({ access_token: accessToken, refresh_token: refreshToken, token_type: 'Bearer', expires_in: 3600, role: payload.role });
+  } catch (err) {
+    console.error('[AUTH] quick-login error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.post('/token', async (req, res) => {
   const { grant_type, code, redirect_uri, client_id, client_secret } = req.body;
   if (grant_type !== 'authorization_code') return res.status(400).json({ error: 'unsupported_grant_type' });
 
   try {
     const authCodeDoc = await AuthCode.findOne({ code }).populate('userId');
-    if (!authCodeDoc || authCodeDoc.used || authCodeDoc.expiresAt < new Date() || authCodeDoc.clientId !== client_id || authCodeDoc.redirectUri !== redirect_uri) {
+    if (!authCodeDoc) {
+      console.log(`[AUTH] Auth Code not found: ${code}`);
+      return res.status(400).json({ error: 'invalid_grant', detail: 'code_not_found' });
+    }
+    if (authCodeDoc.used || authCodeDoc.expiresAt < new Date() || authCodeDoc.clientId !== client_id || authCodeDoc.redirectUri !== redirect_uri) {
+      console.log(`[AUTH] Validation failed:`, {
+        used: authCodeDoc.used,
+        expired: authCodeDoc.expiresAt < new Date(),
+        clientIdMatch: authCodeDoc.clientId === client_id,
+        uriMatch: authCodeDoc.redirectUri === redirect_uri,
+        storedUri: authCodeDoc.redirectUri,
+        passedUri: redirect_uri
+      });
       return res.status(400).json({ error: 'invalid_grant' });
     }
 
-    authCodeDoc.used = true; // Rule 6: Auth codes are single-use
+    authCodeDoc.used = true;
     await authCodeDoc.save();
 
     const user = authCodeDoc.userId;
+    const { scopes, storeActive } = await computeScopes(user);
     const payload = {
-      sub: user._id.toString(),
-      role: user.role,
-      storeId: user.storeId,
-      scopes: authCodeDoc.scope,
-      exp: Math.floor(Date.now() / 1000) + (15 * 60) // 15 min
+      sub:         user._id.toString(),
+      email:       user.email,
+      role:        user.role === 'admin' ? 'admin' : 'user',
+      storeId:     user.storeId?.toString() || null,
+      storeActive,
+      displayName: user.displayName || '',
+      scopes,
+      exp: Math.floor(Date.now() / 1000) + (60 * 60) // 1 hour
     };
     const accessToken = jwt.sign(payload, process.env.JWT_SECRET || 'fallback-secret');
     
@@ -138,13 +231,16 @@ router.post('/refresh', async (req, res) => {
     await rtDoc.save();
 
     const user = rtDoc.userId;
-    const scopes = [];
+    const { scopes, storeActive } = await computeScopes(user);
     const payload = {
-      sub: user._id.toString(),
-      role: user.role,
-      storeId: user.storeId,
+      sub:         user._id.toString(),
+      email:       user.email,
+      role:        user.role === 'admin' ? 'admin' : 'user',
+      storeId:     user.storeId?.toString() || null,
+      storeActive,
+      displayName: user.displayName || '',
       scopes,
-      exp: Math.floor(Date.now() / 1000) + (15 * 60)
+      exp: Math.floor(Date.now() / 1000) + (60 * 60)
     };
     
     const accessToken = jwt.sign(payload, process.env.JWT_SECRET || 'fallback-secret');

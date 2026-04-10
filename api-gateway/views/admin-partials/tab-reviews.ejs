@@ -1,0 +1,139 @@
+<!-- tab-reviews.ejs: Review moderation panel -->
+<div class="tab-panel" id="tab-reviews">
+  <div class="page-header">
+    <h2><i class="fas fa-star-half-alt"></i> Review Moderation</h2>
+    <button class="btn btn-sm btn-ghost" onclick="loadReviews()"><i class="fas fa-refresh"></i> Refresh</button>
+  </div>
+
+  <div class="sub-tabs" id="rev-tabs">
+    <button class="sub-tab active" onclick="switchSubTab('rev','queue',this);renderReviews(window._revData||[],'rev-queue')">Queue (All)</button>
+    <button class="sub-tab" onclick="switchSubTab('rev','pending',this);renderReviews((window._revData||[]).filter(r=>r.status==='pending'),'rev-pending')">Pending</button>
+    <button class="sub-tab" onclick="switchSubTab('rev','flagged',this);renderReviews((window._revData||[]).filter(r=>r.status==='flagged'),'rev-flagged')">Flagged</button>
+  </div>
+
+  <!-- Queue: All -->
+  <div class="sub-panel" id="rev-queue" style="display:block">
+    <div id="rev-queue-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="rev-queue-loading" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading reviews…</div>
+    <div id="rev-queue-list"></div>
+  </div>
+
+  <!-- Pending -->
+  <div class="sub-panel" id="rev-pending" style="display:none">
+    <div id="rev-pending-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="rev-pending-list"></div>
+  </div>
+
+  <!-- Flagged -->
+  <div class="sub-panel" id="rev-flagged" style="display:none">
+    <div id="rev-flagged-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="rev-flagged-list"></div>
+  </div>
+</div>
+
+<script>
+  window._revData = [];
+
+  async function loadReviews() {
+    const loading = document.getElementById('rev-queue-loading');
+    hideErr('rev-queue-error');
+    loading.style.display = 'block';
+    document.getElementById('rev-queue-list').innerHTML = '';
+    try {
+      const data = await adminApi('GET', '/proxy/reviews/pending');
+      const pending = data.pending || (Array.isArray(data) ? data : []);
+      const flagged = data.flagged || [];
+      window._revData = [...pending, ...flagged];
+      loading.style.display = 'none';
+      renderReviews(window._revData, 'rev-queue');
+      renderReviews(window._revData.filter(r => r.status === 'pending'), 'rev-pending');
+      renderReviews(window._revData.filter(r => r.status === 'flagged'), 'rev-flagged');
+    } catch (err) {
+      loading.style.display = 'none';
+      showErr('rev-queue-error', err.message);
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  function renderReviews(reviews, containerId) {
+    const container = document.getElementById(containerId + '-list') || document.getElementById(containerId);
+    const listEl = document.getElementById(containerId + '-list');
+    const target = listEl || container;
+    if (!target) return;
+
+    if (!reviews || !reviews.length) {
+      target.innerHTML = '<div class="empty-state"><i class="fas fa-star"></i><p>No reviews in this category.</p></div>';
+      return;
+    }
+
+    target.innerHTML = reviews.map(r => {
+      const cls = r.status === 'flagged' ? 'flagged' : 'pending';
+      const flagInfo = r.status === 'flagged' && r.flagCount ? ` | flags: <strong>${r.flagCount}</strong>` : '';
+      return `
+        <div class="review-card ${cls}" data-id="${r._id}">
+          <div>
+            <div style="display:flex;gap:0.6rem;margin-bottom:0.3rem;align-items:center;flex-wrap:wrap">
+              <span class="review-stars">${stars(r.rating||0)}</span>
+              ${badge(r.status)}
+              <span class="badge" style="background:#1e2d45;color:#94a3b8;font-size:0.7rem;padding:0.15rem 0.5rem;border-radius:4px">
+                Product: <span class="mono">${trunc(r.productId||'—',10)}</span>
+              </span>
+            </div>
+            <div class="review-body">"${trunc(r.comment||r.body||'(no text)',160)}"</div>
+            <div class="review-meta">
+              buyer: <span class="mono">${trunc(r.buyerId||r.userId||'—',12)}</span>
+              | date: ${fmtDate(r.createdAt)}
+              | rating: <strong>${r.rating||0}</strong>/5
+              ${flagInfo}
+            </div>
+          </div>
+          <div class="review-actions">
+            <button class="btn btn-xs btn-success" onclick="moderateReview('${r._id}','approved')">
+              <i class="fas fa-check"></i> Approve
+            </button>
+            <button class="btn btn-xs btn-warn" onclick="moderateReview('${r._id}','flagged')">
+              <i class="fas fa-flag"></i> Flag
+            </button>
+            <button class="btn btn-xs btn-danger" onclick="deleteReview('${r._id}')">
+              <i class="fas fa-trash"></i> Delete
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function moderateReview(id, action) {
+    try {
+      await adminApi('PATCH', `/proxy/reviews/${id}/moderate`, { status: action });
+      toast(`Review ${action === 'approved' ? 'approved' : 'flagged'} successfully.`, action === 'approved' ? 'success' : 'warn');
+      // Update local data
+      window._revData = window._revData.map(r => r._id === id ? { ...r, status: action } : r);
+      renderReviews(window._revData, 'rev-queue');
+      renderReviews(window._revData.filter(r => r.status === 'pending'), 'rev-pending');
+      renderReviews(window._revData.filter(r => r.status === 'flagged'), 'rev-flagged');
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+
+  async function deleteReview(id) {
+    const result = await showConfirm({
+      title: 'Delete Review',
+      body: 'Permanently delete this review? This action recalculates the product rating and cannot be undone.',
+      withReason: true,
+      danger: true
+    });
+    if (!result.confirmed) return;
+    try {
+      await adminApi('DELETE', `/proxy/reviews/${id}`, { reason: result.reason });
+      toast('Review deleted and rating recalculated.', 'success');
+      window._revData = window._revData.filter(r => r._id !== id);
+      renderReviews(window._revData, 'rev-queue');
+      renderReviews(window._revData.filter(r => r.status === 'pending'), 'rev-pending');
+      renderReviews(window._revData.filter(r => r.status === 'flagged'), 'rev-flagged');
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+    }
+  }
+</script>

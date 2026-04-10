@@ -2,11 +2,15 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
 const UserSchema = new mongoose.Schema({
-  email: { type: String, unique: true, required: true },
+  email:        { type: String, unique: true, required: true },
   passwordHash: { type: String, required: true },
-  role: { type: String, enum: ['buyer', 'seller', 'admin'], required: true },
-  storeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Store' }, // sellers only
-  createdAt: { type: Date, default: Date.now }
+  // 'user' is the unified role — buyer and seller are capabilities, not roles.
+  // 'buyer' and 'seller' kept in enum for backwards compat with existing documents.
+  role:         { type: String, enum: ['user', 'buyer', 'seller', 'admin'], default: 'user', required: true },
+  storeId:      { type: mongoose.Schema.Types.ObjectId, required: true, index: true }, // every user gets one at registration
+  displayName:  { type: String, default: '' },
+  phone:        { type: String, default: '' },
+  createdAt:    { type: Date, default: Date.now }
 });
 
 UserSchema.statics.validatePassword = async function(email, password) {
@@ -19,12 +23,19 @@ UserSchema.statics.validatePassword = async function(email, password) {
   return user;
 };
 
-UserSchema.statics.createUser = async function({ email, password, role }) {
+UserSchema.statics.createUser = async function({ email, password, role, displayName, phone }) {
   const hashedPassword = await bcrypt.hash(password, 10);
+  // Every user gets a storeId at registration — used for product ownership and cascade cleanup
+  const storeId = new mongoose.Types.ObjectId();
+  // Normalise legacy roles to 'user'
+  const normalisedRole = (role === 'buyer' || role === 'seller') ? 'user' : (role || 'user');
   return await this.create({
     email,
     passwordHash: hashedPassword,
-    role
+    role: normalisedRole,
+    storeId,
+    displayName: displayName || '',
+    phone:       phone       || ''
   });
 };
 
