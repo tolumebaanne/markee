@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 4000;
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.urlencoded({ extended: true }));
+// app.use(express.urlencoded({ extended: true })); // Moved to targeted routes to prevent proxy body consumption
 app.use(cors());
 app.use(platformGuard);
 
@@ -235,7 +235,7 @@ app.get('/login',       (req, res) => res.render('login',    {
     gatewayUrl: process.env.GATEWAY_URL || `http://localhost:${process.env.PORT || 4000}`
 }));
 app.get('/register',  (_req, res) => res.render('register', {}));
-app.post('/register', async (req, res) => {
+app.post('/register', express.urlencoded({ extended: true }), async (req, res) => {
     const AUTH = process.env.AUTH_SERVICE_URL || 'http://localhost:5001';
     try {
         const body = new URLSearchParams(req.body).toString();
