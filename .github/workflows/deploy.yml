@@ -13,7 +13,8 @@ jobs:
       - name: Pull latest code
         run: |
           cd ~/markee
-          git pull origin main
+          git fetch origin main
+          git reset --hard origin/main
 
       - name: Install dependencies
         run: |
