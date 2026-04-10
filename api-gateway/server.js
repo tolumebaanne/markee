@@ -168,14 +168,16 @@ const msgProxy = createProxyMiddleware({
 });
 
 // Socket.io WebSocket proxy — browser connects to /socket.io on the gateway;
-// we forward the full path back to the messaging service.
+// Use pathFilter (not app.use mount) so Express doesn't strip the prefix.
+// The full /socket.io/... path is forwarded unchanged to the messaging service,
+// which is what socket.io expects. pathRewrite is NOT needed here.
 const socketProxy = createProxyMiddleware({
+    pathFilter: '/socket.io',
     target: MESSAGING_URL,
     changeOrigin: true,
-    ws: true,
-    pathRewrite: (path) => `/socket.io${path}`
+    ws: true
 });
-app.use('/socket.io', socketProxy);
+app.use(socketProxy);
 
 // All messaging routes under /api/messages — single handler so Express strips only
 // the /api/messages prefix, leaving /thread/:id, /threads, /uploads etc. intact.
