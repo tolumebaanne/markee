@@ -1,0 +1,36 @@
+name: Deploy Markee
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Pull latest code
+        run: |
+          cd ~/markee
+          git pull origin main
+
+      - name: Install dependencies
+        run: |
+          cd ~/markee
+          npm install --omit=dev
+
+      - name: Deploy env files
+        run: |
+          cd ~/markee
+          bash markee-envs/deploy-envs.sh
+
+      - name: Restart monolith via PM2
+        run: |
+          cd ~/markee
+          pm2 restart markee-monolith || pm2 start ecosystem.config.js --only markee-monolith
+
+      - name: Verify gateway is up
+        run: |
+          sleep 5
+          curl -sf http://localhost:4000 > /dev/null && echo "Gateway OK" || (echo "Gateway not responding" && exit 1)
