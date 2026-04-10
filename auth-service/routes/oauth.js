@@ -63,10 +63,49 @@ async function computeScopes(user) {
 const requireAuth = (req, res, next) => {
   if (!req.session.user) {
     req.session.returnTo = req.originalUrl;
-    return res.redirect('/login');
+    return res.redirect('/oauth/login'); // stays inside the /oauth proxy — avoids redirect loop
   }
   next();
 };
+
+// ── OAuth-scoped login (credential entry for the authorize flow) ──────────────
+// Lives at /oauth/login so it's proxied through the gateway alongside /oauth/authorize.
+// After successful sign-in, redirects to req.session.returnTo (the authorize URL).
+
+router.get('/login', (req, res) => {
+  if (req.session?.user) {
+    return res.redirect(req.session.returnTo || '/oauth/authorize');
+  }
+  res.render('oauth-login', { error: req.query.error || null });
+});
+
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.render('oauth-login', { error: 'Email and password are required.' });
+  }
+  try {
+    const user = await User.validatePassword(email, password);
+    if (!user) return res.render('oauth-login', { error: 'Invalid email or password.' });
+    if (user.status === 'deleted') return res.render('oauth-login', { error: 'This account no longer exists.' });
+    if (user.moderationStatus === 'banned') return res.render('oauth-login', { error: 'This account has been banned.' });
+
+    req.session.user = {
+      id:              user._id.toString(),
+      email:           user.email,
+      role:            user.role,
+      storeId:         user.storeId,
+      pendingDeletion: user.status === 'pending_deletion'
+    };
+
+    const returnTo = req.session.returnTo || '/oauth/authorize';
+    delete req.session.returnTo;
+    res.redirect(returnTo);
+  } catch (err) {
+    console.error('[AUTH] oauth/login error:', err);
+    res.render('oauth-login', { error: 'Login failed. Please try again.' });
+  }
+});
 
 function generateAuthCode() {
   return crypto.randomBytes(32).toString('hex');
