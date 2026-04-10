@@ -303,7 +303,7 @@ app.get('/callback', async (req, res) => {
                 grant_type:   'authorization_code',
                 code,
                 client_id:    'markee-gateway',
-                redirect_uri: `${process.env.GATEWAY_URL || `http://localhost:${process.env.PORT || 4000}`}/callback`
+                redirect_uri: `${process.env.GATEWAY_URL || `${req.protocol}://${req.get('host')}`}/callback`
             })
         });
         const data = await tokenRes.json();

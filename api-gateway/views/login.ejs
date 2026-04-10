@@ -31,7 +31,7 @@
                     // Validate: only allow relative paths (start with / but not //)
                     const safeNext = /^\/[^/]/.test(nextUrl) ? nextUrl : '';
                     const state = encodeURIComponent(JSON.stringify({ nonce: 'markee', next: safeNext }));
-                    window.location.replace("/oauth/authorize?response_type=code&client_id=markee-gateway&redirect_uri=<%- gatewayUrl %>/callback&state=" + state);
+                    window.location.replace("/oauth/authorize?response_type=code&client_id=markee-gateway&redirect_uri=" + encodeURIComponent(window.location.origin + "/callback") + "&state=" + state);
                 }, 800);
             </script>
         </div>
