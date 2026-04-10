@@ -119,18 +119,49 @@ function generateAuthCode() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// First-party clients that get auto-approved (no consent screen)
+const FIRST_PARTY_CLIENTS = ['markee-gateway'];
+
+async function issueCode(req, res, authReq) {
+  const code = generateAuthCode();
+  try {
+    await AuthCode.create({
+      code,
+      userId: req.session.user.id,
+      clientId: authReq.client_id,
+      scope: authReq.scope,
+      redirectUri: authReq.redirect_uri,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000)
+    });
+    const redirectUrl = new URL(authReq.redirect_uri);
+    redirectUrl.searchParams.append('code', code);
+    redirectUrl.searchParams.append('state', authReq.state);
+    console.log(`[AUTH] Code issued for ${authReq.client_id}, redirecting to: ${redirectUrl}`);
+    res.redirect(redirectUrl.toString());
+  } catch (err) {
+    console.error('[AUTH] issueCode error:', err);
+    res.status(500).send('Internal server error');
+  }
+}
+
 // GET /oauth/authorize
-router.get('/authorize', requireAuth, (req, res) => {
+router.get('/authorize', requireAuth, async (req, res) => {
   const { response_type, client_id, redirect_uri, state, scope } = req.query;
-  
+
   if (response_type !== 'code') return res.status(400).send('Invalid response_type. Must be code');
   if (!client_id || !redirect_uri || !state) return res.status(400).send('Missing req params');
 
-  req.session.authRequest = {
+  const authReq = {
     client_id, redirect_uri, state,
     scope: scope ? scope.split(' ') : []
   };
 
+  // First-party clients: skip consent screen, issue code immediately
+  if (FIRST_PARTY_CLIENTS.includes(client_id)) {
+    return issueCode(req, res, authReq);
+  }
+
+  req.session.authRequest = authReq;
   res.render('authorize', { email: req.session.user.email });
 });
 
