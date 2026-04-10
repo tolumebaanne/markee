@@ -53,8 +53,8 @@ async function createSession(account, ipAddress, userAgent) {
   const sessionId    = crypto.randomBytes(32).toString('hex');
   const refreshToken = crypto.randomBytes(40).toString('hex');
   const refreshTtlMs = account.isSuperuser
-    ? 4  * 60 * 60 * 1000   // 4h
-    : 8  * 60 * 60 * 1000;  // 8h
+    ? (parseInt(process.env.ADMIN_SUPER_SESSION_TTL_MS) || 4 * 60 * 60 * 1000)
+    : (parseInt(process.env.ADMIN_SESSION_TTL_MS)       || 8 * 60 * 60 * 1000);
   const refreshExpiresAt = new Date(Date.now() + refreshTtlMs);
 
   // Enforce max concurrent sessions — revoke oldest if exceeded
@@ -268,7 +268,9 @@ router.post('/refresh', async (req, res) => {
     await AdminSession.model.findByIdAndUpdate(session._id, { revoked: true, invalidatedReason: 'rotated' });
 
     const newRefreshToken = crypto.randomBytes(40).toString('hex');
-    const refreshTtlMs    = account.isSuperuser ? 4 * 60 * 60 * 1000 : 8 * 60 * 60 * 1000;
+    const refreshTtlMs    = account.isSuperuser
+      ? (parseInt(process.env.ADMIN_SUPER_SESSION_TTL_MS) || 4 * 60 * 60 * 1000)
+      : (parseInt(process.env.ADMIN_SESSION_TTL_MS)       || 8 * 60 * 60 * 1000);
     const refreshExpiresAt = new Date(Date.now() + refreshTtlMs);
 
     await AdminSession.model.create({

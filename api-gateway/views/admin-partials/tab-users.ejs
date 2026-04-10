@@ -41,10 +41,10 @@ async function loadUsers(page) {
   const role   = document.getElementById('u-role-filter').value;
   const status = document.getElementById('u-status-filter').value;
   const search = document.getElementById('u-search').value.trim();
-  const qs     = new URLSearchParams({ page: _uPage, limit: 25 });
+  const qs = new URLSearchParams({ page: _uPage, limit: 25 });
   if (role)   qs.set('role', role);
   if (status) qs.set('status', status);
-  if (search) qs.set('search', search);
+  if (search) qs.set('search', search); // proxied to user-service — searches email + displayName
 
   try {
     const data  = await adminApi('GET', `/proxy/users?${qs}`);
@@ -57,10 +57,19 @@ async function loadUsers(page) {
     }
 
     el.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th>Email</th><th>ID</th><th>Role</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
-      <tbody>${users.map(u => `<tr>
-        <td style="font-weight:600">${u.email || '—'}</td>
-        <td class="mono">${trunc(u._id||u.userId, 16)}</td>
+      <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+      <tbody>${users.map(u => {
+        const uid = u.userId || u._id || '';
+        const name = u.displayName || '';
+        const email = u.email || '';
+        const userCell = name
+          ? `<span style="font-weight:600">${name}</span><br>
+             <span style="font-size:.75rem;color:var(--muted)">${email || '—'}</span><br>
+             <span style="font-family:monospace;font-size:.65rem;color:var(--muted)">${trunc(uid, 14)}</span>`
+          : `<span style="font-weight:600">${email || '—'}</span><br>
+             <span style="font-family:monospace;font-size:.65rem;color:var(--muted)">${trunc(uid, 14)}</span>`;
+        return `<tr>
+        <td>${userCell}</td>
         <td>${badge(u.role||'buyer')}</td>
         <td>${badge(u.status||'active')}</td>
         <td style="color:var(--muted);font-size:0.7rem">${fmtDate(u.createdAt)}</td>
@@ -76,7 +85,8 @@ async function loadUsers(page) {
             <button class="btn btn-danger btn-xs" onclick="deleteUser('${u._id||u.userId}','${u.email||''}')"><i class="fas fa-trash"></i></button>
           </div>
         </td>
-      </tr>`).join('')}
+      </tr>`;
+      }).join('')}
       </tbody>
     </table></div>`;
 

@@ -410,14 +410,56 @@ function doLogout() {
   window.location.replace('/admin-login');
 }
 
-// ── Core API helper ───────────────────────────────────────────────────────────
+// ── Core API helper — with silent JWT auto-refresh ────────────────────────────
+let _adminToken = localStorage.getItem('admin_access_token');
+let _refreshing  = null; // deduplicate concurrent refresh attempts
+
+async function _tryRefreshToken() {
+  if (_refreshing) return _refreshing;
+  _refreshing = (async () => {
+    const rt = localStorage.getItem('admin_refresh_token');
+    if (!rt) return false;
+    try {
+      const r = await fetch('/api/admin/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: rt })
+      });
+      if (!r.ok) return false;
+      const d = await r.json();
+      _adminToken = d.access_token;
+      localStorage.setItem('admin_access_token', d.access_token);
+      localStorage.setItem('admin_refresh_token', d.refresh_token);
+      return true;
+    } catch { return false; }
+    finally { _refreshing = null; }
+  })();
+  return _refreshing;
+}
+
 async function adminApi(method, path, body) {
-  const res = await fetch('/api/admin' + path, {
+  // Pro-active refresh: if the stored JWT expires within 60 seconds, refresh it first
+  const parsed = parseJwt(_adminToken);
+  if (parsed && parsed.exp && (parsed.exp - Date.now() / 1000) < 60) {
+    await _tryRefreshToken();
+  }
+
+  const doFetch = (tok) => fetch('/api/admin' + path, {
     method,
-    headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + token },
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
     body: body != null ? JSON.stringify(body) : undefined
   });
-  if (res.status === 401) { window.location.replace('/admin-login'); return; }
+
+  let res = await doFetch(_adminToken);
+
+  // On 401, try a reactive refresh once then retry
+  if (res.status === 401) {
+    const refreshed = await _tryRefreshToken();
+    if (!refreshed) { window.location.replace('/admin-login'); return; }
+    res = await doFetch(_adminToken);
+    if (res.status === 401) { window.location.replace('/admin-login'); return; }
+  }
+
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
   return data;

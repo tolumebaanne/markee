@@ -36,6 +36,7 @@ const AddressSchema = new mongoose.Schema({
 const ProfileSchema = new mongoose.Schema({
     userId:      { type: mongoose.Schema.Types.ObjectId, required: true, unique: true },
     storeId:     { type: mongoose.Schema.Types.ObjectId }, // populated from user.registered; required for hard-delete payload
+    email:       { type: String, default: '' },            // denormalized from user.registered for admin search
     displayName: { type: String, default: '' },
     phone:       { type: String, default: '' },
     avatarUrl:   { type: String, default: '' },
@@ -79,6 +80,8 @@ const ProfileSchema = new mongoose.Schema({
 // ProfileSchema.index({ userId: 1 }, { unique: true });
 ProfileSchema.index({ 'watchlist.productId': 1 });
 ProfileSchema.index({ 'likedProducts.productId': 1 });
+ProfileSchema.index({ email: 1 });
+ProfileSchema.index({ displayName: 1 });
 
 const Profile = db.model('Profile', ProfileSchema);
 
@@ -90,7 +93,8 @@ bus.on('user.registered', async (payload) => {
         if (existing) return; // idempotent
         await Profile.create({
             userId:      payload.userId,
-            storeId:     payload.storeId || null, // storeId now included in registration event
+            storeId:     payload.storeId || null,
+            email:       payload.email       || '',
             displayName: payload.displayName || '',
             phone:       payload.phone       || ''
         });
@@ -397,10 +401,14 @@ app.get('/admin/users/deleted', async (req, res) => {
 app.get('/admin/users', async (req, res) => {
     if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
-        const { role, status, page = 1, limit = 50 } = req.query;
-        const query = {};
+        const { role, status, search, page = 1, limit = 50 } = req.query;
+        const query = { softDeleted: { $ne: true } }; // hide soft-deleted from main list
         if (role)   query.role   = role;
         if (status) query.status = status;
+        if (search) {
+            const re = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+            query.$or = [{ email: re }, { displayName: re }];
+        }
 
         const skip  = (parseInt(page) - 1) * parseInt(limit);
         const total = await Profile.countDocuments(query);
