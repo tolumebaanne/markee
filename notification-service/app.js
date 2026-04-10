@@ -143,7 +143,8 @@ bus.on('order.placed', async (payload) => {
         buyerEmail,
         `Order Confirmed — #${payload.orderId?.toString().slice(-8).toUpperCase()}`,
         `Your order has been placed and payment is being processed.\n\nOrder ID: ${payload.orderId}\nTotal: $${((payload.totalAmount || 0) / 100).toFixed(2)}`,
-        payload
+        payload,
+        { userId: payload.buyerId, link: `/orders/${payload.orderId}`, icon: 'fa-shopping-bag' }
     );
 });
 
@@ -158,7 +159,8 @@ bus.on('payment.captured', async (payload) => {
             sellerEmail,
             `New Order Received — #${payload.orderId?.toString().slice(-8).toUpperCase()}`,
             `You have a new paid order!\n\nOrder ID: ${payload.orderId}\nAmount: $${((payload.amount || 0) / 100).toFixed(2)}\n\nLog in to Markee to ship the order.`,
-            { ...payload, sellerId }
+            { ...payload, sellerId },
+            { userId: sellerId, link: `/orders/${payload.orderId}`, icon: 'fa-box' }
         );
     }
 });
@@ -171,7 +173,8 @@ bus.on('shipment.created', async (payload) => {
         buyerEmail,
         `Your Order Has Shipped!`,
         `Great news! Your order is on the way.\n\nTracking Number: ${payload.trackingNumber || 'N/A'}\nCarrier: ${payload.carrier || 'Standard Shipping'}`,
-        payload
+        payload,
+        { userId: payload.buyerId, link: `/orders/${payload.orderId}`, icon: 'fa-truck' }
     );
 });
 
@@ -183,7 +186,8 @@ bus.on('shipment.delivered', async (payload) => {
             buyerEmail,
             `Your Order Has Been Delivered`,
             `Your order has been delivered! You can now leave a review for the products you received.`,
-            payload
+            payload,
+            { userId: payload.buyerId, link: `/orders/${payload.orderId}`, icon: 'fa-check-circle' }
         );
     }
     if (await isNotifAllowed('DELIVERED_SELLER', payload.sellerId)) {
@@ -193,7 +197,8 @@ bus.on('shipment.delivered', async (payload) => {
             sellerEmail,
             `Payout Triggered for Order #${payload.orderId?.toString().slice(-8).toUpperCase()}`,
             `Order ${payload.orderId} has been delivered. Your payout has been released from escrow.`,
-            payload
+            payload,
+            { userId: payload.sellerId, link: `/orders/${payload.orderId}`, icon: 'fa-money-bill-wave' }
         );
     }
 });
@@ -206,7 +211,8 @@ bus.on('inventory.stock_low', async (payload) => {
         sellerEmail,
         `Low Stock Alert — "${payload.title || 'Product'}"`,
         `Your product "${payload.title || payload.productId}" has low stock.\n\nRemaining available: ${payload.quantity} units\n\nRestock now: /inventory`,
-        payload
+        payload,
+        { userId: payload.sellerId, link: '/inventory', icon: 'fa-exclamation-triangle' }
     );
 });
 
@@ -218,7 +224,8 @@ bus.on('review.approved', async (payload) => {
         buyerEmail,
         `Your Review Has Been Published`,
         `Your review has been approved and is now live on the product page.`,
-        payload
+        payload,
+        { userId: payload.buyerId, link: payload.productId ? `/product/${payload.productId}` : '/orders', icon: 'fa-star' }
     );
 });
 

@@ -476,7 +476,7 @@ function connectSocket() {
 
     socket = io({
         auth: { token },
-        transports: ['websocket', 'polling']
+        transports: ['polling', 'websocket']
     });
 
     socket.on('connect', () => {
