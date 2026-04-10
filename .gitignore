@@ -2,6 +2,7 @@
 **/node_modules/
 
 # ── Environment / Secrets ────────────────────────────────────────────────────────
+markee-envs/
 **/.env
 **/.env.*
 .env

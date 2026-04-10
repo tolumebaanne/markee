@@ -20,11 +20,6 @@ jobs:
           cd ~/markee
           npm install --omit=dev
 
-      - name: Deploy env files
-        run: |
-          cd ~/markee
-          bash markee-envs/deploy-envs.sh
-
       - name: Restart monolith via PM2
         run: |
           cd ~/markee
