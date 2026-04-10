@@ -59,30 +59,34 @@ async function loadUsers(page) {
     el.innerHTML = `<div class="table-wrap"><table>
       <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
       <tbody>${users.map(u => {
-        const uid = u.userId || u._id || '';
+        // Auth-service fields: _id, email, displayName, role, moderationStatus, status, createdAt
+        const uid  = u._id || '';
         const name = u.displayName || '';
-        const email = u.email || '';
+        const modStatus = u.moderationStatus || 'active'; // suspended / banned / active
+        const authStatus = u.status || 'active';           // active / pending_deletion
+        // Show moderation badge if suspended/banned, else auth status
+        const displayStatus = (modStatus !== 'active') ? modStatus : authStatus;
         const userCell = name
           ? `<span style="font-weight:600">${name}</span><br>
-             <span style="font-size:.75rem;color:var(--muted)">${email || '—'}</span><br>
+             <span style="font-size:.75rem;color:var(--muted)">${u.email || '—'}</span><br>
              <span style="font-family:monospace;font-size:.65rem;color:var(--muted)">${trunc(uid, 14)}</span>`
-          : `<span style="font-weight:600">${email || '—'}</span><br>
+          : `<span style="font-weight:600">${u.email || '—'}</span><br>
              <span style="font-family:monospace;font-size:.65rem;color:var(--muted)">${trunc(uid, 14)}</span>`;
         return `<tr>
         <td>${userCell}</td>
-        <td>${badge(u.role||'buyer')}</td>
-        <td>${badge(u.status||'active')}</td>
+        <td>${badge(u.role||'user')}</td>
+        <td>${badge(displayStatus)}</td>
         <td style="color:var(--muted);font-size:0.7rem">${fmtDate(u.createdAt)}</td>
         <td>
           <div class="btn-gap">
-            ${u.status !== 'suspended' && u.status !== 'banned'
-              ? `<button class="btn btn-warn btn-xs" onclick="suspendUser('${u._id||u.userId}')"><i class="fas fa-pause"></i> Suspend</button>`
-              : `<button class="btn btn-success btn-xs" onclick="unbanUser('${u._id||u.userId}')"><i class="fas fa-rotate-right"></i> Restore</button>`}
-            ${u.status !== 'banned'
-              ? `<button class="btn btn-danger btn-xs" onclick="banUser('${u._id||u.userId}')"><i class="fas fa-ban"></i> Ban</button>`
+            ${modStatus !== 'suspended' && modStatus !== 'banned'
+              ? `<button class="btn btn-warn btn-xs" onclick="suspendUser('${uid}')"><i class="fas fa-pause"></i> Suspend</button>`
+              : `<button class="btn btn-success btn-xs" onclick="unbanUser('${uid}')"><i class="fas fa-rotate-right"></i> Restore</button>`}
+            ${modStatus !== 'banned'
+              ? `<button class="btn btn-danger btn-xs" onclick="banUser('${uid}')"><i class="fas fa-ban"></i> Ban</button>`
               : ''}
-            <button class="btn btn-ghost btn-xs" onclick="changeUserRole('${u._id||u.userId}','${u.role||'buyer'}')"><i class="fas fa-user-gear"></i> Role</button>
-            <button class="btn btn-danger btn-xs" onclick="deleteUser('${u._id||u.userId}','${u.email||''}')"><i class="fas fa-trash"></i></button>
+            <button class="btn btn-ghost btn-xs" onclick="changeUserRole('${uid}','${u.role||'user'}')"><i class="fas fa-user-gear"></i> Role</button>
+            ${window._isSuperuser ? `<button class="btn btn-danger btn-xs" onclick="deleteUser('${uid}','${u.email||''}')"><i class="fas fa-trash"></i></button>` : ''}
           </div>
         </td>
       </tr>`;

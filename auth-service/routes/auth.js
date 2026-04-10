@@ -249,6 +249,43 @@ router.put('/change-password', async (req, res) => {
   }
 });
 
+// ── Admin: list all users (service-to-service, x-admin-email auth) ────────────
+router.get('/admin/users', async (req, res) => {
+  if (!req.headers['x-admin-email']) return res.status(403).json({ error: 'Admin only' });
+  try {
+    const { role, status, search, page = 1, limit = 50 } = req.query;
+    const query = { status: { $ne: 'deleted' } }; // hide mangled soft-deleted records
+    if (role)   query.role              = role;
+    if (status) query.moderationStatus  = status;
+    if (search) {
+      const re = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      query.$or = [{ email: re }, { displayName: re }];
+    }
+    const skip  = (parseInt(page) - 1) * parseInt(limit);
+    const total = await User.countDocuments(query);
+    const users = await User.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .select('-passwordHash -originalEmail -pendingDeletionSince');
+    res.json({ users, total, page: parseInt(page) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Mirror moderation state from user-service events so the admin list stays consistent
+bus.on('user.suspended', async (payload) => {
+  try { await User.findByIdAndUpdate(payload.userId, { moderationStatus: 'suspended' }); }
+  catch (err) { console.error('[AUTH] user.suspended mirror error:', err.message); }
+});
+bus.on('user.banned', async (payload) => {
+  try { await User.findByIdAndUpdate(payload.userId, { moderationStatus: 'banned' }); }
+  catch (err) { console.error('[AUTH] user.banned mirror error:', err.message); }
+});
+bus.on('user.unbanned', async (payload) => {
+  try { await User.findByIdAndUpdate(payload.userId, { moderationStatus: 'active' }); }
+  catch (err) { console.error('[AUTH] user.unbanned mirror error:', err.message); }
+});
+
 router.get('/', (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   res.send(`

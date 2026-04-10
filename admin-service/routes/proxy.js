@@ -374,7 +374,8 @@ router.post('/inventory/:productId/freeze',
 );
 
 // ── Users ──────────────────────────────────────────────────────────────────────
-const userUrl = () => process.env.USER_SERVICE_URL || 'http://localhost:5001';
+const userUrl = () => process.env.USER_SERVICE_URL  || 'http://localhost:5013';
+const authUrl = () => process.env.AUTH_SERVICE_URL  || 'http://localhost:5001';
 
 router.get('/users/lookup', requirePermission('orders', 'read'), async (req, res) => {
   const qs = new URLSearchParams(req.query).toString();
@@ -393,8 +394,10 @@ router.get('/users/deleted', (req, res, next) => {
 });
 
 router.get('/users', requirePermission('auth', 'read'), async (req, res) => {
+  // Auth-service is the source of truth — has every registered user, correct role/status.
+  // User-service Profile is secondary (addresses, watchlist) — not used for the admin list.
   const qs = new URLSearchParams(req.query).toString();
-  const r = await callServiceAsAdmin('GET', `${userUrl()}/admin/users?${qs}`, null, req.admin.email);
+  const r = await callServiceAsAdmin('GET', `${authUrl()}/admin/users?${qs}`, null, req.admin.email);
   res.status(r.status).json(r.data);
 });
 

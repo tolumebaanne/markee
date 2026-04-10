@@ -12,6 +12,9 @@ const UserSchema = new mongoose.Schema({
   phone:        { type: String, default: '' },
   createdAt:    { type: Date, default: Date.now },
 
+  // Admin moderation state — separate from soft-delete lifecycle
+  moderationStatus: { type: String, enum: ['active', 'suspended', 'banned'], default: 'active' },
+
   // Soft-delete lifecycle
   // 'pending_deletion' — user requested deletion, 24h cooldown window active, access revoked immediately
   // 'deleted'          — cooldown elapsed, email mangled, account fully soft-deleted, only Super can see it
