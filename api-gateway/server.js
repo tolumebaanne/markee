@@ -161,6 +161,12 @@ app.use('/api/reviews', (req, res, next) => {
 // ── Messaging ─────────────────────────────────────────────────────────────────
 const MESSAGING_URL = process.env.MESSAGING_SERVICE_URL || 'http://localhost:5009';
 
+const msgProxy = createProxyMiddleware({
+    target: MESSAGING_URL,
+    changeOrigin: true,
+    on: { error: (_err, _req, res) => errorResponse(res, 502, 'Messaging service unreachable') }
+});
+
 // Socket.io WebSocket proxy — browser connects to /socket.io on the gateway;
 // we forward the full path back to the messaging service.
 const socketProxy = createProxyMiddleware({
@@ -171,19 +177,21 @@ const socketProxy = createProxyMiddleware({
 });
 app.use('/socket.io', socketProxy);
 
-// Static image files — served publicly (UUID filenames are non-guessable; no auth needed to view)
-app.use('/api/messages/uploads', proxy(MESSAGING_URL));
-// Admin thread inspection — registered before verifyToken catch-all
-app.use('/api/messages/thread', verifyToken, (req, res, next) => {
-    if (req.path.endsWith('/admin')) {
-        if (req.user?.role !== 'admin') {
+// All messaging routes under /api/messages — single handler so Express strips only
+// the /api/messages prefix, leaving /thread/:id, /threads, /uploads etc. intact.
+// Uploads are public; admin-only thread inspection checked inline.
+app.use('/api/messages', (req, res, next) => {
+    // /uploads is public — no auth required
+    if (req.path.startsWith('/uploads')) return msgProxy(req, res, next);
+    // All other messaging routes require a valid token
+    verifyToken(req, res, () => {
+        // /thread/:id/admin requires admin role
+        if (/\/thread\/[^/]+\/admin$/.test(req.path) && req.user?.role !== 'admin') {
             return errorResponse(res, 403, 'Admin only');
         }
-    }
-    next();
-}, proxy(MESSAGING_URL));
-// All other messaging routes — require valid token
-app.use('/api/messages', verifyToken, proxy(MESSAGING_URL));
+        msgProxy(req, res, next);
+    });
+});
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 app.use('/api/notifications', verifyToken, proxy(process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:5010'));

@@ -1215,7 +1215,10 @@
 
             const productMap = Object.fromEntries(productIds.map((id, i) => [id, productResults[i]]));
             const sellerMap  = Object.fromEntries(sellerIds.map((id, i) => [id, sellerResults[i]]));
-            const shipment   = shipmentResult;
+            // Shipping service returns an array — take the first shipment or null
+            const shipment = Array.isArray(shipmentResult)
+                ? (shipmentResult.length ? shipmentResult[0] : null)
+                : shipmentResult;
 
             // Enrich order items with resolved titles and seller names
             (_order.items || []).forEach(item => {

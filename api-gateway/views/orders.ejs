@@ -451,8 +451,8 @@
     function renderPurchaseCard(order) {
         const itemCount = (order.items || []).reduce((s, i) => s + (i.qty || 1), 0);
         const icon = STATUS_ICONS[order.status] || 'fa-box';
-        const statusCls = ['pending','paid','processing','shipped','delivered','cancelled'].includes(order.status)
-            ? `status-${order.status}` : 'status-pending';
+        const VALID_STATUSES = ['pending','paid','processing','shipped','delivered','cancelled','ready_for_pickup','picked_up','self_fulfilled'];
+        const statusCls = VALID_STATUSES.includes(order.status) ? `status-${order.status}` : 'status-pending';
 
         const buyerCanCancel = order.status === 'pending';
 
@@ -488,8 +488,8 @@
         );
         const itemCount = myItems.reduce((s, i) => s + (i.qty || 1), 0);
         const myRevenue = myItems.reduce((s, i) => s + ((i.price || 0) * (i.qty || 1)), 0);
-        const statusCls = ['pending','paid','processing','shipped','delivered','cancelled'].includes(order.status)
-            ? `status-${order.status}` : 'status-pending';
+        const VALID_STATUSES_SALE = ['pending','paid','processing','shipped','delivered','cancelled','ready_for_pickup','picked_up','self_fulfilled'];
+        const statusCls = VALID_STATUSES_SALE.includes(order.status) ? `status-${order.status}` : 'status-pending';
 
         const itemChips = myItems.slice(0, 3).map(i =>
             `<span class="item-chip">${i.title || 'Item'}</span>`
