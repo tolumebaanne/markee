@@ -9,7 +9,7 @@ module.exports = (req, res, next) => {
 
     const token = authHeader.split(' ')[1];
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
         req.user = decoded; // gateway middleware use
         // Forward decoded payload to downstream microservices as a header
         req.headers['x-user'] = JSON.stringify(decoded);
