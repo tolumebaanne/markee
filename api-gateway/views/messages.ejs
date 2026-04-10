@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="/js/toast.js"></script>
     <script src="/js/cart.js"></script>
-    <script src="<%- messagingUrl %>/socket.io/socket.io.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
         .messages-layout {
             display: grid;
@@ -466,7 +466,7 @@ let templates        = [];
 function connectSocket() {
     if (typeof io === 'undefined') { updateConnBadge(false, 'Socket unavailable'); return; }
 
-    socket = io('<%- messagingUrl %>', {
+    socket = io({
         auth: { token },
         transports: ['websocket', 'polling']
     });

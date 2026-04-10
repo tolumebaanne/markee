@@ -152,8 +152,20 @@ app.use('/api/reviews', (req, res, next) => {
 });
 
 // ── Messaging ─────────────────────────────────────────────────────────────────
+const MESSAGING_URL = process.env.MESSAGING_SERVICE_URL || 'http://localhost:5009';
+
+// Socket.io WebSocket proxy — browser connects to /socket.io on the gateway;
+// we forward the full path back to the messaging service.
+const socketProxy = createProxyMiddleware({
+    target: MESSAGING_URL,
+    changeOrigin: true,
+    ws: true,
+    pathRewrite: (path) => `/socket.io${path}`
+});
+app.use('/socket.io', socketProxy);
+
 // Static image files — served publicly (UUID filenames are non-guessable; no auth needed to view)
-app.use('/api/messages/uploads', proxy(process.env.MESSAGING_SERVICE_URL || 'http://localhost:5009'));
+app.use('/api/messages/uploads', proxy(MESSAGING_URL));
 // Admin thread inspection — registered before verifyToken catch-all
 app.use('/api/messages/thread', verifyToken, (req, res, next) => {
     if (req.path.endsWith('/admin')) {
@@ -162,9 +174,9 @@ app.use('/api/messages/thread', verifyToken, (req, res, next) => {
         }
     }
     next();
-}, proxy(process.env.MESSAGING_SERVICE_URL || 'http://localhost:5009'));
+}, proxy(MESSAGING_URL));
 // All other messaging routes — require valid token
-app.use('/api/messages', verifyToken, proxy(process.env.MESSAGING_SERVICE_URL || 'http://localhost:5009'));
+app.use('/api/messages', verifyToken, proxy(MESSAGING_URL));
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 app.use('/api/notifications', verifyToken, proxy(process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:5010'));
@@ -198,8 +210,7 @@ app.use('/api/admin', proxy(process.env.ADMIN_SERVICE_URL || 'http://localhost:5
 // ── Frontend pages ────────────────────────────────────────────────────────────
 app.get('/',            (req, res) => res.render('index'));
 app.get('/login',       (req, res) => res.render('login',    {
-    authUrl:    process.env.AUTH_SERVICE_URL || 'http://localhost:5001',
-    gatewayUrl: process.env.GATEWAY_URL      || `http://localhost:${process.env.PORT || 4000}`
+    gatewayUrl: process.env.GATEWAY_URL || `http://localhost:${process.env.PORT || 4000}`
 }));
 app.get('/register',  (_req, res) => res.render('register', {}));
 app.post('/register', async (req, res) => {
@@ -229,9 +240,7 @@ app.post('/register', async (req, res) => {
 });
 app.get('/dashboard',   (req, res) => res.render('dashboard'));
 app.get('/inventory',   (req, res) => res.render('inventory'));
-app.get('/messages',    (req, res) => res.render('messages', {
-    messagingUrl: process.env.MESSAGING_SERVICE_URL || 'http://localhost:5009'
-}));
+app.get('/messages',    (_req, res) => res.render('messages', {}));
 app.get('/checkout',    (req, res) => res.render('checkout'));
 app.get('/cart',        (req, res) => res.render('cart'));
 app.get('/product/:id',    (req, res) => res.render('product',    { productId: req.params.id }));
@@ -298,4 +307,6 @@ app.get('/health', (req, res) => {
     res.json({ service: 'api-gateway', status: 'ok' });
 });
 
-app.listen(PORT, () => console.log(`API Gateway on port ${PORT}`));
+const server = app.listen(PORT, () => console.log(`API Gateway on port ${PORT}`));
+// WebSocket upgrade forwarding for Socket.io (messaging service)
+server.on('upgrade', socketProxy.upgrade);
