@@ -110,7 +110,12 @@ app.use('/api/seller/admin', verifyToken, (req, res, next) => {
     next();
 }, proxy(process.env.SELLER_SERVICE_URL || 'http://localhost:5005'));
 
-// seller:* replaced with catalog:write — any user whose token contains seller scopes qualifies
+// Store registration + activation — any authenticated user can do these (they don't have seller
+// scopes yet; that's the whole point). Must be before the catalog:write catch-all.
+app.use('/api/seller/register', verifyToken, proxy(process.env.SELLER_SERVICE_URL || 'http://localhost:5005'));
+app.use('/api/seller/:storeId/activate', verifyToken, proxy(process.env.SELLER_SERVICE_URL || 'http://localhost:5005'));
+
+// All other seller routes require seller scopes (catalog:write)
 app.use('/api/seller', verifyToken, enforceScope('catalog:write'), proxy(process.env.SELLER_SERVICE_URL || 'http://localhost:5005'));
 
 // ── Inventory ─────────────────────────────────────────────────────────────────
