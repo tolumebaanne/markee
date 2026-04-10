@@ -581,6 +581,47 @@ app.patch('/:id/items', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
+// GET /my-sales — seller's received orders
+app.get('/my-sales', async (req, res) => {
+    try {
+        if (!req.user?.storeId) return res.status(403).json({ error: true, message: 'Seller token required' });
+        const orders = await Order.find({
+            'items.sellerId': req.user.storeId,
+            status: { $nin: ['cancelled'] }
+        }).sort({ createdAt: -1 }).limit(100);
+        res.json(orders);
+    } catch (err) { res.status(500).json({ error: true, message: err.message }); }
+});
+
+// GET /:id/transitions — allowed status transitions for this order (seller use)
+app.get('/:id/transitions', async (req, res) => {
+    try {
+        const order = await Order.findById(req.params.id);
+        if (!order) return res.status(404).json({ error: true, message: 'Order not found' });
+
+        let sellerTransitions = {
+            pending:    ['processing', 'cancelled'],
+            paid:       ['processing', 'cancelled'],
+            processing: ['cancelled']
+        };
+        if (order.fulfillmentType === 'pickup') {
+            sellerTransitions.processing       = [...(sellerTransitions.processing || []), 'ready_for_pickup'];
+            sellerTransitions.ready_for_pickup = ['picked_up'];
+        }
+        if (order.fulfillmentType === 'self_fulfilled') {
+            sellerTransitions.processing = [...(sellerTransitions.processing || []), 'self_fulfilled'];
+        }
+
+        const allowed = (sellerTransitions[order.status] || []).slice();
+
+        res.json({
+            current:         order.status,
+            allowed,
+            fulfillmentType: order.fulfillmentType || 'shipping'
+        });
+    } catch (err) { res.status(500).json({ error: true, message: err.message }); }
+});
+
 // Single order — sellerNote stripped for buyers
 app.get('/:id', async (req, res) => {
     try {

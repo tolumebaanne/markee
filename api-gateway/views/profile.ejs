@@ -460,21 +460,19 @@
                 <div class="profile-card-body">
                     <div class="store-form-group">
                         <label>Current Password</label>
-                        <input type="password" id="pw-current" placeholder="Enter current password" autocomplete="current-password">
+                        <input type="password" id="old-password" placeholder="Enter current password" autocomplete="current-password">
                     </div>
                     <div class="store-form-group">
-                        <label>New Password</label>
-                        <input type="password" id="pw-new" placeholder="At least 8 characters" autocomplete="new-password">
+                        <label>New Password <span style="color:var(--text-muted);font-weight:400;">(min 8 chars, must include a number)</span></label>
+                        <input type="password" id="new-password" placeholder="At least 8 characters" minlength="8" autocomplete="new-password">
                     </div>
                     <div class="store-form-group" style="margin-bottom:0;">
                         <label>Confirm New Password</label>
-                        <input type="password" id="pw-confirm" placeholder="Repeat new password" autocomplete="new-password">
+                        <input type="password" id="confirm-password" placeholder="Repeat new password" autocomplete="new-password">
                     </div>
                 </div>
                 <div style="border-top:1px solid var(--border-light); padding:1rem 1.25rem; display:flex; justify-content:flex-end;">
-                    <button class="btn" style="background:var(--accent-red); width:auto;" id="pw-save-btn" onclick="changePassword()">
-                        <i class="fa fa-key" style="margin-right:0.4rem;"></i> Update Password
-                    </button>
+                    <button class="btn btn-outline" onclick="changePassword()">Change Password</button>
                 </div>
             </div>
 
@@ -800,36 +798,32 @@
 
     // ── Change password ───────────────────────────────────────────────────────
     async function changePassword() {
-        const currentPw  = document.getElementById('pw-current').value;
-        const newPw      = document.getElementById('pw-new').value;
-        const confirmPw  = document.getElementById('pw-confirm').value;
+        const oldPw  = document.getElementById('old-password')?.value || '';
+        const newPw  = document.getElementById('new-password')?.value || '';
+        const confPw = document.getElementById('confirm-password')?.value || '';
 
-        if (!currentPw || !newPw || !confirmPw) return showToast('Please fill in all password fields.', 'error');
-        if (newPw.length < 8) return showToast('New password must be at least 8 characters.', 'error');
-        if (newPw !== confirmPw) return showToast('New passwords do not match.', 'error');
-
-        const btn = document.getElementById('pw-save-btn');
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.4rem;"></i> Updating...';
+        if (!oldPw || !newPw) { if (typeof showToast === 'function') showToast('All password fields are required', 'error'); return; }
+        if (newPw !== confPw)  { if (typeof showToast === 'function') showToast('New passwords do not match', 'error'); return; }
+        if (newPw.length < 8)  { if (typeof showToast === 'function') showToast('Password must be at least 8 characters', 'error'); return; }
 
         try {
-            const res = await fetch('/api/auth/change-password', {
-                method:  'PUT',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body:    JSON.stringify({ currentPassword: currentPw, newPassword: newPw })
+            const r = await fetch('/api/auth/password', {
+                method: 'PATCH',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ oldPassword: oldPw, newPassword: newPw })
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-            document.getElementById('pw-current').value = '';
-            document.getElementById('pw-new').value     = '';
-            document.getElementById('pw-confirm').value = '';
-            showToast('Password updated successfully!', 'success');
-        } catch (err) {
-            showToast('Error: ' + err.message, 'error');
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa fa-key" style="margin-right:0.4rem;"></i> Update Password';
-        }
+            const data = await r.json();
+            if (r.ok) {
+                if (typeof showToast === 'function') showToast('Password updated. Please sign in again.');
+                setTimeout(() => {
+                    localStorage.removeItem('access_token');
+                    localStorage.removeItem('refresh_token');
+                    window.location.replace('/login');
+                }, 1800);
+            } else {
+                if (typeof showToast === 'function') showToast(data.message || 'Password change failed', 'error');
+            }
+        } catch { if (typeof showToast === 'function') showToast('Request failed', 'error'); }
     }
 
     // ── Delete account (2FA: must type email) ────────────────────────────────

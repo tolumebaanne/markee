@@ -1168,3 +1168,31 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
     color: var(--accent-red);
 }
 
+/* ── Canonical product card ──────────────────────────────────────────────────── */
+.product-card {
+    display: flex; flex-direction: column;
+    border: 1px solid var(--border-light); border-radius: 12px;
+    overflow: hidden; background: var(--bg-primary);
+    transition: box-shadow 0.2s, transform 0.2s;
+    color: var(--text-main);
+}
+.product-card:hover { box-shadow: var(--shadow-md); transform: translateY(-3px); }
+.pc-img-wrap { position: relative; aspect-ratio: 4/3; overflow: hidden; }
+.pc-img { width: 100%; height: 100%; object-fit: cover; }
+.pc-body { padding: 0.875rem; display: flex; flex-direction: column; gap: 0.3rem; flex: 1; }
+.pc-title {
+    font-weight: 600; font-size: 0.9rem; line-height: 1.4;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.pc-price { font-weight: 700; font-size: 1rem; color: var(--accent-red); white-space: nowrap; }
+.pc-footer { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 0.5rem; }
+.pc-category { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.04em; }
+.pc-rating { font-size: 0.8rem; color: #f59e0b; }
+.pc-store { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-compact { max-width: 200px; }
+.pc-overlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.45);
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em;
+}
+

@@ -367,6 +367,11 @@
                     </div>
                 </div>
 
+                <!-- Message Seller button (shown when not own product) -->
+                <button class="btn btn-outline" id="msg-seller-btn" onclick="msgSeller()" style="margin-top:0.75rem; margin-bottom:0.75rem; display:none;">
+                    <i class="fa fa-comment"></i> Message Seller
+                </button>
+
                 <!-- Edit listing (own product) -->
                 <div id="edit-own-btn-wrap" style="display:none; margin-bottom:0.75rem;">
                     <button class="btn w-100" style="background:#1d4ed8; color:white;" onclick="window.location='/dashboard'">
@@ -1186,6 +1191,11 @@
                 loadSellerAbout(store._id, store.name);
             }
             document.getElementById('store-name-bar').style.display = 'block';
+            // Show Message Seller button only if not viewing own product
+            const msgBtn = document.getElementById('msg-seller-btn');
+            if (msgBtn && !(user && user.storeId && store._id && user.storeId.toString() === store._id.toString())) {
+                msgBtn.style.display = 'block';
+            }
         } catch {}
     }
 
@@ -1265,6 +1275,18 @@
         }
         localStorage.setItem(_wlKey, JSON.stringify(wl));
         updateWatchlistIcon();
+    }
+
+    // ── Message Seller ────────────────────────────────────────────────────────
+    function msgSeller() {
+        const tok = localStorage.getItem('access_token');
+        if (!tok) {
+            window.location.replace('/login?next=' + encodeURIComponent(location.pathname));
+            return;
+        }
+        const sid = sellerUserId || (window.currentProduct && window.currentProduct.sellerId) || '';
+        if (!sid) return;
+        window.location.href = `/messages?with=${sid}&re=${PRODUCT_ID}&type=product`;
     }
 
     window.addEventListener('load', () => {

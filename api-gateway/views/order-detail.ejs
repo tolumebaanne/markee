@@ -388,7 +388,7 @@
                     <h4><i class="fa fa-truck" style="margin-right:0.5rem; color:var(--accent-red);"></i> Create Shipment</h4>
                 </div>
                 <div class="section-card-body">
-                    <form id="shipment-form" onsubmit="submitShipment(event)">
+                    <form id="shipment-form" onsubmit="submitShipmentForm(event)">
                         <div class="form-row">
                             <div class="form-group mb-3">
                                 <label>Carrier</label>
@@ -504,6 +504,15 @@
                 <div class="section-card-body" id="notes-body"></div>
             </div>
 
+            <!-- Shipment info section (Task 4c) -->
+            <div id="shipment-info-section" style="display:none;"></div>
+
+            <!-- Message sellers (Task 6) -->
+            <div id="message-sellers-section" style="display:none; margin-top:1rem;"></div>
+
+            <!-- Seller action panel (Task 5b) -->
+            <div id="seller-action-panel" style="display:none;"></div>
+
         </div>
 
         <!-- RIGHT COLUMN -->
@@ -615,6 +624,35 @@
             <textarea id="review-body" placeholder="Share your experience with this product..." rows="4"></textarea>
         </div>
         <button id="review-submit-btn" class="btn btn-red" onclick="submitReview()">Submit Review</button>
+    </div>
+</div>
+
+<!-- ============ SHIP MODAL (Task 5d) ============ -->
+<div id="ship-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background:var(--bg-primary); border-radius:14px; padding:1.75rem; width:90%; max-width:420px; box-shadow:var(--shadow-lg);">
+        <h3 style="margin-bottom:1.25rem;"><i class="fa fa-truck"></i> Create Shipment</h3>
+        <div class="form-group">
+            <label>Carrier</label>
+            <select id="ship-carrier" class="form-control">
+                <option value="USPS">USPS</option>
+                <option value="UPS">UPS</option>
+                <option value="FedEx">FedEx</option>
+                <option value="DHL">DHL</option>
+                <option value="Other">Other</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Tracking Number</label>
+            <input type="text" id="ship-tracking" class="form-control" placeholder="Enter tracking number" maxlength="100">
+        </div>
+        <div class="form-group">
+            <label>Estimated Delivery <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
+            <input type="date" id="ship-est-date" class="form-control">
+        </div>
+        <div style="display:flex; gap:0.75rem; margin-top:1.25rem;">
+            <button class="btn btn-red" onclick="submitShipment()">Submit</button>
+            <button class="btn btn-outline" onclick="closeShipModal()">Cancel</button>
+        </div>
     </div>
 </div>
 
@@ -752,10 +790,13 @@
         document.getElementById('items-list').innerHTML = items.map(item => {
             const reviewable = isBuyer && isDelivered;
             const alreadyReviewed = _reviewed.has(item.productId?.toString());
+            const title     = item._resolvedTitle || item.title || '[Product removed]';
+            const storeName = item._resolvedStoreName || '';
+            const price     = item._price || ((item.price || 0) / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
             const reviewBtnHtml = reviewable
                 ? alreadyReviewed
                     ? `<span class="review-btn reviewed"><i class="fa fa-check"></i> Reviewed</span>`
-                    : `<button class="review-btn" onclick="openReviewModal('${item.productId}', '${(item.title || 'Product').replace(/'/g, "\\'")}')">
+                    : `<button class="review-btn" onclick="openReviewModal('${item.productId}', '${title.replace(/'/g, "\\'")}')">
                            <i class="fa fa-star"></i> Review
                        </button>`
                 : '';
@@ -766,13 +807,13 @@
                      src="${item.image || ''}"
                      style="background:var(--bg-secondary);"
                      onerror="this.onerror=null; this.src=''"
-                     alt="${item.title || 'Item'}">
+                     alt="${title}">
                 <div class="item-info">
-                    <div class="item-title">${item.title || 'Item'}</div>
-                    <div class="item-qty">Qty: ${item.qty || 1}</div>
+                    <div class="item-title">${title}</div>
+                    <div class="item-qty">Qty: ${item.qty || 1}${storeName ? ` &nbsp;·&nbsp; <span style="color:var(--text-muted);">${storeName}</span>` : ''}</div>
                 </div>
                 <div style="display:flex; align-items:center; gap:0.75rem;">
-                    <div class="item-price">${formatPrice((item.price || 0) * (item.qty || 1))}</div>
+                    <div class="item-price">${((item.price || 0) * (item.qty || 1) / 100).toLocaleString('en-US', { style:'currency', currency:'USD' })}</div>
                     ${reviewBtnHtml}
                 </div>
             </div>
@@ -1152,6 +1193,40 @@
             _order = await res.json();
             window._currentOrder = _order;  // expose for openOrderThread()
 
+            // ── Resolve product titles, seller names, and shipment in parallel ──
+            const productIds = [...new Set((_order.items || []).map(i => i.productId).filter(Boolean))];
+            const sellerIds  = [...new Set((_order.items || []).map(i => i.sellerId).filter(Boolean))];
+
+            const [productResults, sellerResults, shipmentResult] = await Promise.all([
+                Promise.all(productIds.map(id =>
+                    fetch(`/api/catalog/products/${id}`)
+                        .then(r => r.ok ? r.json() : null)
+                        .catch(() => null)
+                )),
+                Promise.all(sellerIds.map(id =>
+                    fetch(`/api/public-seller/${id}`)
+                        .then(r => r.ok ? r.json() : null)
+                        .catch(() => null)
+                )),
+                fetch(`/api/shipping/order/${_order._id}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                }).then(r => r.ok ? r.json() : null).catch(() => null)
+            ]);
+
+            const productMap = Object.fromEntries(productIds.map((id, i) => [id, productResults[i]]));
+            const sellerMap  = Object.fromEntries(sellerIds.map((id, i) => [id, sellerResults[i]]));
+            const shipment   = shipmentResult;
+
+            // Enrich order items with resolved titles and seller names
+            (_order.items || []).forEach(item => {
+                const product = productMap[item.productId] || {};
+                const seller  = sellerMap[item.sellerId]   || {};
+                if (!item.title && product.title) item.title = product.title;
+                item._resolvedTitle     = product.title || item.title || '[Product removed]';
+                item._resolvedStoreName = seller.storeName || seller.name || 'Unknown seller';
+                item._price = ((item.price || 0) / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+            });
+
             // Page heading
             document.getElementById('page-title').textContent = `Order #${'…' + _order._id.slice(-8)}`;
             const sc = statusClass(_order.status);
@@ -1177,9 +1252,94 @@
             renderCancellationReason(_order);
             renderNotes(_order);
 
-            // Load shipment if shipped or delivered
-            if (['shipped', 'delivered'].includes(_order.status)) {
+            // ── Render shipment info if available from parallel fetch ────────────
+            if (shipment) {
+                renderShipmentInfo(shipment);
+            }
+
+            // Load shipment tracking card if shipped or delivered (also covers the
+            // existing renderTracking path via loadShipment)
+            if (['shipped', 'delivered'].includes(_order.status) && !shipment) {
                 await loadShipment();
+            } else if (shipment && ['shipped', 'delivered'].includes(_order.status)) {
+                renderTracking(shipment);
+            }
+
+            // ── Seller action panel (Task 5) ─────────────────────────────────────
+            const myItems = (_order.items || []).filter(i =>
+                i.sellerId?.toString() === user.storeId?.toString()
+            );
+            const isSellerOfThisOrder = myItems.length > 0;
+
+            if (isSellerOfThisOrder) {
+                let trans = { current: _order.status, allowed: [], fulfillmentType: _order.fulfillmentType };
+                try {
+                    const tr = await fetch(`/api/orders/${_order._id}/transitions`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (tr.ok) trans = await tr.json();
+                } catch {}
+
+                const sellerPanel = document.getElementById('seller-action-panel');
+                if (sellerPanel) {
+                    const statusLabels = {
+                        processing:       'Accept & Process',
+                        ready_for_pickup: 'Mark Ready for Pickup',
+                        picked_up:        'Confirm Pickup',
+                        self_fulfilled:   'Mark Fulfilled',
+                        shipped:          'Mark Shipped',
+                        delivered:        'Mark Delivered',
+                        cancelled:        'Cancel Order'
+                    };
+
+                    sellerPanel.innerHTML = `
+                        <div class="card" style="margin-top:1.5rem;">
+                            <h3 style="margin-bottom:1rem;"><i class="fa fa-store"></i> Seller Actions</h3>
+                            <div class="seller-items-summary" style="margin-bottom:1rem;">
+                                ${myItems.map(item => {
+                                    const p = productMap[item.productId] || {};
+                                    return `<div class="seller-item-row" style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid var(--border-light);">
+                                        <span>${p.title || item._resolvedTitle || '[Product removed]'}</span>
+                                        <span>Qty: ${item.qty} &nbsp; ${((item.price * item.qty) / 100).toLocaleString('en-US', {style:'currency',currency:'USD'})}</span>
+                                    </div>`;
+                                }).join('')}
+                            </div>
+                            <div class="transition-buttons" style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem;">
+                                ${trans.allowed.map(nextStatus => `
+                                    <button class="btn btn-red" onclick="advanceOrder('${_order._id}','${nextStatus}')">
+                                        ${statusLabels[nextStatus] || nextStatus}
+                                    </button>
+                                `).join('')}
+                                ${trans.fulfillmentType === 'shipping' && _order.status === 'processing' ? `
+                                    <button class="btn btn-outline" onclick="openShipModal()">
+                                        <i class="fa fa-truck"></i> Create Shipment
+                                    </button>
+                                ` : ''}
+                            </div>
+                            <button class="btn btn-sm btn-outline" onclick="msgBuyer('${_order.buyerId}', '${_order._id}')">
+                                <i class="fa fa-comment"></i> Message Buyer
+                            </button>
+                        </div>
+                    `;
+                    sellerPanel.style.display = 'block';
+                }
+            }
+
+            // ── Message Seller buttons for buyers (Task 6) ───────────────────────
+            const uniqueSellers = [...new Map(
+                (_order.items || []).map(i => [i.sellerId?.toString(), sellerMap[i.sellerId]])
+            ).entries()].filter(([, s]) => s);
+
+            if (uniqueSellers.length > 0 && user.storeId?.toString() !== uniqueSellers[0][0]) {
+                const msgSection = document.getElementById('message-sellers-section');
+                if (msgSection) {
+                    msgSection.innerHTML = uniqueSellers.map(([sellerId, seller]) => `
+                        <button class="btn btn-sm btn-outline" onclick="window.location.href='/messages?with=${sellerId}&re=${_order._id}&type=order'" style="margin-right:0.5rem;">
+                            <i class="fa fa-comment"></i> Message ${seller.storeName || seller.name || 'Seller'}
+                        </button>
+                    `).join('');
+                    msgSection.style.display = 'block';
+                }
             }
 
             // Seller: load buyer trust score
@@ -1252,8 +1412,8 @@
         } catch {}
     }
 
-    // ── Submit shipment ───────────────────────────────────────────────────────
-    async function submitShipment(e) {
+    // ── Submit shipment (inline form) ─────────────────────────────────────────
+    async function submitShipmentForm(e) {
         e.preventDefault();
         const btn = document.getElementById('ship-btn');
         btn.disabled = true;
@@ -1443,6 +1603,71 @@
         document.getElementById('error-title').textContent = title;
         document.getElementById('error-msg').textContent = msg;
         document.getElementById('error-state').style.display = 'block';
+    }
+
+    // ── Render shipment info section (Task 4c) ────────────────────────────────
+    function renderShipmentInfo(shipment) {
+        if (!shipment) return;
+        const existing = document.getElementById('shipment-info-section');
+        if (!existing) return;
+        existing.style.display = 'block';
+        existing.innerHTML = `
+            <div class="shipment-info">
+                <h4><i class="fa fa-truck"></i> Shipment</h4>
+                <p><strong>Carrier:</strong> ${shipment.carrier || '—'}</p>
+                <p><strong>Tracking:</strong> ${shipment.trackingNumber || '—'}</p>
+                <p><strong>Status:</strong> ${shipment.status || '—'}</p>
+                ${shipment.estimatedDelivery ? `<p><strong>Est. Delivery:</strong> ${formatDate(shipment.estimatedDelivery)}</p>` : ''}
+                <a href="https://www.google.com/search?q=${encodeURIComponent((shipment.carrier || '') + ' tracking ' + (shipment.trackingNumber || ''))}"
+                   target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline">
+                   Track Package <i class="fa fa-external-link"></i>
+                </a>
+            </div>
+        `;
+    }
+
+    // ── Seller action panel functions (Task 5c) ───────────────────────────────
+    async function advanceOrder(orderId, status) {
+        try {
+            const r = await fetch(`/api/orders/${orderId}/status`, {
+                method: 'PATCH',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status })
+            });
+            const data = await r.json();
+            if (r.ok) { if (typeof showToast === 'function') showToast(`Order marked as ${status.replace(/_/g,' ')}`); location.reload(); }
+            else if (typeof showToast === 'function') showToast(data.message || 'Failed to update order', 'error');
+        } catch (err) { if (typeof showToast === 'function') showToast('Request failed', 'error'); }
+    }
+
+    function msgBuyer(buyerId, orderId) {
+        window.location.href = `/messages?with=${buyerId}&re=${orderId}&type=order`;
+    }
+
+    function openShipModal() {
+        document.getElementById('ship-modal').style.display = 'flex';
+    }
+    function closeShipModal() {
+        document.getElementById('ship-modal').style.display = 'none';
+    }
+
+    async function submitShipment() {
+        const carrier  = document.getElementById('ship-carrier').value;
+        const tracking = document.getElementById('ship-tracking').value.trim();
+        const estDate  = document.getElementById('ship-est-date').value;
+        if (!tracking) { if (typeof showToast === 'function') showToast('Tracking number required', 'error'); return; }
+
+        const orderId = '<%= orderId %>';
+        const buyerId = typeof _order !== 'undefined' ? _order.buyerId : '';
+        try {
+            const r = await fetch('/api/shipping', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId, buyerId, carrier, trackingNumber: tracking, estimatedDelivery: estDate || undefined })
+            });
+            if (r.ok) { closeShipModal(); if (typeof showToast === 'function') showToast('Shipment created'); location.reload(); }
+            else { const d = await r.json(); if (typeof showToast === 'function') showToast(d.message || 'Failed', 'error'); }
+        } catch { if (typeof showToast === 'function') showToast('Request failed', 'error'); }
     }
 
     // ── S21 — Escrow status card ──────────────────────────────────────────────

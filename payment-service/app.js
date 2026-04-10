@@ -224,7 +224,8 @@ bus.on('order.placed', async (payload) => {
                 buyerId:  esc.buyerId,
                 amount:   esc.amountCents,          // keep 'amount' key for order-service compat
                 amountCents: esc.amountCents,
-                sellerId: payouts[0]?.sellerId       // primary seller
+                sellerId: payouts[0]?.sellerId,      // primary seller
+                sellerIds: payouts.map(p => p.sellerId.toString())
             });
             console.log(`[PAYMENT] Escrow held for order ${payload.orderId}, total: ${totalAmount}, fee: ${totalFee} (${PLATFORM_FEE_PERCENT}%)`);
         }

@@ -148,15 +148,19 @@ bus.on('order.placed', async (payload) => {
 });
 
 bus.on('payment.captured', async (payload) => {
-    if (!await isNotifAllowed('PAYMENT_CAPTURED', payload.sellerId)) return;
-    const sellerEmail = payload.sellerEmail || `seller-${payload.sellerId}@markee.local`;
-    await sendNotification(
-        'PAYMENT_CAPTURED',
-        sellerEmail,
-        `New Order Received — #${payload.orderId?.toString().slice(-8).toUpperCase()}`,
-        `You have a new paid order!\n\nOrder ID: ${payload.orderId}\nAmount: $${((payload.amount || 0) / 100).toFixed(2)}\n\nLog in to Markee to ship the order.`,
-        payload
-    );
+    const sellerIds = Array.isArray(payload.sellerIds) ? payload.sellerIds
+        : (payload.sellerId ? [payload.sellerId] : []);
+    for (const sellerId of sellerIds) {
+        if (!await isNotifAllowed('PAYMENT_CAPTURED', sellerId)) continue;
+        const sellerEmail = `seller-${sellerId}@markee.local`;
+        await sendNotification(
+            'PAYMENT_CAPTURED',
+            sellerEmail,
+            `New Order Received — #${payload.orderId?.toString().slice(-8).toUpperCase()}`,
+            `You have a new paid order!\n\nOrder ID: ${payload.orderId}\nAmount: $${((payload.amount || 0) / 100).toFixed(2)}\n\nLog in to Markee to ship the order.`,
+            { ...payload, sellerId }
+        );
+    }
 });
 
 bus.on('shipment.created', async (payload) => {

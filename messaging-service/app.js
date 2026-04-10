@@ -1275,6 +1275,51 @@ setInterval(async () => {
     } catch (err) { console.error('[MSG] Auto-archive sweep error:', err.message); }
 }, 24 * 60 * 60 * 1000);
 
+// ── Bus → Socket.io real-time forwarding ──────────────────────────────────────
+// Note: socket rooms use bare userId strings (see socket.join(userId) above)
+
+bus.on('payment.captured', (payload) => {
+    if (!Array.isArray(payload.sellerIds)) return;
+    payload.sellerIds.forEach(sellerId => {
+        io.to(sellerId).emit('order.new', {
+            orderId: payload.orderId,
+            buyerId: payload.buyerId
+        });
+    });
+});
+
+bus.on('order.status_updated', (payload) => {
+    if (!payload.buyerId) return;
+    io.to(payload.buyerId.toString()).emit('order.status', {
+        orderId: payload.orderId,
+        status:  payload.status
+    });
+});
+
+bus.on('shipment.created', (payload) => {
+    if (!payload.buyerId) return;
+    io.to(payload.buyerId.toString()).emit('shipment.new', {
+        orderId:        payload.orderId,
+        trackingNumber: payload.trackingNumber,
+        carrier:        payload.carrier
+    });
+});
+
+bus.on('shipment.delivered', (payload) => {
+    if (!payload.buyerId) return;
+    io.to(payload.buyerId.toString()).emit('shipment.delivered', {
+        orderId: payload.orderId
+    });
+});
+
+bus.on('inventory.stock_low', (payload) => {
+    if (!payload.sellerId) return;
+    io.to(payload.sellerId.toString()).emit('stock.low', {
+        productId: payload.productId,
+        quantity:  payload.quantity
+    });
+});
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5009;
 app.get('/health', (req, res) => {

@@ -89,8 +89,8 @@ const ProductSchema = new mongoose.Schema({
     rejectionCount:  { type: Number, default: 0 },
     // Q&A — answered questions visible publicly; open questions visible to seller (S1/S12)
     questions: [QuestionSchema],
-    // Internal flag: product was paused because seller initiated account deletion (not a manual pause)
-    _pausedForDeletion: { type: Boolean, default: false }
+    // Reason a product was system-paused (null = not system-paused or manual pause)
+    _pauseReason: { type: String, enum: ['seller_deactivated', 'account_deletion', null], default: null }
 });
 ProductSchema.index({ title: 'text', description: 'text' });
 ProductSchema.index({ category: 1, subcategory: 1 });         // S10 — subcategory filter
@@ -194,7 +194,7 @@ bus.on('user.pending_deletion', async (payload) => {
         if (!storeId) return;
         const result = await Product.updateMany(
             { sellerId: storeId, status: 'active' },
-            { status: 'paused', _pausedForDeletion: true }
+            { status: 'paused', _pauseReason: 'account_deletion' }
         );
         console.log(`[CATALOG] Paused ${result.modifiedCount} products for pending deletion: storeId=${storeId}`);
     } catch (err) { console.error('[CATALOG] user.pending_deletion hide error:', err.message); }
@@ -206,8 +206,8 @@ bus.on('user.deletion_cancelled', async (payload) => {
         const storeId = payload.storeId;
         if (!storeId) return;
         const result = await Product.updateMany(
-            { sellerId: storeId, status: 'paused', _pausedForDeletion: true },
-            { status: 'active', _pausedForDeletion: false }
+            { sellerId: storeId, status: 'paused', _pauseReason: 'account_deletion' },
+            { status: 'active', _pauseReason: null }
         );
         console.log(`[CATALOG] Restored ${result.modifiedCount} products after deletion cancelled: storeId=${storeId}`);
     } catch (err) { console.error('[CATALOG] user.deletion_cancelled restore error:', err.message); }
@@ -235,6 +235,26 @@ bus.on('review.approved', async (payload) => {
 bus.on('product.updated', async (payload) => {
     // Relay to search service via event (search listens separately)
     // Nothing to do in catalog itself — this event is emitted by catalog
+});
+
+bus.on('seller.deactivated', async (payload) => {
+    try {
+        await Product.updateMany(
+            { sellerId: payload.storeId, status: 'active' },
+            { status: 'paused', _pauseReason: 'seller_deactivated' }
+        );
+        console.log(`[CATALOG] Paused products for deactivated store: ${payload.storeId}`);
+    } catch (err) { console.error('[CATALOG] seller.deactivated error:', err.message); }
+});
+
+bus.on('seller.reactivated', async (payload) => {
+    try {
+        await Product.updateMany(
+            { sellerId: payload.storeId, _pauseReason: 'seller_deactivated' },
+            { status: 'active', _pauseReason: null }
+        );
+        console.log(`[CATALOG] Restored products for reactivated store: ${payload.storeId}`);
+    } catch (err) { console.error('[CATALOG] seller.reactivated error:', err.message); }
 });
 
 // A.4: Smart catalog integration — quality reviews boost product score

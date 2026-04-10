@@ -1334,6 +1334,40 @@ function stringToColor(str) {
     return colors[Math.abs(hash) % colors.length];
 }
 
+// ── Handle ?with=, ?re=, ?type= query params (from Message Seller buttons) ───
+const _urlParams = new URLSearchParams(window.location.search);
+const _withId    = _urlParams.get('with');
+const _reId      = _urlParams.get('re');
+const _reType    = _urlParams.get('type');
+
+async function _openOrStartThread(recipientId, contextId, contextType) {
+    // Try to find an existing thread with this recipient
+    try {
+        const r = await fetch(`/api/messages/threads`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        if (r.ok) {
+            const threads = await r.json();
+            const threadList = Array.isArray(threads) ? threads : (threads.threads || []);
+            const existing = threadList.find(t =>
+                t.participants && t.participants.some(p => p.toString() === recipientId.toString())
+            );
+            if (existing) {
+                openThread(existing._id || existing.threadId);
+                return;
+            }
+        }
+    } catch {}
+    // No existing thread — open with context
+    openThreadWithContext({
+        recipientId,
+        contextType: contextType || 'product',
+        refId: contextId || '',
+        refTitle: '',
+        refImage: ''
+    });
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 connectSocket();
 loadThreads().then(() => {
@@ -1343,6 +1377,9 @@ loadThreads().then(() => {
 
     if (threadP) {
         openThread(threadP);
+    } else if (_withId) {
+        // From Message Seller button (?with=sellerId&re=productId&type=product)
+        _openOrStartThread(_withId, _reId, _reType);
     } else if (target) {
         openThreadWithUser(target);
     }

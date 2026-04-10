@@ -24,19 +24,23 @@
             <div class="form-group">
                 <label>Display Name <span style="color:#6b7280;font-weight:400;">(optional)</span></label>
                 <input type="text" name="displayName" placeholder="How should we address you?" autocomplete="name">
+                <span id="err-displayName" class="field-error" style="color:#ef4444; font-size:0.8rem; display:block; margin-top:0.25rem;"></span>
             </div>
             <div class="form-group">
                 <label>Email Address</label>
                 <input type="email" name="email" placeholder="you@example.com" required autocomplete="email">
+                <span id="err-email" class="field-error" style="color:#ef4444; font-size:0.8rem; display:block; margin-top:0.25rem;"></span>
             </div>
             <div class="form-group">
                 <label>Phone <span style="color:#6b7280;font-weight:400;">(optional)</span></label>
                 <input type="tel" name="phone" placeholder="+1 (555) 000-0000" autocomplete="tel">
+                <span id="err-phone" class="field-error" style="color:#ef4444; font-size:0.8rem; display:block; margin-top:0.25rem;"></span>
             </div>
             <div class="form-group">
                 <label>Password</label>
                 <input type="password" id="password" name="password" placeholder="Min 6 characters" minlength="6" required autocomplete="new-password">
                 <span class="password-toggle" onclick="togglePassword()">Show</span>
+                <span id="err-password" class="field-error" style="color:#ef4444; font-size:0.8rem; display:block; margin-top:0.25rem;"></span>
             </div>
             <p class="text-muted" style="font-size:0.8rem;margin-bottom:1.25rem;padding:0.65rem 0.75rem;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;">
                 <i class="fa fa-info-circle" style="margin-right:0.4rem;color:#6b7280;"></i>
@@ -57,6 +61,33 @@ function togglePassword() {
     if (input.type === 'password') { input.type = 'text'; toggle.textContent = 'Hide'; }
     else                           { input.type = 'password'; toggle.textContent = 'Show'; }
 }
+
+function validateField(input) {
+    const name  = input.name;
+    const value = input.value.trim();
+    const err   = document.getElementById('err-' + name);
+    if (!err) return;
+    let msg = '';
+    if (name === 'email' && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        msg = 'Please enter a valid email address';
+    } else if (name === 'password' && value.length > 0 && value.length < 8) {
+        msg = 'Password must be at least 8 characters';
+    } else if (name === 'password' && value.length >= 8 && !/[0-9]/.test(value)) {
+        msg = 'Password must contain at least one number';
+    } else if (name === 'phone' && value && !/^\+?[0-9\s\-().]{7,}$/.test(value)) {
+        msg = 'Please enter a valid phone number';
+    }
+    err.textContent = msg;
+}
+
+document.querySelectorAll('input[name]').forEach(input => {
+    input.addEventListener('blur', () => validateField(input));
+    input.addEventListener('input',  () => validateField(input));
+});
+
+// Show server-side field errors if returned as ?fieldErrors=...
+// The gateway POST /register currently redirects on failure — this handles inline display
+// when the server adds field-level error context in the future
 </script>
 </body>
 </html>

@@ -70,6 +70,12 @@
         }
         .sf-open-pill.open  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
         .sf-open-pill.closed{ background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+
+        /* ── Canonical store badge (open/closed/vacation) ────────────────────── */
+        .store-badge { display:inline-flex; align-items:center; gap:0.4rem; padding:0.25rem 0.75rem; border-radius:20px; font-size:0.8rem; font-weight:600; }
+        .store-badge.open     { background:#d1fae5; color:#065f46; }
+        .store-badge.closed   { background:#fee2e2; color:#991b1b; }
+        .store-badge.vacation { background:#fef3c7; color:#92400e; }
         .sf-online-dot {
             width: 8px; height: 8px;
             border-radius: 50%;
@@ -207,7 +213,7 @@
         <div class="sf-store-meta">
             <div class="sf-store-name">
                 <span id="sf-store-name">Loading...</span>
-                <span id="sf-open-pill" class="sf-open-pill closed" style="display:none;"></span>
+                <span id="store-open-badge" class="sf-open-pill closed" style="display:none;"></span>
                 <span id="sf-online-dot" class="sf-online-dot" style="display:none;" title="Online recently"></span>
             </div>
             <div id="sf-store-desc" style="font-size:0.85rem; color:var(--text-muted); margin-bottom:0.5rem;"></div>
@@ -406,7 +412,7 @@
             }
 
             // Open/closed pill
-            const pill = document.getElementById('sf-open-pill');
+            const pill = document.getElementById('store-open-badge');
             pill.style.display = 'inline-block';
             if (store.isOpen) {
                 pill.textContent = '● OPEN';
@@ -419,6 +425,10 @@
                 const hoursEl = document.getElementById('sf-hours-meta');
                 if (store.nextOpen) hoursEl.textContent = `Opens ${store.nextOpen}`;
             }
+
+            // Initial badge update and set tracking state
+            _currentIsOpen = store.isOpen;
+            updateOpenBadge(store.isOpen, store.nextOpen, store.closesAt, store.vacationMode);
 
             // Online indicator — green dot if lastActive within 24h
             if (store.lastActive) {
@@ -766,6 +776,47 @@
             ${replyHtml}
         </div>`;
     }
+
+    // ── Open/closed badge polling ─────────────────────────────────────────────
+    let _currentIsOpen = null;
+
+    function updateOpenBadge(isOpen, nextOpen, closesAt, vacationMode) {
+        const badge = document.getElementById('store-open-badge');
+        if (!badge) return;
+
+        if (vacationMode && vacationMode.active) {
+            badge.className = 'store-badge vacation';
+            badge.innerHTML = `<i class="fa fa-umbrella-beach"></i> On Vacation`;
+            badge.title = vacationMode.message || '';
+            return;
+        }
+        if (isOpen) {
+            badge.className = 'store-badge open';
+            badge.innerHTML = `<i class="fa fa-circle" style="color:#10b981; font-size:0.6rem;"></i> Open`;
+            if (closesAt) badge.title = `Closes at ${closesAt}`;
+        } else {
+            badge.className = 'store-badge closed';
+            badge.innerHTML = `<i class="fa fa-circle" style="color:#ef4444; font-size:0.6rem;"></i> Closed`;
+            if (nextOpen) badge.title = `Opens ${nextOpen}`;
+        }
+    }
+
+    async function checkStoreOpen() {
+        try {
+            const storeIdVal = typeof STORE_ID !== 'undefined' ? STORE_ID : '';
+            if (!storeIdVal) return;
+            const r = await fetch(`/api/public-seller/${storeIdVal}`);
+            if (!r.ok) return;
+            const data = await r.json();
+            if (data.isOpen !== _currentIsOpen) {
+                _currentIsOpen = data.isOpen;
+                updateOpenBadge(data.isOpen, data.nextOpen, data.closesAt, data.vacationMode);
+            }
+        } catch {}
+    }
+
+    // Poll every 5 minutes
+    setInterval(checkStoreOpen, 5 * 60 * 1000);
 
     // ── Init ──────────────────────────────────────────────────────────────────
     Promise.all([loadStore(), loadProducts(), loadSellerReviews()]);

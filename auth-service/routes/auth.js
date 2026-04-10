@@ -3,6 +3,8 @@ const router = express.Router();
 const User = require('../models/User');
 const RefreshToken = require('../models/RefreshToken');
 const bus = require('../../shared/eventBus');
+const { body } = require('express-validator');
+const handleValidationErrors = require('../../shared/middleware/handleValidationErrors');
 
 const ORDER_SERVICE_URL = process.env.ORDER_SERVICE_URL || 'http://localhost:5003';
 
@@ -24,7 +26,15 @@ router.get('/register', requireNotAuth, (req, res) => {
   res.render('register', { error: req.query.error });
 });
 
-router.post('/register', requireNotAuth, async (req, res) => {
+router.post('/register', requireNotAuth, [
+    body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
+    body('password')
+        .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+        .matches(/[0-9]/).withMessage('Password must contain at least one number')
+        .matches(/[a-zA-Z]/).withMessage('Password must contain at least one letter'),
+    body('displayName').optional().trim().isLength({ max: 50 }).withMessage('Display name too long'),
+    body('phone').optional().matches(/^\+?[0-9]{10,15}$/).withMessage('Invalid phone number format')
+], handleValidationErrors, async (req, res) => {
   const { email, password, displayName, phone } = req.body;
   if (!email || !password) {
     return res.redirect('/register?error=Email and password are required');
@@ -293,6 +303,44 @@ router.get('/', (req, res) => {
     ${req.session.user.pendingDeletion ? '<p style="color:red">Your account is scheduled for deletion in 24 hours. <a href="/account/cancel-deletion">Cancel deletion</a></p>' : ''}
     <form method="POST" action="/logout"><button type="submit">Logout</button></form>
   `);
+});
+
+// PATCH /password — change password (requires valid access token)
+router.patch('/password', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+        return res.status(401).json({ error: true, message: 'Missing or invalid authorization header' });
+    }
+    try {
+        const jwt    = require('jsonwebtoken');
+        const decoded = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET);
+        const { oldPassword, newPassword } = req.body;
+        if (!oldPassword || !newPassword) {
+            return res.status(400).json({ error: true, message: 'oldPassword and newPassword are required' });
+        }
+        if (newPassword.length < 8) {
+            return res.status(422).json({ error: true, message: 'New password must be at least 8 characters' });
+        }
+
+        const bcrypt  = require('bcrypt');
+
+        const user = await User.findById(decoded.sub || decoded.id);
+        if (!user) return res.status(404).json({ error: true, message: 'User not found' });
+
+        const match = await bcrypt.compare(oldPassword, user.passwordHash);
+        if (!match) return res.status(403).json({ error: true, message: 'Current password is incorrect' });
+
+        user.passwordHash = await bcrypt.hash(newPassword, 12);
+        await user.save();
+
+        // Revoke all existing refresh tokens for this user
+        await RefreshToken.updateMany({ userId: user._id }, { revoked: true });
+
+        res.json({ message: 'Password updated successfully' });
+    } catch (err) {
+        console.error('[AUTH] PATCH /password error:', err.message);
+        res.status(500).json({ error: true, message: 'Password change failed' });
+    }
 });
 
 module.exports = router;

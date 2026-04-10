@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="/js/toast.js"></script>
     <script src="/js/cart.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
         .orders-header {
             display: flex;
@@ -58,13 +59,15 @@
             display: flex;
             align-items: center;
             gap: 1.5rem;
-            transition: box-shadow 0.2s, transform 0.2s;
-            cursor: default;
+            transition: box-shadow 0.2s, transform 0.2s, border-left 0.2s, padding-left 0.2s;
+            cursor: pointer;
         }
 
         .order-card:hover {
             box-shadow: var(--shadow-md);
             transform: translateY(-2px);
+            border-left: 3px solid var(--accent-red);
+            padding-left: calc(1.5rem - 3px);
         }
 
         .order-icon {
@@ -107,12 +110,7 @@
             color: var(--text-muted);
         }
 
-        .order-right {
-            display: flex;
-            align-items: center;
-            gap: 1.25rem;
-            flex-shrink: 0;
-        }
+        .order-right { display: flex; align-items: center; gap: 1rem; flex-shrink: 0; min-width: 260px; justify-content: flex-end; }
 
         .order-total {
             font-weight: 700;
@@ -126,6 +124,10 @@
             color: var(--text-muted);
             font-weight: 500;
         }
+
+        .order-total { font-weight: 700; font-size: 1rem; white-space: nowrap; }
+        .status-badge { white-space: nowrap; }
+        .order-actions { display: flex; gap: 0.5rem; align-items: center; }
 
         /* Status badges */
         .status-badge {
@@ -156,6 +158,9 @@
         .status-shipped  { background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; }
         .status-delivered { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
         .status-cancelled { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+        .status-ready_for_pickup { background: #dbeafe; color: #1e40af; }
+        .status-picked_up        { background: #d1fae5; color: #065f46; }
+        .status-self_fulfilled   { background: #ede9fe; color: #5b21b6; }
 
         .view-btn {
             display: inline-flex;
@@ -261,6 +266,12 @@
             .order-right { width: 100%; justify-content: space-between; }
             .order-items-preview { display: none; }
         }
+
+        @keyframes newOrderFlash {
+            0%   { background: #fef3c7; }
+            100% { background: var(--bg-primary); }
+        }
+        .new-order-flash { animation: newOrderFlash 2s ease-out; }
     </style>
 </head>
 <body class="bg-light">
@@ -375,6 +386,28 @@
         document.getElementById('orders-subtitle').textContent = 'Your purchases and storefront sales';
     }
 
+    // ── Orders cache (fixes browser-back skeleton flash) ─────────────────────────
+    const ORDERS_CACHE_KEY = `markee_orders_${user.sub}_${user.role}_${user.storeId || 'none'}`;
+    const ORDERS_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
+    function saveOrdersCache(purchases, sales) {
+        try {
+            sessionStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify({
+                purchases, sales, savedAt: Date.now()
+            }));
+        } catch {}
+    }
+
+    function loadOrdersCache() {
+        try {
+            const raw  = sessionStorage.getItem(ORDERS_CACHE_KEY);
+            if (!raw) return null;
+            const data = JSON.parse(raw);
+            if (Date.now() - data.savedAt > ORDERS_CACHE_TTL) return null;
+            return data;
+        } catch { return null; }
+    }
+
     function handleLogout() {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
@@ -383,12 +416,15 @@
 
     // ── Status badge ─────────────────────────────────────────────────────────
     const STATUS_ICONS = {
-        pending:    'fa-clock',
-        paid:       'fa-credit-card',
-        processing: 'fa-cog',
-        shipped:    'fa-truck',
-        delivered:  'fa-check-circle',
-        cancelled:  'fa-times-circle'
+        pending:          'fa-clock',
+        paid:             'fa-credit-card',
+        processing:       'fa-cog',
+        shipped:          'fa-truck',
+        delivered:        'fa-check-circle',
+        cancelled:        'fa-times-circle',
+        ready_for_pickup: 'fa-map-marker-alt',
+        picked_up:        'fa-person-walking',
+        self_fulfilled:   'fa-box-open'
     };
 
     function statusBadge(status) {
@@ -554,6 +590,17 @@
 
     // ── Load purchases (buyer view) ───────────────────────────────────────────
     async function loadPurchases() {
+        // Check cache first — render immediately, then background-refresh
+        const cached = loadOrdersCache();
+        if (cached && cached.purchases) {
+            document.getElementById('purchases-skeleton').style.display = 'none';
+            const contentEl = document.getElementById('purchases-content');
+            contentEl.style.display = 'block';
+            contentEl.innerHTML = cached.purchases.length
+                ? cached.purchases.map(renderPurchaseCard).join('')
+                : renderEmpty('No purchases yet', 'Start Shopping', '/');
+        }
+
         try {
             const res = await fetch('/api/orders/my-orders', {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -568,20 +615,76 @@
 
             if (!orders.length) {
                 content.innerHTML = renderEmpty('No purchases yet', 'Start Shopping', '/');
-                return;
+            } else {
+                content.innerHTML = orders.map(renderPurchaseCard).join('');
             }
-            content.innerHTML = orders.map(renderPurchaseCard).join('');
+
+            // Update cache with fresh purchases (keep sales from previous cache if available)
+            const prevCache = loadOrdersCache();
+            saveOrdersCache(orders, prevCache ? prevCache.sales : []);
         } catch (err) {
-            document.getElementById('purchases-skeleton').style.display = 'none';
-            const content = document.getElementById('purchases-content');
-            content.style.display = 'block';
-            content.innerHTML = `<div class="alert alert-error"><i class="fa fa-exclamation-circle mr-2"></i> Failed to load orders. <a href="#" onclick="loadPurchases(); return false;">Retry</a></div>`;
-            showToast('Failed to load orders', 'error');
+            if (!loadOrdersCache()) {
+                // Only show error if there was no cache to fall back on
+                document.getElementById('purchases-skeleton').style.display = 'none';
+                const content = document.getElementById('purchases-content');
+                content.style.display = 'block';
+                content.innerHTML = `<div class="alert alert-error"><i class="fa fa-exclamation-circle mr-2"></i> Failed to load orders. <a href="#" onclick="loadPurchases(); return false;">Retry</a></div>`;
+                showToast('Failed to load orders', 'error');
+            }
         }
+    }
+
+    // ── Sales polling (real-time seller orders) ───────────────────────────────
+    let _salesPollingInterval = null;
+    let _knownSaleIds = new Set();
+
+    function startSalesPolling() {
+        if (_salesPollingInterval) return;
+        _salesPollingInterval = setInterval(async () => {
+            try {
+                const r = await fetch('/api/orders/my-sales', {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (!r.ok) return;
+                const orders = await r.json();
+                const container = document.getElementById('sales-content');
+                if (!container) return;
+                let hasNew = false;
+                (orders || []).forEach(order => {
+                    if (!_knownSaleIds.has(order._id.toString())) {
+                        _knownSaleIds.add(order._id.toString());
+                        if (container.children.length > 0) {
+                            // New order arrived after initial load
+                            const wrapper = document.createElement('div');
+                            wrapper.innerHTML = renderSaleCard(order);
+                            const card = wrapper.firstElementChild;
+                            if (card) { card.classList.add('new-order-flash'); container.prepend(card); }
+                            hasNew = true;
+                        }
+                    }
+                });
+                if (hasNew && typeof showToast === 'function') showToast('New order received!', 'success');
+            } catch {}
+        }, 30000);
+    }
+
+    function stopSalesPolling() {
+        if (_salesPollingInterval) { clearInterval(_salesPollingInterval); _salesPollingInterval = null; }
     }
 
     // ── Load sales (seller view) ──────────────────────────────────────────────
     async function loadSales() {
+        // Check cache first
+        const cached = loadOrdersCache();
+        if (cached && cached.sales) {
+            document.getElementById('sales-skeleton').style.display = 'none';
+            const contentEl = document.getElementById('sales-content');
+            contentEl.style.display = 'block';
+            contentEl.innerHTML = cached.sales.length
+                ? cached.sales.map(renderSaleCard).join('')
+                : renderEmpty('No sales yet', 'Manage Listings', '/dashboard');
+        }
+
         try {
             const res = await fetch('/api/orders/seller-orders', {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -595,14 +698,23 @@
 
             if (!orders.length) {
                 content.innerHTML = renderEmpty('No sales yet', 'Manage Listings', '/dashboard');
-                return;
+            } else {
+                content.innerHTML = orders.map(renderSaleCard).join('');
             }
-            content.innerHTML = orders.map(renderSaleCard).join('');
+
+            // Seed _knownSaleIds with all currently loaded order IDs
+            _knownSaleIds = new Set((orders || []).map(o => o._id.toString()));
+
+            // Update cache with fresh sales
+            const prevCache = loadOrdersCache();
+            saveOrdersCache(prevCache ? prevCache.purchases : [], orders);
         } catch (err) {
-            document.getElementById('sales-skeleton').style.display = 'none';
-            const content = document.getElementById('sales-content');
-            content.style.display = 'block';
-            content.innerHTML = `<div class="alert alert-error"><i class="fa fa-exclamation-circle mr-2"></i> Failed to load sales. <a href="#" onclick="loadSales(); return false;">Retry</a></div>`;
+            if (!loadOrdersCache()) {
+                document.getElementById('sales-skeleton').style.display = 'none';
+                const content = document.getElementById('sales-content');
+                content.style.display = 'block';
+                content.innerHTML = `<div class="alert alert-error"><i class="fa fa-exclamation-circle mr-2"></i> Failed to load sales. <a href="#" onclick="loadSales(); return false;">Retry</a></div>`;
+            }
         }
     }
 
@@ -613,6 +725,35 @@
         document.getElementById('tab-sales').classList.toggle('active', !isPurchases);
         document.getElementById('purchases-list').style.display = isPurchases ? 'block' : 'none';
         document.getElementById('sales-list').style.display = isPurchases ? 'none' : 'block';
+
+        if (!isPurchases) {
+            startSalesPolling();
+        } else {
+            stopSalesPolling();
+        }
+    }
+
+    // ── Socket.io for real-time seller order notifications ────────────────────
+    if (isSeller) {
+        try {
+            const socket = io({ auth: { token }, transports: ['websocket', 'polling'] });
+            socket.on('order.new', () => {
+                // Pre-empt the 30s polling cycle
+                stopSalesPolling();
+                // Re-fetch immediately
+                setTimeout(() => startSalesPolling(), 100);
+            });
+            socket.on('order.status', ({ orderId, status }) => {
+                const card = document.getElementById(`purchase-card-${orderId}`);
+                if (!card) return;
+                const badge = card.querySelector('.status-badge');
+                if (badge) {
+                    badge.className = `status-badge status-${status}`;
+                    badge.textContent = status.replace(/_/g, ' ');
+                }
+                if (typeof showToast === 'function') showToast(`Order status: ${status.replace(/_/g, ' ')}`);
+            });
+        } catch {}
     }
 
     // ── Boot ─────────────────────────────────────────────────────────────────
