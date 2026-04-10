@@ -110,13 +110,15 @@ app.use('/api/seller/admin', verifyToken, (req, res, next) => {
     next();
 }, proxy(process.env.SELLER_SERVICE_URL || 'http://localhost:5005'));
 
-// Store registration + activation — any authenticated user can do these (they don't have seller
-// scopes yet; that's the whole point). Must be before the catalog:write catch-all.
-app.use('/api/seller/register', verifyToken, proxy(process.env.SELLER_SERVICE_URL || 'http://localhost:5005'));
-app.use('/api/seller/:storeId/activate', verifyToken, proxy(process.env.SELLER_SERVICE_URL || 'http://localhost:5005'));
-
-// All other seller routes require seller scopes (catalog:write)
-app.use('/api/seller', verifyToken, enforceScope('catalog:write'), proxy(process.env.SELLER_SERVICE_URL || 'http://localhost:5005'));
+// Seller routes — register and activate skip the scope gate (user has no seller scopes yet);
+// everything else requires catalog:write.
+app.use('/api/seller', verifyToken, (req, res, next) => {
+    const noScopeNeeded =
+        (req.method === 'POST' && req.path === '/register') ||
+        (req.method === 'POST' && /^\/[^/]+\/activate$/.test(req.path));
+    if (noScopeNeeded) return next();
+    enforceScope('catalog:write')(req, res, next);
+}, proxy(process.env.SELLER_SERVICE_URL || 'http://localhost:5005'));
 
 // ── Inventory ─────────────────────────────────────────────────────────────────
 // Public stock availability check — buyers need this for watchlist stock status
