@@ -1,7 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+const RefreshToken = require('../models/RefreshToken');
 const bus = require('../../shared/eventBus');
+
+const ORDER_SERVICE_URL = process.env.ORDER_SERVICE_URL || 'http://localhost:5003';
 
 const requireAuth = (req, res, next) => {
   if (!req.session || !req.session.user) {
@@ -30,6 +33,7 @@ router.post('/register', requireNotAuth, async (req, res) => {
     const newUser = await User.createUser({ email, password, role: 'user', displayName, phone });
     bus.emit('user.registered', {
       userId:      newUser._id.toString(),
+      storeId:     newUser.storeId.toString(),
       email:       newUser.email,
       displayName: newUser.displayName || ''
     });
@@ -46,15 +50,23 @@ router.get('/login', requireNotAuth, (req, res) => {
 router.post('/login', requireNotAuth, async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.redirect('/login?error=Missing credentials');
-  
+
   try {
     const user = await User.validatePassword(email, password);
     if (!user) return res.redirect('/login?error=Invalid credentials');
-    
-    req.session.user = { id: user._id.toString(), email: user.email, role: user.role, storeId: user.storeId };
+
+    // Block fully soft-deleted accounts (email is mangled so this is belt-and-suspenders)
+    if (user.status === 'deleted') return res.redirect('/login?error=This account no longer exists.');
+
+    req.session.user = {
+      id:               user._id.toString(),
+      email:            user.email,
+      role:             user.role,
+      storeId:          user.storeId,
+      pendingDeletion:  user.status === 'pending_deletion'
+    };
     const returnTo = req.session.returnTo || '/';
     delete req.session.returnTo;
-    
     res.redirect(returnTo);
   } catch (error) {
     res.redirect('/login?error=Login failed');
@@ -65,25 +77,68 @@ router.post('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/login'));
 });
 
+// ── Self-deletion (Stage 1): initiate 24h cooldown ────────────────────────────
+
+async function initiateSoftDelete(userId, storeId, destroySession) {
+  // Check for open seller orders — fail closed if order-service unreachable
+  try {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 3000);
+    const check = await fetch(
+      `${ORDER_SERVICE_URL}/seller-orders-check?storeId=${storeId}`,
+      { signal: controller.signal }
+    );
+    const { hasOpen, count } = await check.json();
+    if (hasOpen) {
+      return {
+        blocked: true,
+        message: `You have ${count} open order(s) as a seller. Fulfill or cancel them before deleting your account.`
+      };
+    }
+  } catch (err) {
+    console.error('[AUTH] seller-orders-check unreachable — blocking deletion for safety:', err.message);
+    return { blocked: true, message: 'Unable to verify your seller orders. Please try again later.' };
+  }
+
+  const user = await User.findById(userId);
+  if (!user) return { blocked: true, message: 'User not found.' };
+  if (user.status === 'pending_deletion') return { blocked: false, alreadyPending: true };
+
+  user.status = 'pending_deletion';
+  user.pendingDeletionSince = new Date();
+  await user.save();
+
+  // Revoke all refresh tokens immediately — this is the actual access enforcement
+  await RefreshToken.deleteMany({ userId });
+
+  bus.emit('user.pending_deletion', {
+    userId:  userId.toString(),
+    storeId: storeId.toString()
+  });
+
+  destroySession();
+  return { blocked: false };
+}
+
+// Session-based deletion
 router.delete('/account', requireAuth, async (req, res) => {
   try {
-    const userId = req.session.user.id;
-    console.log(`[AUTH] Deleting account (session): ${userId}`);
-    const userDoc = await User.findByIdAndDelete(userId);
-    bus.emit('user.deleted', {
-      userId,
-      storeId: userDoc?.storeId?.toString()
-    });
-    req.session.destroy(() => {
-      res.json({ success: true, message: 'Account and associated data removed.' });
+    const { id: userId, storeId } = req.session.user;
+    const result = await initiateSoftDelete(userId, storeId, () => req.session.destroy(() => {}));
+    if (result.blocked) return res.status(400).json({ error: result.message });
+    res.json({
+      success: true,
+      message: result.alreadyPending
+        ? 'Your account is already scheduled for deletion.'
+        : 'Your account is scheduled for deletion in 24 hours. You can cancel this from the login page.'
     });
   } catch (err) {
     console.error('[AUTH] Account deletion error:', err);
-    res.status(500).json({ error: 'Failed to delete account' });
+    res.status(500).json({ error: 'Failed to initiate account deletion' });
   }
 });
 
-// JWT-based account deletion (called from frontend with Bearer token)
+// JWT-based deletion (called from API gateway frontend)
 router.delete('/account-jwt', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -92,24 +147,79 @@ router.delete('/account-jwt', async (req, res) => {
     }
     const jwt = require('jsonwebtoken');
     const decoded = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET);
-    const userId = decoded.sub;
-    console.log(`[AUTH] Deleting account (JWT): ${userId}`);
-    const userDoc = await User.findByIdAndDelete(userId);
-    if (!userDoc) return res.status(404).json({ error: 'User not found' });
-    
-    bus.emit('user.deleted', {
-      userId,
-      storeId: userDoc.storeId?.toString()
+    const userId  = decoded.sub;
+    const storeId = decoded.storeId;
+    if (!storeId) return res.status(400).json({ error: 'Unable to resolve store for this account.' });
+
+    const result = await initiateSoftDelete(userId, storeId, () => {});
+    if (result.blocked) return res.status(400).json({ error: result.message });
+    res.json({
+      success: true,
+      message: result.alreadyPending
+        ? 'Your account is already scheduled for deletion.'
+        : 'Your account is scheduled for deletion in 24 hours. You can cancel this from your account settings.'
     });
-    res.json({ success: true, message: 'Account and associated data removed.' });
   } catch (err) {
     console.error('[AUTH] JWT account deletion error:', err);
-    res.status(500).json({ error: 'Failed to delete account' });
+    res.status(500).json({ error: 'Failed to initiate account deletion' });
   }
 });
 
+// ── Cancel pending deletion ───────────────────────────────────────────────────
 
-// JWT-based password change
+router.post('/account/cancel-deletion', async (req, res) => {
+  try {
+    // Accepts session auth or password re-authentication
+    let userId;
+    if (req.session?.user) {
+      userId = req.session.user.id;
+    } else {
+      // Password re-auth for users whose session was destroyed on deletion initiation
+      const { email, password } = req.body;
+      if (!email || !password) return res.status(401).json({ error: 'Credentials required' });
+      const user = await User.validatePassword(email, password);
+      if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+      userId = user._id.toString();
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.status !== 'pending_deletion') {
+      return res.status(400).json({ error: 'No pending deletion found for this account.' });
+    }
+
+    user.status = 'active';
+    user.pendingDeletionSince = undefined;
+    await user.save();
+
+    bus.emit('user.deletion_cancelled', {
+      userId:  userId.toString(),
+      storeId: user.storeId.toString()
+    });
+
+    res.json({ success: true, message: 'Account deletion cancelled. Your account is restored.' });
+  } catch (err) {
+    console.error('[AUTH] cancel-deletion error:', err);
+    res.status(500).json({ error: 'Failed to cancel deletion' });
+  }
+});
+
+// ── Hard-delete cascade listener (admin-initiated) ───────────────────────────
+// Auth-service owns its own record. When Super hard-deletes via admin proxy,
+// user.deleted fires with hardDelete: true — this cleans up the auth record.
+bus.on('user.deleted', async (payload) => {
+  if (!payload.hardDelete) return;
+  try {
+    await User.deleteOne({ _id: payload.userId });
+    await RefreshToken.deleteMany({ userId: payload.userId });
+    console.log(`[AUTH] Hard-deleted auth record for userId ${payload.userId}`);
+  } catch (err) {
+    console.error('[AUTH] user.deleted hard-delete cleanup error:', err.message);
+  }
+});
+
+// ── JWT-based password change ─────────────────────────────────────────────────
+
 router.put('/change-password', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -143,6 +253,7 @@ router.get('/', (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   res.send(`
     <h1>Welcome ${req.session.user.email} (${req.session.user.role})</h1>
+    ${req.session.user.pendingDeletion ? '<p style="color:red">Your account is scheduled for deletion in 24 hours. <a href="/account/cancel-deletion">Cancel deletion</a></p>' : ''}
     <form method="POST" action="/logout"><button type="submit">Logout</button></form>
   `);
 });

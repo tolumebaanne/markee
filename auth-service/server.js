@@ -41,3 +41,8 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Authorization Server running on http://localhost:${PORT}`);
 });
+
+// Scheduled job: finalise pending deletions every hour
+const { processDeletions } = require('./jobs/processDeletions');
+setInterval(processDeletions, 60 * 60 * 1000);
+processDeletions(); // run once on startup to catch any that elapsed while server was down

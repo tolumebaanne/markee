@@ -109,6 +109,18 @@ router.post('/orders/:id/cancel',
   }
 );
 
+router.delete('/orders/:id',
+  (req, res, next) => {
+    if (!req.admin.isSuperuser) return errorResponse(res, 403, 'Superuser only');
+    next();
+  },
+  auditLog('order.delete', 'Order'),
+  async (req, res) => {
+    const r = await callServiceAsAdmin('DELETE', `${orderUrl()}/admin/orders/${req.params.id}`, null, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
 // ── Payments ──────────────────────────────────────────────────────────────────
 const paymentUrl = () => process.env.PAYMENT_SERVICE_URL || 'http://localhost:5004';
 
@@ -364,6 +376,22 @@ router.post('/inventory/:productId/freeze',
 // ── Users ──────────────────────────────────────────────────────────────────────
 const userUrl = () => process.env.USER_SERVICE_URL || 'http://localhost:5001';
 
+router.get('/users/lookup', requirePermission('orders', 'read'), async (req, res) => {
+  const qs = new URLSearchParams(req.query).toString();
+  const r = await callServiceAsAdmin('GET', `${userUrl()}/admin/users/lookup?${qs}`, null, req.admin.email);
+  res.status(r.status).json(r.data);
+});
+
+// Superuser only — list soft-deleted accounts
+router.get('/users/deleted', (req, res, next) => {
+  if (!req.admin.isSuperuser) return errorResponse(res, 403, 'Superuser only');
+  next();
+}, async (req, res) => {
+  const qs = new URLSearchParams(req.query).toString();
+  const r = await callServiceAsAdmin('GET', `${userUrl()}/admin/users/deleted?${qs}`, null, req.admin.email);
+  res.status(r.status).json(r.data);
+});
+
 router.get('/users', requirePermission('auth', 'read'), async (req, res) => {
   const qs = new URLSearchParams(req.query).toString();
   const r = await callServiceAsAdmin('GET', `${userUrl()}/admin/users?${qs}`, null, req.admin.email);
@@ -390,10 +418,38 @@ router.patch('/users/:userId/role', requirePermission('auth', 'write'), auditLog
   res.status(r.status).json(r.data);
 });
 
-router.delete('/users/:userId', requirePermission('auth', 'ban'), auditLog('user.delete', 'User'), async (req, res) => {
-  const r = await callServiceAsAdmin('DELETE', `${userUrl()}/admin/users/${req.params.userId}`, req.body, req.admin.email);
-  res.status(r.status).json(r.data);
-});
+// Hard-delete — superuser only, pre-condition gates enforced before forwarding
+router.delete('/users/:userId',
+  (req, res, next) => {
+    if (!req.admin.isSuperuser) return errorResponse(res, 403, 'Superuser only');
+    next();
+  },
+  auditLog('user.hardDelete', 'User'),
+  async (req, res) => {
+    const uid = req.params.userId;
+
+    // Gate 1: block if user has active/held escrows
+    const escrowCheck = await callServiceAsAdmin('GET', `${paymentUrl()}/admin/escrows/active-check?userId=${uid}`, null, req.admin.email);
+    if (!escrowCheck.ok) return errorResponse(res, 502, 'Could not verify escrow state — delete blocked for safety');
+    if (escrowCheck.data?.hasActive) {
+      return errorResponse(res, 400, `User has ${escrowCheck.data.count} active escrow(s). Resolve all financial obligations before deleting.`);
+    }
+
+    // Gate 2: block if user has open seller orders — look up storeId from profile first
+    const profileLookup = await callServiceAsAdmin('GET', `${userUrl()}/admin/users/lookup?ids=${uid}`, null, req.admin.email);
+    const storeId = profileLookup.data?.[uid]?.storeId;
+    if (storeId) {
+      const orderCheck = await callServiceAsAdmin('GET', `${orderUrl()}/seller-orders-check?storeId=${storeId}`, null, req.admin.email);
+      if (!orderCheck.ok) return errorResponse(res, 502, 'Could not verify seller orders — delete blocked for safety');
+      if (orderCheck.data?.hasOpen) {
+        return errorResponse(res, 400, `User has ${orderCheck.data.count} open seller order(s). Resolve them before deleting.`);
+      }
+    }
+
+    const r = await callServiceAsAdmin('DELETE', `${userUrl()}/admin/users/${uid}`, req.body, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
 
 // ── Shipping ──────────────────────────────────────────────────────────────────
 const shipUrl = () => process.env.SHIPPING_SERVICE_URL || 'http://localhost:5007';

@@ -35,6 +35,7 @@ const AddressSchema = new mongoose.Schema({
 
 const ProfileSchema = new mongoose.Schema({
     userId:      { type: mongoose.Schema.Types.ObjectId, required: true, unique: true },
+    storeId:     { type: mongoose.Schema.Types.ObjectId }, // populated from user.registered; required for hard-delete payload
     displayName: { type: String, default: '' },
     phone:       { type: String, default: '' },
     avatarUrl:   { type: String, default: '' },
@@ -65,7 +66,13 @@ const ProfileSchema = new mongoose.Schema({
     reviewsWritten: { type: Number, default: 0 },
 
     createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now }
+    updatedAt: { type: Date, default: Date.now },
+
+    // Soft-delete fields — populated by user.self_deleted event
+    softDeleted:    { type: Boolean, default: false },
+    pendingDeletion: { type: Boolean, default: false },
+    deletedAt:      { type: Date },
+    originalEmail:  { type: String }, // stored in DB only, never emitted or returned to non-super callers
 });
 
 // No explicit index needed, unique: true on the field suffices.
@@ -83,6 +90,7 @@ bus.on('user.registered', async (payload) => {
         if (existing) return; // idempotent
         await Profile.create({
             userId:      payload.userId,
+            storeId:     payload.storeId || null, // storeId now included in registration event
             displayName: payload.displayName || '',
             phone:       payload.phone       || ''
         });
@@ -95,6 +103,30 @@ bus.on('user.deleted', async (payload) => {
         const result = await Profile.deleteOne({ userId: payload.userId });
         console.log(`[USER] Deleted ${result.deletedCount} profile(s) for userId ${payload.userId}`);
     } catch (err) { console.error('[USER] user.deleted cleanup error:', err.message); }
+});
+
+bus.on('user.self_deleted', async (payload) => {
+    try {
+        await Profile.findOneAndUpdate(
+            { userId: payload.userId },
+            { softDeleted: true, pendingDeletion: false, deletedAt: payload.deletedAt, originalEmail: payload.originalEmail || '' }
+        );
+        console.log(`[USER] Marked profile as soft-deleted for userId ${payload.userId}`);
+    } catch (err) { console.error('[USER] user.self_deleted error:', err.message); }
+});
+
+bus.on('user.pending_deletion', async (payload) => {
+    try {
+        await Profile.findOneAndUpdate({ userId: payload.userId }, { pendingDeletion: true });
+        console.log(`[USER] Marked profile as pending deletion for userId ${payload.userId}`);
+    } catch (err) { console.error('[USER] user.pending_deletion error:', err.message); }
+});
+
+bus.on('user.deletion_cancelled', async (payload) => {
+    try {
+        await Profile.findOneAndUpdate({ userId: payload.userId }, { pendingDeletion: false });
+        console.log(`[USER] Cleared pending deletion for userId ${payload.userId}`);
+    } catch (err) { console.error('[USER] user.deletion_cancelled error:', err.message); }
 });
 
 // A.8 — Increment buyerScore and reviewsWritten on each submitted review
@@ -323,6 +355,41 @@ app.get('/users/:userId', async (req, res) => {
 
 // ── ADMIN ROUTES ──────────────────────────────────────────────────────────────
 
+// GET /admin/users/lookup?ids=id1,id2,... — resolve userIds to display names (for order enrichment)
+// MUST be declared before /admin/users/:userId to avoid param capture
+app.get('/admin/users/lookup', async (req, res) => {
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
+    try {
+        const ids = (req.query.ids || '').split(',').filter(Boolean);
+        if (!ids.length) return res.json({});
+        const profiles = await Profile.find(
+            { userId: { $in: ids } },
+            { userId: 1, displayName: 1, storeId: 1 }
+        ).lean();
+        const map = {};
+        for (const p of profiles) map[p.userId.toString()] = { displayName: p.displayName || '', storeId: p.storeId?.toString() || '' };
+        res.json(map);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// GET /admin/users/deleted — list soft-deleted accounts (superuser only via proxy)
+// MUST be declared before /admin/users/:userId to avoid param capture
+app.get('/admin/users/deleted', async (req, res) => {
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
+    try {
+        const { page = 1, limit = 50 } = req.query;
+        const skip  = (parseInt(page) - 1) * parseInt(limit);
+        const total = await Profile.countDocuments({ softDeleted: true });
+        const users = await Profile.find({ softDeleted: true })
+            .sort({ deletedAt: -1 })
+            .skip(skip)
+            .limit(parseInt(limit))
+            .select('userId storeId displayName originalEmail deletedAt')
+            .lean();
+        res.json({ users, total, page: parseInt(page) });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
 // GET /admin/users — list all profiles with optional filters (role, status, page, limit)
 // Note: role and status are claims stored on the JWT / auth layer, not on the Profile document.
 // We query Profile documents here and support page/limit pagination.
@@ -414,15 +481,32 @@ app.patch('/admin/users/:userId/role', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// DELETE /admin/users/:userId — emit cascade event (does NOT delete from DB)
+// DELETE /admin/users/:userId — hard delete: fetch storeId, emit full cascade, then delete profile
 // Body: { reason }
 app.delete('/admin/users/:userId', async (req, res) => {
-    if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const profile = await Profile.findOne({ userId: req.params.userId });
         if (!profile) return errorResponse(res, 404, 'Profile not found');
-        bus.emit('user.deleted', { userId: req.params.userId, reason: req.body.reason || null, adminAction: true });
-        res.json({ userId: req.params.userId, queued: true });
+
+        // storeId is critical for cascade — catalog, inventory, search all need it
+        const storeId = profile.storeId?.toString();
+        if (!storeId) {
+            console.warn(`[USER] Hard-delete for userId ${req.params.userId} has no storeId — cascade may be incomplete`);
+        }
+
+        bus.emit('user.deleted', {
+            userId:      req.params.userId,
+            storeId:     storeId || null,
+            reason:      req.body.reason || null,
+            adminAction: true,
+            hardDelete:  true
+        });
+
+        // Delete the profile itself
+        await Profile.deleteOne({ userId: req.params.userId });
+
+        res.json({ userId: req.params.userId, deleted: true });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 

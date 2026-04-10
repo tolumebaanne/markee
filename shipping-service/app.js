@@ -57,6 +57,21 @@ ShipmentSchema.index({ status: 1, updatedAt: -1 });
 
 const Shipment = db.model('Shipment', ShipmentSchema);
 
+// ── Event listeners ────────────────────────────────────────────────────────────
+
+// Two-phase delete: order-service emits this after anonymizing buyer orders.
+// We delete shipments for those specific orders rather than listening to user.deleted directly —
+// this eliminates the race where shipping-service might act before order-service finishes.
+bus.on('user.orders_anonymized', async (payload) => {
+    try {
+        const { userId, orderIds } = payload;
+        if (!orderIds?.length) return;
+        const objectIds = orderIds.map(id => new mongoose.Types.ObjectId(id));
+        const result = await Shipment.deleteMany({ orderId: { $in: objectIds } });
+        console.log(`[SHIPPING] Deleted ${result.deletedCount} shipment(s) for anonymized orders of user ${userId}`);
+    } catch (err) { console.error('[SHIPPING] user.orders_anonymized cleanup error:', err.message); }
+});
+
 // ── Carrier auto-detection (C1) ───────────────────────────────────────────────
 // Heuristic only — seller-provided carrier always wins if supplied.
 function detectCarrier(trackingNumber) {

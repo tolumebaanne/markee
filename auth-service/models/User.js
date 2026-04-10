@@ -10,7 +10,15 @@ const UserSchema = new mongoose.Schema({
   storeId:      { type: mongoose.Schema.Types.ObjectId, required: true, index: true }, // every user gets one at registration
   displayName:  { type: String, default: '' },
   phone:        { type: String, default: '' },
-  createdAt:    { type: Date, default: Date.now }
+  createdAt:    { type: Date, default: Date.now },
+
+  // Soft-delete lifecycle
+  // 'pending_deletion' — user requested deletion, 24h cooldown window active, access revoked immediately
+  // 'deleted'          — cooldown elapsed, email mangled, account fully soft-deleted, only Super can see it
+  status:               { type: String, enum: ['active', 'pending_deletion', 'deleted'], default: 'active' },
+  pendingDeletionSince: { type: Date },   // set when status → pending_deletion; used by scheduled job
+  deletedAt:            { type: Date },   // set when status → deleted
+  originalEmail:        { type: String }, // stores the real email after mangling; never emitted on event bus
 });
 
 UserSchema.statics.validatePassword = async function(email, password) {

@@ -88,7 +88,9 @@ const ProductSchema = new mongoose.Schema({
     rejectionReason: { type: String, default: '' },
     rejectionCount:  { type: Number, default: 0 },
     // Q&A — answered questions visible publicly; open questions visible to seller (S1/S12)
-    questions: [QuestionSchema]
+    questions: [QuestionSchema],
+    // Internal flag: product was paused because seller initiated account deletion (not a manual pause)
+    _pausedForDeletion: { type: Boolean, default: false }
 });
 ProductSchema.index({ title: 'text', description: 'text' });
 ProductSchema.index({ category: 1, subcategory: 1 });         // S10 — subcategory filter
@@ -183,6 +185,32 @@ bus.on('user.deleted', async (payload) => {
         const result = await Product.deleteMany({ sellerId: deleteId });
         console.log(`[CATALOG] Removed ${result.deletedCount} products for seller ${deleteId}`);
     } catch (err) { console.error('[CATALOG] user.deleted cleanup error:', err.message); }
+});
+
+// Hide all seller's products immediately when self-deletion is initiated
+bus.on('user.pending_deletion', async (payload) => {
+    try {
+        const storeId = payload.storeId;
+        if (!storeId) return;
+        const result = await Product.updateMany(
+            { sellerId: storeId, status: 'active' },
+            { status: 'paused', _pausedForDeletion: true }
+        );
+        console.log(`[CATALOG] Paused ${result.modifiedCount} products for pending deletion: storeId=${storeId}`);
+    } catch (err) { console.error('[CATALOG] user.pending_deletion hide error:', err.message); }
+});
+
+// Restore hidden products if user cancels deletion within the 24h cooldown
+bus.on('user.deletion_cancelled', async (payload) => {
+    try {
+        const storeId = payload.storeId;
+        if (!storeId) return;
+        const result = await Product.updateMany(
+            { sellerId: storeId, status: 'paused', _pausedForDeletion: true },
+            { status: 'active', _pausedForDeletion: false }
+        );
+        console.log(`[CATALOG] Restored ${result.modifiedCount} products after deletion cancelled: storeId=${storeId}`);
+    } catch (err) { console.error('[CATALOG] user.deletion_cancelled restore error:', err.message); }
 });
 
 bus.on('review.approved', async (payload) => {

@@ -79,6 +79,18 @@ bus.on('message.seller_response', (payload) => {
     }
 });
 
+// Scrub userId/buyerId PII from Metric records on hard-delete — aggregate counts are preserved
+bus.on('user.deleted', async (payload) => {
+    try {
+        const uid = payload.userId;
+        const [r1, r2] = await Promise.all([
+            Metric.updateMany({ 'data.userId':  uid }, { $set: { 'data.userId':  null } }),
+            Metric.updateMany({ 'data.buyerId': uid }, { $set: { 'data.buyerId': null } })
+        ]);
+        console.log(`[ANALYTICS] Scrubbed PII from ${r1.modifiedCount + r2.modifiedCount} metric record(s) for user ${uid}`);
+    } catch (err) { console.error('[ANALYTICS] user.deleted PII scrub error:', err.message); }
+});
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 // Summary dashboard — scoped to seller or all if admin

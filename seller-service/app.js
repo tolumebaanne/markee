@@ -86,8 +86,9 @@ const StoreSchema = new mongoose.Schema({
     totalSales:  { type: Number, default: 0 },
     totalOrders: { type: Number, default: 0 },
 
-    active:     { type: Boolean, default: true },
-    lastActive: { type: Date, default: Date.now },
+    active:       { type: Boolean, default: true },
+    pausedReason: { type: String, default: '' },
+    lastActive:   { type: Date, default: Date.now },
 
     sellerAvgRating:   { type: Number, default: 0 },
     sellerReviewCount: { type: Number, default: 0 },
@@ -195,6 +196,30 @@ bus.on('user.deleted', async (payload) => {
         const result = await Store.deleteMany({ sellerId: payload.userId });
         console.log(`[SELLER] Removed ${result.deletedCount} store records for seller ${payload.userId}`);
     } catch (err) { console.error('[SELLER] user.deleted cleanup error:', err.message); }
+});
+
+// Pause store immediately when user initiates self-deletion
+bus.on('user.pending_deletion', async (payload) => {
+    try {
+        const store = await Store.findOneAndUpdate(
+            { sellerId: payload.userId },
+            { active: false, pausedReason: 'account_pending_deletion' },
+            { new: true }
+        );
+        if (store) console.log(`[SELLER] Store paused for pending deletion: sellerId=${payload.userId}`);
+    } catch (err) { console.error('[SELLER] user.pending_deletion pause error:', err.message); }
+});
+
+// Restore store if user cancels deletion within the 24h cooldown
+bus.on('user.deletion_cancelled', async (payload) => {
+    try {
+        const store = await Store.findOneAndUpdate(
+            { sellerId: payload.userId, pausedReason: 'account_pending_deletion' },
+            { active: true, pausedReason: '' },
+            { new: true }
+        );
+        if (store) console.log(`[SELLER] Store restored after deletion cancelled: sellerId=${payload.userId}`);
+    } catch (err) { console.error('[SELLER] user.deletion_cancelled restore error:', err.message); }
 });
 
 bus.on('payment.captured', async (payload) => {

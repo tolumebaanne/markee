@@ -967,6 +967,18 @@ bus.on('order.modified', async (payload) => {
     } catch (err) { console.error('[NOTIFY] order.modified handler error:', err.message); }
 });
 
+// Scrub PII from notification records on hard-delete — records are kept for audit, userId/recipient cleared
+bus.on('user.deleted', async (payload) => {
+    try {
+        const uid = payload.userId;
+        const result = await Notification.updateMany(
+            { userId: new mongoose.Types.ObjectId(uid) },
+            { $set: { userId: null, recipient: '__deleted__' } }
+        );
+        console.log(`[NOTIFY] Scrubbed PII from ${result.modifiedCount} notification record(s) for user ${uid}`);
+    } catch (err) { console.error('[NOTIFY] user.deleted PII scrub error:', err.message); }
+});
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 app.get('/logs', async (req, res) => {

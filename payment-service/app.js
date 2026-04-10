@@ -279,6 +279,19 @@ bus.on('order.inventory_failed', async (payload) => {
     } catch (err) { console.error('[PAYMENT] order.inventory_failed error:', err.message); }
 });
 
+// Anonymize settled escrow buyerIds on hard-delete — financial records are preserved, PII scrubbed
+bus.on('user.deleted', async (payload) => {
+    try {
+        const uid = payload.userId;
+        const SENTINEL = new mongoose.Types.ObjectId('000000000000000000000000');
+        const result = await Escrow.updateMany(
+            { buyerId: uid, status: { $in: ['released', 'refunded', 'cod_pending'] } },
+            { $set: { buyerId: SENTINEL } }
+        );
+        console.log(`[PAYMENT] Anonymized buyerId on ${result.modifiedCount} settled escrow(s) for user ${uid}`);
+    } catch (err) { console.error('[PAYMENT] user.deleted anonymization error:', err.message); }
+});
+
 // ── S8 — Dispute window sweep + COD expiry ────────────────────────────────────
 // Two queries per run:
 //   1. Auto-release: held escrowed orders past their dispute window with no active hold
@@ -715,6 +728,20 @@ app.post('/admin/escrows/:orderId/force-release', async (req, res) => {
 });
 
 // S17 — GET /admin/escrows — paginated, filterable escrow list (C5)
+// Internal: check if a user has active (held/disputed) escrows — used by admin proxy before hard-delete
+// No standard auth required — called service-to-service with x-admin-email header
+app.get('/admin/escrows/active-check', async (req, res) => {
+    try {
+        const { userId } = req.query;
+        if (!userId) return errorResponse(res, 400, 'userId required');
+        const count = await Escrow.countDocuments({
+            buyerId: new mongoose.Types.ObjectId(userId),
+            status:  { $in: ['held', 'disputed'] }
+        });
+        res.json({ hasActive: count > 0, count });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
 app.get('/admin/escrows', async (req, res) => {
     try {
         if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');

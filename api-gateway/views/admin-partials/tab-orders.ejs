@@ -32,7 +32,7 @@
       <thead>
         <tr>
           <th>Order ID</th>
-          <th>Buyer ID</th>
+          <th>Buyer</th>
           <th>Items</th>
           <th>Total</th>
           <th>Method</th>
@@ -89,10 +89,24 @@ async function loadOrders(page) {
       document.getElementById('orders-pagination').innerHTML = '';
       return;
     }
-    tbody.innerHTML = orders.map(o => `
+
+    // Enrich buyer IDs with display names
+    const buyerIds = [...new Set(orders.map(o => o.buyerId).filter(Boolean))];
+    let buyerNames = {};
+    try {
+      buyerNames = await adminApi('GET', `/proxy/users/lookup?ids=${buyerIds.join(',')}`);
+    } catch (_) {}
+
+    tbody.innerHTML = orders.map(o => {
+      const info = buyerNames[o.buyerId];
+      const name = info?.displayName || info; // handle both object and legacy string shape
+      const buyerCell = name
+        ? `<span style="font-weight:600">${name}</span><br><span style="font-family:monospace;font-size:.68rem;color:var(--muted)">${trunc(o.buyerId,12)}</span>`
+        : `<span style="font-family:monospace;font-size:.75rem">${trunc(o.buyerId,16)}</span>`;
+      return `
       <tr>
         <td style="font-family:monospace;font-size:.75rem">${trunc(o._id,18)}</td>
-        <td style="font-family:monospace;font-size:.75rem">${trunc(o.buyerId,16)}</td>
+        <td>${buyerCell}</td>
         <td>${(o.items||[]).length}</td>
         <td>${fmt$(o.totalAmount)}</td>
         <td><span style="background:${o.paymentMethod==='escrow'?'#6366f1':'#64748b'};color:#fff;padding:2px 7px;border-radius:9999px;font-size:.7rem;text-transform:uppercase">${o.paymentMethod||'—'}</span></td>
@@ -102,8 +116,10 @@ async function loadOrders(page) {
           <button class="btn btn-xs btn-info" onclick="viewOrder('${o._id}')"><i class="fas fa-eye"></i></button>
           <button class="btn btn-xs btn-warn" onclick="forceOrderStatus('${o._id}')"><i class="fas fa-wrench"></i></button>
           <button class="btn btn-xs btn-danger" onclick="cancelOrder('${o._id}')"><i class="fas fa-ban"></i></button>
+          ${window._isSuperuser ? `<button class="btn btn-xs btn-danger" onclick="deleteOrder('${o._id}')" title="Hard delete"><i class="fas fa-trash"></i></button>` : ''}
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
     const totalPages = Math.ceil(_ordTotal / _ordLimit);
     const start = (_ordPage - 1) * _ordLimit + 1;
     const end = Math.min(_ordPage * _ordLimit, _ordTotal);
@@ -193,6 +209,17 @@ async function cancelOrder(id) {
   try {
     await adminApi('POST', `/proxy/orders/${id}/cancel`, {reason});
     toast('Order cancelled', 'warn');
+    loadOrders(_ordPage);
+    closeModal('ordDetailModal');
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function deleteOrder(id) {
+  const {confirmed} = await showConfirm({title:'Hard Delete Order?', body:'Permanently removes this order from the database. This cannot be undone.', danger:true});
+  if (!confirmed) return;
+  try {
+    await adminApi('DELETE', `/proxy/orders/${id}`);
+    toast('Order permanently deleted.', 'warn');
     loadOrders(_ordPage);
     closeModal('ordDetailModal');
   } catch(err) { toast('Error: ' + err.message, 'error'); }

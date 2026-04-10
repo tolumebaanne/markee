@@ -109,6 +109,9 @@ const MessageSchema = new mongoose.Schema({
     // Reactions (C4)
     reactions: [{ userId: mongoose.Schema.Types.ObjectId, emoji: String }],
 
+    // Set when sender is anonymized on hard-delete — senderId becomes null
+    _senderDeleted: { type: Boolean, default: false },
+
     createdAt: { type: Date, default: Date.now }
 });
 
@@ -854,12 +857,45 @@ app.get('/thread', async (req, res) => {
 // user.deleted → purge messages + threads (S32 / existing)
 bus.on('user.deleted', async (payload) => {
     try {
-        const result = await Message.deleteMany({
-            $or: [{ senderId: payload.userId }, { recipientId: payload.userId }]
-        });
         const uid = new mongoose.Types.ObjectId(payload.userId);
-        await Thread.deleteMany({ participants: uid });
-        console.log(`[MSG] Removed ${result.deletedCount} messages + threads for user ${payload.userId}`);
+        const uidStr = payload.userId;
+
+        // 1. Find order-context threads involving this user — keep as business records but anonymize
+        const orderThreads = await Thread.find({
+            participants: uid,
+            'context.type': 'order'
+        }).select('_id');
+        const orderThreadIds = orderThreads.map(t => t._id);
+
+        // Anonymize messages in order threads (replace sender/recipientId with null sentinel)
+        if (orderThreadIds.length) {
+            await Message.updateMany(
+                { threadId: { $in: orderThreadIds }, senderId: uidStr },
+                { $set: { senderId: null, _senderDeleted: true } }
+            );
+            // Remove user from participantMeta but keep the thread intact
+            await Thread.updateMany(
+                { _id: { $in: orderThreadIds } },
+                {
+                    $pull:  { participants: uid, pinnedBy: uid, archivedBy: uid, participantMeta: { userId: uid } },
+                    $unset: { [`lastReadAt.${uidStr}`]: '', [`unreadCounts.${uidStr}`]: '' }
+                }
+            );
+        }
+
+        // 2. Find non-order threads (general, product) — delete entirely
+        const generalThreads = await Thread.find({
+            participants: uid,
+            'context.type': { $ne: 'order' }
+        }).select('_id');
+        const generalThreadIds = generalThreads.map(t => t._id);
+
+        if (generalThreadIds.length) {
+            await Message.deleteMany({ threadId: { $in: generalThreadIds } });
+            await Thread.deleteMany({ _id: { $in: generalThreadIds } });
+        }
+
+        console.log(`[MSG] user.deleted cleanup: anonymized ${orderThreadIds.length} order threads, deleted ${generalThreadIds.length} general threads for user ${uidStr}`);
     } catch (err) { console.error('[MSG] user.deleted cleanup error:', err.message); }
 });
 

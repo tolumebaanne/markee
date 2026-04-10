@@ -1,9 +1,11 @@
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const mongoose = require('mongoose');
 
 async function seed() {
+    const uri = process.env.MONGODB_URI;
+    if (!uri) { console.error('MONGODB_URI not set'); process.exit(1); }
     try {
-        // Connect to the catalog database
-        await mongoose.connect('mongodb+srv://mebaannet_db_user:Kwq0CH4duiEJpQkq@miniprojectcluster.7lc6ccn.mongodb.net/mvp_catalog?appName=MiniProjectCluster');
+        await mongoose.connect(uri);
         
         const ProductSchema = new mongoose.Schema({
             sellerId: mongoose.Schema.Types.ObjectId,

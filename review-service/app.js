@@ -184,8 +184,14 @@ bus.on('payment.collected',        payload => unlockDelivery(payload, 'payment.c
 
 bus.on('user.deleted', async (payload) => {
     try {
-        const result = await Review.deleteMany({ buyerId: payload.userId });
-        console.log(`[REVIEW] Removed ${result.deletedCount} reviews for user ${payload.userId}`);
+        const uid = payload.userId;
+        // Product reviews left by the buyer
+        const r1 = await Review.deleteMany({ buyerId: uid });
+        // Seller reviews (buyer-as-reviewer and any where this user was the seller)
+        const r2 = await SellerReview.deleteMany({ $or: [{ buyerId: uid }, { sellerId: uid }] });
+        // Review nudge records for this buyer
+        const r3 = await Nudge.deleteMany({ buyerId: uid });
+        console.log(`[REVIEW] user.deleted cleanup: ${r1.deletedCount} reviews, ${r2.deletedCount} seller-reviews, ${r3.deletedCount} nudges for user ${uid}`);
     } catch (err) { console.error('[REVIEW] user.deleted cleanup error:', err.message); }
 });
 

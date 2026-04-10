@@ -202,7 +202,51 @@ bus.on('payment.cod_rejected', async (payload) => {
     } catch (err) { console.error('[ORDER] payment.cod_rejected error:', err.message); }
 });
 
+// Anonymize buyer orders on hard-delete — orders are business records and must be preserved.
+// After anonymizing, emit user.orders_anonymized so shipping-service knows which shipments to purge.
+bus.on('user.deleted', async (payload) => {
+    try {
+        const uid = payload.userId;
+        const SENTINEL = new mongoose.Types.ObjectId('000000000000000000000000');
+
+        const orders = await Order.find({ buyerId: uid }).select('_id');
+        const orderIds = orders.map(o => o._id.toString());
+
+        if (orderIds.length) {
+            await Order.updateMany(
+                { buyerId: uid },
+                {
+                    $set: {
+                        buyerId:          SENTINEL,
+                        shippingAddress:  {},
+                        billingAddress:   {},
+                        buyerNote:        ''
+                    }
+                }
+            );
+            console.log(`[ORDER] Anonymized ${orderIds.length} orders for deleted user ${uid}`);
+        }
+
+        // Two-phase signal: shipping-service listens to this, not user.deleted
+        bus.emit('user.orders_anonymized', { userId: uid, orderIds });
+    } catch (err) { console.error('[ORDER] user.deleted anonymization error:', err.message); }
+});
+
 // ── Routes ───────────────────────────────────────────────────────────────────
+
+// Internal: check if a store has open seller orders — used by auth-service before allowing self-deletion
+// and by admin proxy before allowing hard-delete. No auth required (internal service-to-service call).
+app.get('/seller-orders-check', async (req, res) => {
+    try {
+        const { storeId } = req.query;
+        if (!storeId) return errorResponse(res, 400, 'storeId required');
+        const count = await Order.countDocuments({
+            'items.sellerId': new mongoose.Types.ObjectId(storeId),
+            status: { $in: ['pending', 'paid', 'processing', 'shipped', 'ready_for_pickup'] }
+        });
+        res.json({ hasOpen: count > 0, count });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
 
 // S23 — Admin order list — declared BEFORE /:id to avoid param capture
 app.get('/admin/orders', async (req, res) => {
@@ -247,6 +291,17 @@ app.post('/admin/orders/:id/cancel', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
+// DELETE /admin/orders/:id — superuser hard-delete
+app.delete('/admin/orders/:id', async (req, res) => {
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
+    try {
+        const order = await Order.findByIdAndDelete(req.params.id);
+        if (!order) return errorResponse(res, 404, 'Order not found');
+        bus.emit('order.deleted', { orderId: order._id, adminEmail: req.headers['x-admin-email'] });
+        res.json({ message: 'Order deleted', orderId: order._id });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
 // POST /admin/orders/:id/status — admin force any status
 app.post('/admin/orders/:id/status', async (req, res) => {
     try {
@@ -265,6 +320,11 @@ app.post('/admin/orders/:id/status', async (req, res) => {
 
 app.post('/', async (req, res) => {
     try {
+        // Block order placement for users who have initiated account deletion
+        if (req.user?.pendingDeletion) {
+            return errorResponse(res, 403, 'Account deletion is pending. New orders cannot be placed during the 24-hour cancellation window.');
+        }
+
         const { items, shippingAddress, billingAddress, deliverySpeed, deliveryFee, totalAmount } = req.body;
         if (!items || !items.length) return errorResponse(res, 400, 'Order must have at least one item');
 
