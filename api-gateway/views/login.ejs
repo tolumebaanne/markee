@@ -24,8 +24,14 @@
             <p class="text-muted">Initiating authorization handshake...</p>
             <script>
                 // Use replace() so navigating 'Back' from the Auth Server doesn't trigger an infinite redirect loop
+                // Pass the ?next= param through the OAuth state so the callback can redirect back to the right page.
                 setTimeout(() => {
-                    window.location.replace("/oauth/authorize?response_type=code&client_id=markee-gateway&redirect_uri=<%- gatewayUrl %>/callback&state=somestate");
+                    const params  = new URLSearchParams(window.location.search);
+                    const nextUrl = params.get('next') || '';
+                    // Validate: only allow relative paths (start with / but not //)
+                    const safeNext = /^\/[^/]/.test(nextUrl) ? nextUrl : '';
+                    const state = encodeURIComponent(JSON.stringify({ nonce: 'markee', next: safeNext }));
+                    window.location.replace("/oauth/authorize?response_type=code&client_id=markee-gateway&redirect_uri=<%- gatewayUrl %>/callback&state=" + state);
                 }, 800);
             </script>
         </div>

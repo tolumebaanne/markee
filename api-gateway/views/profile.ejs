@@ -565,15 +565,22 @@
 <script>
     // ── Auth ──────────────────────────────────────────────────────────────────
     const token = localStorage.getItem('access_token');
-    if (!token) window.location.replace('/login');
+    if (!token) { window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search)); }
 
     function parseJwt(t) {
-        try { return JSON.parse(atob(t.split('.')[1])); }
-        catch { return null; }
+        try {
+            const p = JSON.parse(atob(t.split('.')[1]));
+            if (p.exp && p.exp * 1000 < Date.now()) {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+                return null;
+            }
+            return p;
+        } catch { return null; }
     }
 
     const user = parseJwt(token);
-    if (!user) window.location.replace('/login');
+    if (!user) { window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search)); }
 
     function handleLogout() {
         localStorage.removeItem('access_token');

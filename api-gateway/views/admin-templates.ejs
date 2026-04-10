@@ -125,31 +125,55 @@
 
 <script>
 const ADMIN_API = '/api/admin';
-const token = () => localStorage.getItem('admin_access_token');
+let _adminToken = localStorage.getItem('admin_access_token');
 (function guard() {
-    const t = token();
-    if (!t) { window.location.replace('/admin-login'); return; }
-    try {
-        const payload = JSON.parse(atob(t.split('.')[1]));
-        if (payload.exp && payload.exp * 1000 < Date.now()) {
-            localStorage.removeItem('admin_access_token');
-            localStorage.removeItem('admin_refresh_token');
-            window.location.replace('/admin-login');
-        }
-    } catch { window.location.replace('/admin-login'); }
+    if (!_adminToken) { window.location.replace('/admin-login'); return; }
+    try { JSON.parse(atob(_adminToken.split('.')[1])); }
+    catch { window.location.replace('/admin-login'); }
 })();
 
+let _refreshing = null;
+async function _tryRefreshToken() {
+    if (_refreshing) return _refreshing;
+    _refreshing = (async () => {
+        const rt = localStorage.getItem('admin_refresh_token');
+        if (!rt) return false;
+        try {
+            const r = await fetch('/api/admin/auth/refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh_token: rt })
+            });
+            if (!r.ok) return false;
+            const d = await r.json();
+            _adminToken = d.access_token;
+            localStorage.setItem('admin_access_token', d.access_token);
+            localStorage.setItem('admin_refresh_token', d.refresh_token);
+            return true;
+        } catch { return false; }
+        finally { _refreshing = null; }
+    })();
+    return _refreshing;
+}
+
 async function api(method, path, body) {
-    const res = await fetch(ADMIN_API + path, {
+    try {
+        const p = JSON.parse(atob(_adminToken.split('.')[1]));
+        if (p.exp && (p.exp - Date.now() / 1000) < 60) await _tryRefreshToken();
+    } catch {}
+
+    const doFetch = (tok) => fetch(ADMIN_API + path, {
         method,
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token() },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
         body: body ? JSON.stringify(body) : undefined
     });
+
+    let res = await doFetch(_adminToken);
     if (res.status === 401) {
-        localStorage.removeItem('admin_access_token');
-        localStorage.removeItem('admin_refresh_token');
-        window.location.replace('/admin-login');
-        return;
+        const refreshed = await _tryRefreshToken();
+        if (!refreshed) { window.location.replace('/admin-login'); return; }
+        res = await doFetch(_adminToken);
+        if (res.status === 401) { window.location.replace('/admin-login'); return; }
     }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || 'Request failed');

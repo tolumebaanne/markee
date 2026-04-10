@@ -666,8 +666,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const user = getUser();
     if (!user) {
-        document.getElementById('checkout-main').style.display = 'none';
-        document.getElementById('auth-guard').style.display  = 'block';
+        window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search));
         return;
     }
 

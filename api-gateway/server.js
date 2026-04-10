@@ -266,7 +266,17 @@ app.get('/admin/intelligence',(req, res) => res.render('admin-intelligence'));
 
 // ── OAuth callback ────────────────────────────────────────────────────────────
 app.get('/callback', async (req, res) => {
-    const { code, error } = req.query;
+    const { code, error, state } = req.query;
+
+    // Extract the ?next= URL from the OAuth state param (set by login.ejs)
+    let nextUrl = '/dashboard';
+    try {
+        const stateData = JSON.parse(decodeURIComponent(state || '{}'));
+        // Only accept relative paths that start with / but not // (open redirect guard)
+        if (stateData.next && /^\/[^/]/.test(stateData.next) && stateData.next.length < 200) {
+            nextUrl = stateData.next;
+        }
+    } catch { /* malformed state — use default */ }
     if (error) return res.send(`Access Denied: ${error}`);
     if (!code) return res.redirect('/login');
 
@@ -295,7 +305,8 @@ app.get('/callback', async (req, res) => {
                 // Fold any guest cart items into the now-identified user cart
                 if (window.MarkeeCart) MarkeeCart.migrateGuestCart();
                 const role = JSON.parse(atob('${data.access_token}'.split('.')[1])).role;
-                window.location.replace(role === 'admin' ? '/admin' : '/dashboard');
+                // Redirect admin to /admin; regular users go to ?next= or /dashboard
+                window.location.replace(role === 'admin' ? '/admin' : ${JSON.stringify(nextUrl)});
             </script>
         `);
     } catch (err) {
