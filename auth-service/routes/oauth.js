@@ -76,6 +76,11 @@ router.get('/login', (req, res) => {
   if (req.session?.user) {
     return res.redirect(req.session.returnTo || '/oauth/authorize');
   }
+  // If there's no returnTo set (user landed here directly, not from the OAuth flow),
+  // bounce them to the proper gateway login page which initiates the full flow.
+  if (!req.session?.returnTo) {
+    return res.redirect('/login');
+  }
   res.render('oauth-login', { error: req.query.error || null });
 });
 
