@@ -197,17 +197,24 @@ app.use('/api/search', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost
 
 // ── User profiles (JWT required, users manage own data) ───────────────────────
 
+const userProxy = createProxyMiddleware({
+    target: process.env.USER_SERVICE_URL || 'http://localhost:5013',
+    changeOrigin: true,
+    pathRewrite: { '^/api/users': '/users' },
+    on: { error: (err, req, res) => errorResponse(res, 502, 'User service unreachable') }
+});
+
 app.use('/api/users/watching-store', verifyToken, (req, res, next) => {
     if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin scope required');
     next();
-}, proxy(process.env.USER_SERVICE_URL || 'http://localhost:5013'));
+}, userProxy);
 
 app.use('/api/users/watching', verifyToken, (req, res, next) => {
     if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin scope required');
     next();
-}, proxy(process.env.USER_SERVICE_URL || 'http://localhost:5013'));
+}, userProxy);
 
-app.use('/api/users', verifyToken, proxy(process.env.USER_SERVICE_URL || 'http://localhost:5013'));
+app.use('/api/users', verifyToken, userProxy);
 
 // ── Admin Service ─────────────────────────────────────────────────────────────
 // No verifyToken at gateway — admin service does its own JWT validation
