@@ -494,27 +494,42 @@ app.patch('/admin/users/:userId/role', async (req, res) => {
 app.delete('/admin/users/:userId', async (req, res) => {
     if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
-        const profile = await Profile.findOne({ userId: req.params.userId });
-        if (!profile) return errorResponse(res, 404, 'Profile not found');
+        const uid = req.params.userId;
+        const profile = await Profile.findOne({ userId: uid });
 
-        // storeId is critical for cascade — catalog, inventory, search all need it
-        const storeId = profile.storeId?.toString();
+        // storeId is critical for the seller/catalog/inventory/search cascade.
+        // If no Profile exists (user registered before event wiring), fall back to
+        // auth-service to get the storeId — the delete must still proceed.
+        let storeId = profile?.storeId?.toString() || null;
         if (!storeId) {
-            console.warn(`[USER] Hard-delete for userId ${req.params.userId} has no storeId — cascade may be incomplete`);
+            try {
+                const AUTH_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:5001';
+                const r = await fetch(`${AUTH_URL}/admin/users?search=${uid}`, {
+                    headers: { 'x-admin-email': req.headers['x-admin-email'] }
+                });
+                if (r.ok) {
+                    const data = await r.json();
+                    const match = (data.users || []).find(u => u._id?.toString() === uid);
+                    storeId = match?.storeId?.toString() || null;
+                }
+            } catch { /* fall through — cascade will still clean userId-keyed records */ }
+            if (!storeId) {
+                console.warn(`[USER] Hard-delete for userId ${uid} has no storeId — seller/catalog/inventory cascade will be incomplete`);
+            }
         }
 
         bus.emit('user.deleted', {
-            userId:      req.params.userId,
+            userId:      uid,
             storeId:     storeId || null,
             reason:      req.body.reason || null,
             adminAction: true,
             hardDelete:  true
         });
 
-        // Delete the profile itself
-        await Profile.deleteOne({ userId: req.params.userId });
+        // Delete the profile (may not exist — that's fine)
+        await Profile.deleteOne({ userId: uid });
 
-        res.json({ userId: req.params.userId, deleted: true });
+        res.json({ userId: uid, deleted: true });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 

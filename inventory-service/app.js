@@ -235,7 +235,9 @@ bus.on('user.deleted', async (payload) => {
     try {
         // R-I3 fix: accept storeId OR userId as the seller key
         const result = await Inventory.deleteMany({ sellerId: payload.storeId || payload.userId });
-        console.log(`[INVENTORY] Removed ${result.deletedCount} inventory records for seller`);
+        // Also clean up restock watch requests the user placed as a buyer
+        const rr = await RestockRequest.deleteMany({ userId: payload.userId });
+        console.log(`[INVENTORY] Removed ${result.deletedCount} inventory + ${rr.deletedCount} restock requests for user ${payload.userId}`);
     } catch (err) { console.error('[INVENTORY] user.deleted cleanup error:', err.message); }
 });
 
