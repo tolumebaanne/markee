@@ -100,6 +100,23 @@
         .act-btn.danger:hover { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
         .act-btn.activate:hover { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
 
+        /* ── My Purchases two-column + suggestions layout ──────────────────── */
+        .purchases-top-row {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+        .purchases-col {
+            flex: 1;
+            min-width: 0;
+            overflow-y: auto;
+            max-height: 68vh;
+        }
+        @media (max-width: 768px) {
+            .purchases-top-row { flex-direction: column; }
+            .purchases-col { max-height: unset; }
+        }
+
         /* ── Orders Received two-column layout ─────────────────────────────── */
         .orders-panel-row {
             display: flex;
@@ -884,41 +901,44 @@
 
             <!-- My Purchases panel (always shown, default tab) -->
             <div id="panel-purchases">
-                <!-- Active Purchases card -->
-                <div class="card" style="margin-bottom:1rem;">
-                    <div class="card-header flex-between">
-                        <h4 style="margin:0"><i class="fa fa-shopping-bag" style="margin-right:0.5rem; color:var(--accent-red);"></i>Active Purchases</h4>
-                    </div>
-                    <div id="active-orders-list" class="list-group">
-                        <p class="text-muted p-4">Loading your orders...</p>
-                    </div>
-                </div>
-
-                <!-- Order History card -->
-                <div class="card" style="margin-bottom:1rem;">
-                    <div class="card-header flex-between">
-                        <h4 style="margin:0"><i class="fa fa-history" style="margin-right:0.5rem; color:var(--text-muted);"></i>Order History</h4>
-                        <div class="filter-chip-row">
-                            <button class="filter-chip active" data-range="all" onclick="filterOrderHistory(this)">All</button>
-                            <button class="filter-chip" data-range="7d" onclick="filterOrderHistory(this)">1 week</button>
-                            <button class="filter-chip" data-range="1m" onclick="filterOrderHistory(this)">1 month</button>
-                            <button class="filter-chip" data-range="3m" onclick="filterOrderHistory(this)">3 months</button>
-                            <button class="filter-chip" data-range="range" onclick="filterOrderHistory(this)">Range</button>
+                <!-- Top row: Active (left) + History (right) -->
+                <div class="purchases-top-row">
+                    <!-- Active Purchases card -->
+                    <div class="card purchases-col">
+                        <div class="card-header">
+                            <h4 style="margin:0"><i class="fa fa-shopping-bag" style="margin-right:0.5rem; color:var(--accent-red);"></i>Active Purchases</h4>
+                        </div>
+                        <div id="active-orders-list" class="list-group">
+                            <p class="text-muted p-4">Loading your orders...</p>
                         </div>
                     </div>
-                    <div id="history-date-range" style="display:none; padding:0.6rem 1rem; border-bottom:1px solid var(--border-light); display:none; gap:0.5rem; align-items:center; flex-wrap:wrap;">
-                        <input type="date" id="history-range-start" style="font-size:0.8rem; height:30px;">
-                        <span style="color:var(--text-muted); font-size:0.8rem;">to</span>
-                        <input type="date" id="history-range-end" style="font-size:0.8rem; height:30px;">
-                        <button class="btn" style="width:auto; padding:0.3rem 0.8rem; font-size:0.78rem;" onclick="applyHistoryDateRange()">Apply</button>
-                    </div>
-                    <div id="history-orders-list" class="list-group">
-                        <p class="text-muted p-4">Loading history...</p>
+
+                    <!-- Order History card -->
+                    <div class="card purchases-col">
+                        <div class="card-header" style="flex-direction:column; align-items:flex-start; gap:0.5rem;">
+                            <h4 style="margin:0"><i class="fa fa-history" style="margin-right:0.5rem; color:var(--text-muted);"></i>Order History</h4>
+                            <div class="filter-chip-row">
+                                <button class="filter-chip active" data-range="all" onclick="filterOrderHistory(this)">All</button>
+                                <button class="filter-chip" data-range="7d" onclick="filterOrderHistory(this)">1 week</button>
+                                <button class="filter-chip" data-range="1m" onclick="filterOrderHistory(this)">1 month</button>
+                                <button class="filter-chip" data-range="3m" onclick="filterOrderHistory(this)">3 months</button>
+                                <button class="filter-chip" data-range="range" onclick="filterOrderHistory(this)">Range</button>
+                            </div>
+                        </div>
+                        <div id="history-date-range" style="display:none; padding:0.6rem 1rem; border-bottom:1px solid var(--border-light); gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                            <input type="date" id="history-range-start" style="font-size:0.8rem; height:30px;">
+                            <span style="color:var(--text-muted); font-size:0.8rem;">to</span>
+                            <input type="date" id="history-range-end" style="font-size:0.8rem; height:30px;">
+                            <button class="btn" style="width:auto; padding:0.3rem 0.8rem; font-size:0.78rem;" onclick="applyHistoryDateRange()">Apply</button>
+                        </div>
+                        <div id="history-orders-list" class="list-group">
+                            <p class="text-muted p-4">Loading history...</p>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Suggestions strip -->
-                <div class="card">
+                <!-- Bottom row: Suggestions full width -->
+                <div class="card" style="margin-top:1rem;">
                     <div class="card-header">
                         <h4 style="margin:0; font-size:0.9rem; color:var(--text-muted);"><i class="fa fa-lightbulb-o" style="margin-right:0.5rem;"></i>Based on your purchases</h4>
                     </div>
@@ -2578,42 +2598,38 @@
     let _historyRange = 'all';
 
     function renderBuyerOrderRow(o) {
-        const statusCls = ['pending','paid','processing','shipped','delivered','cancelled'].includes(o.status)
+        const statusCls  = ['pending','paid','processing','shipped','delivered','cancelled'].includes(o.status)
             ? `status-${o.status}` : 'status-pending';
-        const shortId   = '…' + o._id.slice(-8);
-        const date      = new Date(o.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-        const total     = `$${((o.totalAmount || o.totalCents || 0) / 100).toFixed(2)}`;
-        const itemCount = (o.items || []).reduce((s, i) => s + (i.qty || 1), 0);
-        const firstImg  = (o.items || [])[0]?.image || '';
-        const thumb     = firstImg
-            ? `<img src="${firstImg}" style="width:38px;height:38px;border-radius:6px;object-fit:cover;flex-shrink:0;background:var(--bg-secondary);" onerror="this.style.display='none'">`
-            : `<div style="width:38px;height:38px;border-radius:6px;background:var(--bg-secondary);flex-shrink:0;display:flex;align-items:center;justify-content:center;"><i class="fa fa-box" style="color:var(--text-muted);font-size:0.8rem;"></i></div>`;
-        const canBuyerCancel = o.status === 'pending';
-        const firstTitle = (o.items || [])[0]?.title || 'your item';
-        const reviewPrompt = o.status === 'delivered'
-            ? `<div style="margin-top:0.5rem; padding:0.5rem 0.75rem; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; font-size:0.75rem; display:flex; align-items:center; justify-content:space-between;">
-                   <span style="color:#15803d;"><i class="fa fa-star" style="margin-right:0.3rem;"></i>How was "${firstTitle.slice(0,28)}${firstTitle.length > 28 ? '…' : ''}"?</span>
-                   <a href="/orders/${o._id}" style="color:#15803d; font-weight:700; text-decoration:none;">Leave a review →</a>
-               </div>`
-            : '';
+        const shortId    = '…' + o._id.slice(-8);
+        const date       = new Date(o.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+        const total      = `$${((o.totalAmount || o.totalCents || 0) / 100).toFixed(2)}`;
+        const itemCount  = (o.items || []).reduce((s, i) => s + (i.qty || 1), 0);
+        const canCancel  = o.status === 'pending';
+        const canReview  = o.status === 'delivered';
+        // Thumbnail strip — up to 3 item images (same as Orders Received)
+        const thumbs = (o.items || []).slice(0, 3).map(i => i.image
+            ? `<img src="${i.image}" style="width:32px;height:32px;border-radius:4px;object-fit:cover;border:1px solid var(--border-light);" onerror="this.style.display='none'">`
+            : `<div style="width:32px;height:32px;border-radius:4px;background:var(--bg-secondary);border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;"><i class="fa fa-box" style="font-size:0.7rem;color:var(--text-muted);"></i></div>`
+        ).join('');
         return `
-        <div class="list-item animate-fade" style="flex-direction:column; gap:0.4rem; cursor:pointer;" onclick="window.location='/orders/${o._id}'">
-        <div style="display:flex; align-items:center; gap:0.75rem;">
-            ${thumb}
-            <div style="flex:1; min-width:0;">
-                <div style="font-weight:600; font-size:0.875rem;">Order ${shortId}</div>
-                <div class="text-muted small">${date} · ${itemCount} item${itemCount !== 1 ? 's' : ''} · ${total}</div>
+        <div class="list-item" style="flex-direction:column; align-items:stretch; gap:0.5rem;" id="buyer-order-${o._id}">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                <div style="display:flex; align-items:center; gap:0.75rem; cursor:pointer;" onclick="window.location='/orders/${o._id}'">
+                    <div style="display:flex; gap:3px;">${thumbs}</div>
+                    <div>
+                        <div style="font-weight:600; font-size:0.875rem;">Order ${shortId}
+                            <span style="font-size:0.75rem; color:#1d4ed8; margin-left:0.4rem;">${total}</span>
+                        </div>
+                        <div class="text-muted small">${date} · ${itemCount} item${itemCount !== 1 ? 's' : ''}</div>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                    <span class="status-badge ${statusCls}">${o.status}</span>
+                    ${canReview ? `<a href="/orders/${o._id}" class="act-btn" style="font-size:0.72rem; text-decoration:none;"><i class="fa fa-star"></i> Review</a>` : ''}
+                    ${canCancel ? `<button class="act-btn danger" onclick="buyerCancelOrder('${o._id}')" title="Cancel order"><i class="fa fa-times"></i></button>` : ''}
+                    <a href="/orders/${o._id}" style="font-size:0.78rem; color:var(--accent-red); white-space:nowrap;">Details →</a>
+                </div>
             </div>
-            <div style="display:flex; align-items:center; gap:0.5rem; flex-shrink:0;" onclick="event.stopPropagation()">
-                <span class="status-badge ${statusCls}" style="font-size:0.65rem; padding:0.15rem 0.4rem;">${o.status.toUpperCase()}</span>
-                ${canBuyerCancel ? `
-                <button class="act-btn danger" onclick="buyerCancelOrder('${o._id}')" title="Cancel order" style="font-size:0.7rem;">
-                    <i class="fa fa-times"></i> Cancel
-                </button>` : ''}
-                <i class="fa fa-chevron-right text-muted small"></i>
-            </div>
-        </div>
-        ${reviewPrompt}
         </div>`;
     }
 
