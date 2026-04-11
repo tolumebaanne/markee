@@ -18,31 +18,29 @@ function createThreadService({ Thread, Message, mongoose, logger }) {
             const displayA = sorted[0] === participantA.toString() ? (metaA || '') : (metaB || '');
             const displayB = sorted[0] === participantA.toString() ? (metaB || '') : (metaA || '');
 
+            // First try to find existing thread
             const filter = {
-                participants: { $all: [p1, p2], $size: 2 },
+                participants: { $all: [p1, p2] },
                 'context.type': ctxType,
                 ...(ctxRefId ? { 'context.refId': new mongoose.Types.ObjectId(ctxRefId.toString()) } : {})
             };
 
-            const setOnInsert = {
-                participants: [p1, p2],
-                context: {
-                    type:     ctxType,
-                    refId:    ctxRefId ? new mongoose.Types.ObjectId(ctxRefId.toString()) : undefined,
-                    refTitle: ctxTitle,
-                    refImage: ctxImage
-                },
-                participantMeta: [
-                    { userId: p1, displayName: displayA },
-                    { userId: p2, displayName: displayB }
-                ]
-            };
-
-            const thread = await Thread.findOneAndUpdate(
-                filter,
-                { $setOnInsert: setOnInsert },
-                { upsert: true, new: true }
-            );
+            let thread = await Thread.findOne(filter);
+            if (!thread) {
+                thread = await Thread.create({
+                    participants: [p1, p2],
+                    context: {
+                        type:     ctxType,
+                        refId:    ctxRefId ? new mongoose.Types.ObjectId(ctxRefId.toString()) : undefined,
+                        refTitle: ctxTitle,
+                        refImage: ctxImage
+                    },
+                    participantMeta: [
+                        { userId: p1, displayName: displayA },
+                        { userId: p2, displayName: displayB }
+                    ]
+                });
+            }
             return thread;
         },
 
@@ -100,7 +98,7 @@ function createThreadService({ Thread, Message, mongoose, logger }) {
             return Thread.findByIdAndUpdate(
                 threadId,
                 { $set: { [`${key}.lastReadAt`]: new Date(), [`${key}.unreadCount`]: 0 } },
-                { new: true }
+                { returnDocument: 'after' }
             );
         },
 
@@ -165,7 +163,7 @@ function createThreadService({ Thread, Message, mongoose, logger }) {
                         lastAt:          lastAt || new Date()
                     }
                 },
-                { new: true }
+                { returnDocument: 'after' }
             );
         },
 
