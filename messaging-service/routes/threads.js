@@ -12,7 +12,28 @@ module.exports = function createThreadRoutes(services) {
             const page     = Math.max(1, parseInt(req.query.page) || 1);
             const limit    = Math.min(50, parseInt(req.query.limit) || 20);
             const result   = await threadService.listThreads(userId, { archived, page, limit });
-            res.json(result);
+
+            // Map to frontend-expected shape
+            const threads = result.threads.map(t => {
+                const rc = t.readCursors && t.readCursors.get
+                    ? t.readCursors.get(userId)
+                    : (t.readCursors && t.readCursors[userId]);
+                return {
+                    threadId:        t._id,
+                    context:         t.context,
+                    lastMessage:     t.lastMessage,
+                    lastMessageType: t.lastMessageType,
+                    lastAt:          t.lastAt,
+                    unreadCount:     (rc && rc.unreadCount) || 0,
+                    priority:        t.priority,
+                    pinned:          !!(t.pinnedBy && t.pinnedBy.some(p => p.toString() === userId)),
+                    archived:        !!(t.archivedBy && t.archivedBy.some(p => p.toString() === userId)),
+                    participantMeta: t.participantMeta,
+                    messageCount:    t.messageCount
+                };
+            });
+
+            res.json({ threads, total: result.total, page: result.page });
         } catch (err) {
             logger.error('GET /threads error:', err.message);
             errorResponse(res, 500, err.message);
