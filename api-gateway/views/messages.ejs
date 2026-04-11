@@ -55,7 +55,7 @@
         .thread-item.active { background: #eff6ff; border-left: 3px solid var(--accent-red); }
         .thread-item.urgent { border-left: 3px solid #d97706; }
         .thread-item.pinned .thread-name::before {
-            content: '📌 '; font-size: 0.7rem;
+            content: '\U0001F4CC '; font-size: 0.7rem;
         }
 
         .thread-avatar {
@@ -323,8 +323,8 @@
             <span class="conn-status conn-offline" id="conn-badge">Connecting...</span>
         </div>
         <div class="tabs-row">
-            <button class="tab-btn active" id="tab-active"   onclick="switchTab('active')">Inbox</button>
-            <button class="tab-btn"        id="tab-archived" onclick="switchTab('archived')">Archived</button>
+            <button class="tab-btn active" id="tab-active" data-tab="active">Inbox</button>
+            <button class="tab-btn"        id="tab-archived" data-tab="archived">Archived</button>
         </div>
         <div class="thread-list" id="thread-list">
             <div id="thread-skeleton">
@@ -351,10 +351,10 @@
             </div>
             <h4 id="chat-title">Select a conversation</h4>
             <div class="header-actions" id="header-actions" style="display:none;">
-                <button class="header-btn" onclick="toggleSearch()" title="Search messages"><i class="fa fa-search"></i></button>
-                <button class="header-btn" onclick="exportThread()" title="Export conversation"><i class="fa fa-download"></i></button>
-                <button class="header-btn" onclick="archiveThread()" id="archive-btn" title="Archive thread"><i class="fa fa-archive"></i></button>
-                <button class="header-btn" onclick="pinThread()" id="pin-btn" title="Pin thread"><i class="fa fa-thumbtack"></i></button>
+                <button class="header-btn" id="search-toggle-btn" title="Search messages"><i class="fa fa-search"></i></button>
+                <button class="header-btn" id="export-btn" title="Export conversation"><i class="fa fa-download"></i></button>
+                <button class="header-btn" id="archive-btn" title="Archive thread"><i class="fa fa-archive"></i></button>
+                <button class="header-btn" id="pin-btn" title="Pin thread"><i class="fa fa-thumbtack"></i></button>
             </div>
         </div>
 
@@ -364,13 +364,13 @@
         <!-- In-thread search bar -->
         <div class="search-bar" id="search-bar">
             <i class="fa fa-search" style="color:var(--text-muted); font-size:0.8rem;"></i>
-            <input type="text" id="search-input" placeholder="Search messages..." oninput="debounceSearch()" onkeydown="if(event.key==='Escape') toggleSearch()">
-            <button class="header-btn" onclick="toggleSearch()"><i class="fa fa-times"></i></button>
+            <input type="text" id="search-input" placeholder="Search messages...">
+            <button class="header-btn" id="search-close-btn"><i class="fa fa-times"></i></button>
         </div>
         <div class="search-results" id="search-results"></div>
 
         <!-- Load earlier messages -->
-        <button class="load-more-btn" id="load-more-btn" style="display:none;" onclick="loadMoreMessages()">
+        <button class="load-more-btn" id="load-more-btn" style="display:none;">
             <i class="fa fa-chevron-up" style="margin-right:0.3rem;"></i> Load earlier messages
         </button>
 
@@ -395,7 +395,7 @@
         <div class="upload-preview-bar" id="upload-preview-bar">
             <img id="upload-preview-img" src="" alt="Preview">
             <div class="upload-status" id="upload-status">Ready to send</div>
-            <button class="remove-upload-btn" onclick="removeUpload()" title="Remove image"><i class="fa fa-times"></i></button>
+            <button class="remove-upload-btn" id="remove-upload-btn" title="Remove image"><i class="fa fa-times"></i></button>
         </div>
 
         <!-- Quick-reply templates (sellers only) -->
@@ -407,21 +407,19 @@
             <div id="char-counter" class="char-counter" style="display:none;"></div>
 
             <!-- Attachment button -->
-            <button class="icon-btn" id="attach-btn" onclick="document.getElementById('file-input').click()" title="Attach image" disabled>
+            <button class="icon-btn" id="attach-btn" title="Attach image" disabled>
                 <i class="fa fa-paperclip"></i>
             </button>
-            <input type="file" id="file-input" accept="image/*" style="display:none;" onchange="handleFileSelect(event)">
+            <input type="file" id="file-input" accept="image/*" style="display:none;">
 
             <!-- Templates button (sellers only) -->
-            <button class="icon-btn" id="templates-btn" style="display:none;" onclick="toggleTemplates()" title="Quick replies">
+            <button class="icon-btn" id="templates-btn" style="display:none;" title="Quick replies">
                 <i class="fa fa-bolt"></i>
             </button>
 
-            <input type="text" id="msg-input" placeholder="Type a message..." maxlength="1001" disabled
-                   onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendMessage(); }"
-                   oninput="onInputChange()">
+            <input type="text" id="msg-input" placeholder="Type a message..." maxlength="1001" disabled>
 
-            <button class="send-btn" id="send-btn" onclick="sendMessage()" disabled title="Send">
+            <button class="send-btn" id="send-btn" disabled title="Send">
                 <i class="fa fa-paper-plane"></i>
             </button>
         </div>
@@ -431,94 +429,135 @@
 </div>
 
 <script>
-// ── Auth ──────────────────────────────────────────────────────────────────────
+(function() {
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION A: State Variables + Initialization
+// ═══════════════════════════════════════════════════════════════════════════════
+
 let token = localStorage.getItem('access_token');
-if (!token) { window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search)); }
+if (!token) {
+    window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search));
+}
 
 function parseJwt(t) {
     try {
-        const p = JSON.parse(atob(t.split('.')[1]));
+        var p = JSON.parse(atob(t.split('.')[1]));
         if (p.exp && p.exp * 1000 < Date.now()) {
             localStorage.removeItem('access_token');
             localStorage.removeItem('refresh_token');
             return null;
         }
         return p;
-    } catch { return null; }
-}
-const user = parseJwt(token);
-if (!user) { window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search)); }
-
-function handleLogout() {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    window.location.replace('/');
+    } catch (err) {
+        console.error('[MSG] Failed to parse JWT:', err.message);
+        return null;
+    }
 }
 
-// ── State ─────────────────────────────────────────────────────────────────────
-let socket           = null;
-let currentThreadId  = null;
-let currentThread    = null;
-let isConnected      = false;
-let activeTab        = 'active';
-let pendingUploadUrl = null;
-let uploadInProgress = false;
-let typingTimer      = null;
-let typingActive     = false;
-let typingHideTimer  = null;
-let reconnectTs      = null;
-let oldestMsgTs      = null;
-let templates        = [];
+var user = parseJwt(token);
+if (!user) {
+    window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search));
+}
 
-// ── Socket ────────────────────────────────────────────────────────────────────
+// Core state
+var socket              = null;
+var currentThreadId     = null;
+var currentThread       = null;
+var isConnected         = false;
+var activeTab           = 'active';
+var pendingUploadUrl    = null;
+var uploadInProgress    = false;
+var typingTimer         = null;
+var typingActive        = false;
+var typingHideTimer     = null;
+var reconnectTs         = null;
+var oldestMsgTs         = null;
+var templates           = [];
+var searchDebounce      = null;
+
+// FIX #1: AbortController for in-flight requests
+var currentAbortController = null;
+
+// FIX #3: Message deduplication
+var renderedMessageIds = new Set();
+
+// FIX #5: Interval management
+var activeIntervals = [];
+
+function startInterval(fn, ms) {
+    var id = setInterval(fn, ms);
+    activeIntervals.push(id);
+    return id;
+}
+
+function clearAllIntervals() {
+    activeIntervals.forEach(clearInterval);
+    activeIntervals.length = 0;
+}
+
+// Starter suggestions
+var STARTER_SUGGESTIONS = {
+    product: ["Is this available in a different size?", "What is the shipping time?", "Do you offer bulk pricing?"],
+    order:   ["I have a question about my order.", "Can I modify my order?", "I'd like to request a return."],
+    general: []
+};
+
+// Emoji reactions
+var EMOJIS = ['\uD83D\uDC4D', '\u2764\uFE0F', '\uD83D\uDE2E'];
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION B: Socket.io Connection + All Event Handlers
+// ═══════════════════════════════════════════════════════════════════════════════
+
 function connectSocket() {
-    if (typeof io === 'undefined') { updateConnBadge(false, 'Socket unavailable'); return; }
+    if (typeof io === 'undefined') {
+        updateConnBadge(false, 'Socket unavailable');
+        return;
+    }
 
     socket = io({
-        auth: (cb) => cb({ token: localStorage.getItem('access_token') || token }),
+        auth: function(cb) { cb({ token: localStorage.getItem('access_token') || token }); },
         transports: ['polling', 'websocket']
     });
 
-    socket.on('connect', () => {
+    // --- connect ---
+    socket.on('connect', function() {
         isConnected = true;
         updateConnBadge(true, 'Online');
         enableInput(true);
-        // Refresh thread list on (re)connect so new threads created while offline appear
         loadThreads();
-        if (currentThreadId && reconnectTs) fetchMissedMessages();
+        if (currentThreadId && reconnectTs) {
+            fetchMissedMessages();
+        }
     });
 
-    socket.on('disconnect', () => {
+    // --- disconnect ---
+    socket.on('disconnect', function() {
         isConnected = false;
         reconnectTs = new Date().toISOString();
         updateConnBadge(false, 'Offline');
         enableInput(false);
     });
 
-    socket.on('connect_error', () => updateConnBadge(false, 'Offline'));
-
-    socket.on('message_sent', (msg) => { appendBubble(msg, true); scrollToBottom(); });
-
-    socket.on('messages_read', ({ threadId, readBy, readAt }) => {
-        if (threadId !== currentThreadId) return;
-        const chatBody = document.getElementById('chat-body');
-        if (!chatBody) return;
-        // Remove any existing read receipt, then pin one after the last sent bubble
-        chatBody.querySelectorAll('.read-receipt').forEach(el => el.remove());
-        const sentRows = [...chatBody.querySelectorAll('.bubble-row.sent')];
-        if (sentRows.length) {
-            const receipt = document.createElement('div');
-            receipt.className = 'read-receipt';
-            receipt.style.cssText = 'text-align:right; font-size:0.65rem; color:var(--text-muted); margin-top:-0.25rem; margin-bottom:0.35rem; padding-right:0.25rem;';
-            receipt.textContent = 'Read';
-            sentRows[sentRows.length - 1].insertAdjacentElement('afterend', receipt);
-        }
+    // --- connect_error ---
+    socket.on('connect_error', function() {
+        updateConnBadge(false, 'Offline');
     });
 
-    socket.on('new_message', (msg) => {
+    // --- message_sent ---
+    socket.on('message_sent', function(msg) {
+        appendBubble(msg, true);
+        scrollToBottomIfNeeded();
+    });
+
+    // --- new_message ---
+    socket.on('new_message', function(msg) {
         if (msg.threadId === currentThreadId) {
             appendBubble(msg, false);
-            scrollToBottom();
+            scrollToBottomIfNeeded();
             markRead(currentThreadId);
         } else {
             showToast('New message received!', 'info');
@@ -527,90 +566,163 @@ function connectSocket() {
         refreshUnreadBadge();
     });
 
-    socket.on('system_message', (msg) => {
+    // --- messages_read ---
+    socket.on('messages_read', function(data) {
+        if (data.threadId !== currentThreadId) return;
+        var chatBody = document.getElementById('chat-body');
+        if (!chatBody) return;
+        // Remove existing read receipts, pin one after last sent bubble
+        chatBody.querySelectorAll('.read-receipt').forEach(function(el) { el.remove(); });
+        var sentRows = Array.from(chatBody.querySelectorAll('.bubble-row.sent'));
+        if (sentRows.length) {
+            var receipt = document.createElement('div');
+            receipt.className = 'read-receipt';
+            receipt.style.cssText = 'text-align:right; font-size:0.65rem; color:var(--text-muted); margin-top:-0.25rem; margin-bottom:0.35rem; padding-right:0.25rem;';
+            receipt.textContent = 'Read';
+            sentRows[sentRows.length - 1].insertAdjacentElement('afterend', receipt);
+        }
+    });
+
+    // --- message_delivered ---
+    socket.on('message_delivered', function() {
+        /* Future: delivery checkmarks */
+    });
+
+    // --- message_edited ---
+    socket.on('message_edited', function(msg) {
+        if (msg.threadId === currentThreadId) {
+            updateBubbleEdited(msg);
+        }
+    });
+
+    // --- message_deleted ---
+    socket.on('message_deleted', function(data) {
+        updateBubbleDeleted(data.messageId);
+    });
+
+    // --- reaction_added ---
+    socket.on('reaction_added', function(data) {
+        updateBubbleReactions(data.messageId, data.reactions);
+    });
+
+    // --- system_message ---
+    socket.on('system_message', function(msg) {
         if (msg.threadId === currentThreadId) {
             appendSystemMsg(msg.body);
-            scrollToBottom();
+            scrollToBottomIfNeeded();
         }
         loadThreads();
     });
 
-    socket.on('message_delivered', () => { /* delivery receipt — future: update checkmarks */ });
-
-    socket.on('typing_start', (data) => {
-        if (data.threadId === currentThreadId) showTyping(true);
+    // --- typing_start ---
+    socket.on('typing_start', function(data) {
+        if (data.threadId === currentThreadId) {
+            showTypingIndicator(true);
+        }
     });
 
-    socket.on('typing_stop', (data) => {
-        if (data.threadId === currentThreadId) showTyping(false);
+    // --- typing_stop ---
+    socket.on('typing_stop', function(data) {
+        if (data.threadId === currentThreadId) {
+            showTypingIndicator(false);
+        }
     });
 
-    socket.on('message_edited', (msg) => {
-        if (msg.threadId === currentThreadId) updateBubbleEdited(msg);
+    // --- unread_count_update ---
+    socket.on('unread_count_update', function(data) {
+        updateMsgNavBadge(data.total);
     });
 
-    socket.on('message_deleted', ({ messageId }) => {
-        updateBubbleDeleted(messageId);
+    // --- rate_limited ---
+    socket.on('rate_limited', function() {
+        showToast('Sending too fast — slow down.', 'error');
     });
 
-    socket.on('reaction_added', ({ messageId, reactions }) => {
-        updateBubbleReactions(messageId, reactions);
+    // --- message_error ---
+    socket.on('message_error', function(err) {
+        showToast('Message failed: ' + (err.error || 'Unknown error'), 'error');
     });
-
-    socket.on('unread_count_update', ({ total }) => {
-        updateMsgNavBadge(total);
-    });
-
-    socket.on('rate_limited', () => showToast('Sending too fast — slow down.', 'error'));
-    socket.on('message_error', (err) => showToast('Message failed: ' + err.error, 'error'));
 }
 
-async function fetchMissedMessages() {
-    if (!currentThreadId || !reconnectTs) return;
-    try {
-        const res = await apiFetch(`/api/messages/thread/${currentThreadId}/since?timestamp=${encodeURIComponent(reconnectTs)}`);
-        if (!res.ok) return;
-        const msgs = await res.json();
-        msgs.forEach(m => appendBubble(m, m.senderId?.toString() === user.sub));
-        if (msgs.length) scrollToBottom();
-    } catch (_) {}
-    reconnectTs = null;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION C: API Functions (apiFetch wrapper with AbortController + timeout)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// FIX #6: apiFetch with timeout (10s default)
+function apiFetch(url, opts) {
+    opts = opts || {};
+    var timeout = opts.timeout || 10000;
+    var controller = opts.signal ? undefined : new AbortController();
+    var signal = opts.signal || (controller ? controller.signal : undefined);
+    var timer = controller ? setTimeout(function() { controller.abort(); }, timeout) : null;
+
+    var headers = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+    if (opts.headers) {
+        var k;
+        for (k in opts.headers) {
+            if (opts.headers.hasOwnProperty(k)) headers[k] = opts.headers[k];
+        }
+    }
+
+    var fetchOpts = {};
+    var key;
+    for (key in opts) {
+        if (opts.hasOwnProperty(key) && key !== 'timeout' && key !== 'headers') {
+            fetchOpts[key] = opts[key];
+        }
+    }
+    fetchOpts.headers = headers;
+    fetchOpts.signal = signal;
+
+    return fetch(url, fetchOpts).finally(function() {
+        if (timer) clearTimeout(timer);
+    });
 }
 
-// ── API helper ────────────────────────────────────────────────────────────────
-function apiFetch(url, opts = {}) {
+// Upload fetch (FormData, no JSON content-type)
+function apiUploadFetch(url, formData) {
+    var controller = new AbortController();
+    var timer = setTimeout(function() { controller.abort(); }, 30000);
     return fetch(url, {
-        ...opts,
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers || {}) }
-    });
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: formData,
+        signal: controller.signal
+    }).finally(function() { clearTimeout(timer); });
 }
 
-// ── Load threads ──────────────────────────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION D: Thread Management
+// ═══════════════════════════════════════════════════════════════════════════════
+
 async function loadThreads() {
     try {
-        const isArchived = activeTab === 'archived';
-        const res = await apiFetch(`/api/messages/threads?archived=${isArchived}`);
+        var isArchived = activeTab === 'archived';
+        var res = await apiFetch('/api/messages/threads?archived=' + isArchived);
         if (res.status === 401) { window.location.replace('/login'); return; }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const threads = data.threads || data;
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var data = await res.json();
+        var threads = data.threads || data;
 
         document.getElementById('thread-skeleton').style.display = 'none';
-        const content = document.getElementById('thread-content');
+        var content = document.getElementById('thread-content');
         content.style.display = 'block';
 
         if (!threads.length) {
-            content.innerHTML = `
-                <div style="padding:2rem; text-align:center; color:var(--text-muted);">
-                    <i class="fa fa-comment-slash" style="font-size:1.5rem; margin-bottom:0.5rem; display:block;"></i>
-                    <div class="small">${isArchived ? 'No archived conversations.' : 'No conversations yet.'}</div>
-                    ${!isArchived ? '<div class="small">Start one from a product page.</div>' : ''}
-                </div>`;
+            content.innerHTML =
+                '<div style="padding:2rem; text-align:center; color:var(--text-muted);">' +
+                    '<i class="fa fa-comment-slash" style="font-size:1.5rem; margin-bottom:0.5rem; display:block;"></i>' +
+                    '<div class="small">' + (isArchived ? 'No archived conversations.' : 'No conversations yet.') + '</div>' +
+                    (!isArchived ? '<div class="small">Start one from a product page.</div>' : '') +
+                '</div>';
             return;
         }
 
-        content.innerHTML = threads.map(t => renderThreadItem(t)).join('');
-    } catch {
+        content.innerHTML = threads.map(function(t) { return renderThreadItem(t); }).join('');
+    } catch (err) {
+        console.error('[MSG] loadThreads failed:', err.message);
         document.getElementById('thread-skeleton').style.display = 'none';
         document.getElementById('thread-content').innerHTML =
             '<div class="text-center p-4 text-muted small">Failed to load threads.</div>';
@@ -618,70 +730,79 @@ async function loadThreads() {
 }
 
 function renderThreadItem(t) {
-    const ctx = t.context || {};
-    const contextType = ctx.type || 'general';
-    const badgeClass  = `badge-${contextType}`;
-    const badgeLabel  = contextType;
+    var ctx = t.context || {};
+    var contextType = ctx.type || 'general';
+    var badgeClass  = 'badge-' + contextType;
+    var badgeLabel  = contextType;
 
     // Participant display name: the "other" participant
-    const otherMeta = (t.participantMeta || []).find(m => m.userId?.toString() !== user.sub);
-    const displayName = otherMeta?.displayName || ('…' + (t.threadId || '').slice(-6));
+    var otherMeta = (t.participantMeta || []).find(function(m) {
+        return m.userId && m.userId.toString() !== user.sub;
+    });
+    var displayName = (otherMeta && otherMeta.displayName) ? otherMeta.displayName : ('\u2026' + (t.threadId || '').slice(-6));
 
-    const isActive  = t.threadId === currentThreadId;
-    const isUrgent  = t.priority === 'urgent';
-    const isPinned  = t.pinned;
-    const unread    = t.unreadCount || 0;
-    const preview   = t.lastMessage || '—';
-    const isSystem  = t.lastMessageType === 'system';
-    const subtitle  = ctx.refTitle || '';
+    var isActive  = t.threadId === currentThreadId;
+    var isUrgent  = t.priority === 'urgent';
+    var isPinned  = t.pinned;
+    var unread    = t.unreadCount || 0;
+    var preview   = t.lastMessage || '\u2014';
+    var isSystem  = t.lastMessageType === 'system';
+    var subtitle  = ctx.refTitle || '';
 
-    const cls = `thread-item${isActive ? ' active' : ''}${isUrgent ? ' urgent' : ''}${isPinned ? ' pinned' : ''}`;
+    var cls = 'thread-item' + (isActive ? ' active' : '') + (isUrgent ? ' urgent' : '') + (isPinned ? ' pinned' : '');
 
-    return `
-    <div class="${cls}" id="thread-item-${t.threadId}"
-         onclick="openThread('${t.threadId}')">
-        <div class="thread-avatar" style="background:${stringToColor(t.threadId)}; color:white;">
-            ${escapeHtml(displayName.slice(0,2).toUpperCase())}
-        </div>
-        <div class="thread-meta">
-            <div style="display:flex; align-items:center; gap:0.3rem;">
-                <span class="context-badge ${badgeClass}">${badgeLabel}</span>
-            </div>
-            <div class="thread-name">${escapeHtml(displayName)}</div>
-            ${subtitle ? `<div class="thread-subtitle">${escapeHtml(subtitle)}</div>` : ''}
-            <div class="thread-preview ${isSystem ? 'system-preview' : ''}">${escapeHtml(preview)}</div>
-        </div>
-        ${unread > 0 ? `<div class="unread-badge">${unread > 99 ? '99+' : unread}</div>` : ''}
-        <div class="thread-actions">
-            <button class="thread-action-btn" onclick="event.stopPropagation(); archiveThreadId('${t.threadId}')" title="Archive">
-                <i class="fa fa-archive"></i>
-            </button>
-            <button class="thread-action-btn" onclick="event.stopPropagation(); pinThreadId('${t.threadId}')" title="Pin">
-                <i class="fa fa-thumbtack"></i>
-            </button>
-        </div>
-    </div>`;
+    return '<div class="' + cls + '" id="thread-item-' + escapeHtml(t.threadId) + '"' +
+         ' data-thread-id="' + escapeHtml(t.threadId) + '">' +
+        '<div class="thread-avatar" style="background:' + stringToColor(t.threadId) + '; color:white;">' +
+            escapeHtml(displayName.slice(0,2).toUpperCase()) +
+        '</div>' +
+        '<div class="thread-meta">' +
+            '<div style="display:flex; align-items:center; gap:0.3rem;">' +
+                '<span class="context-badge ' + badgeClass + '">' + badgeLabel + '</span>' +
+            '</div>' +
+            '<div class="thread-name">' + escapeHtml(displayName) + '</div>' +
+            (subtitle ? '<div class="thread-subtitle">' + escapeHtml(subtitle) + '</div>' : '') +
+            '<div class="thread-preview' + (isSystem ? ' system-preview' : '') + '">' + escapeHtml(preview) + '</div>' +
+        '</div>' +
+        (unread > 0 ? '<div class="unread-badge">' + (unread > 99 ? '99+' : unread) + '</div>' : '') +
+        '<div class="thread-actions">' +
+            '<button class="thread-action-btn" data-archive-thread="' + escapeHtml(t.threadId) + '" title="Archive">' +
+                '<i class="fa fa-archive"></i>' +
+            '</button>' +
+            '<button class="thread-action-btn" data-pin-thread="' + escapeHtml(t.threadId) + '" title="Pin">' +
+                '<i class="fa fa-thumbtack"></i>' +
+            '</button>' +
+        '</div>' +
+    '</div>';
 }
 
-// ── Switch tabs ───────────────────────────────────────────────────────────────
-function switchTab(tab) {
-    activeTab = tab;
-    document.getElementById('tab-active').classList.toggle('active', tab === 'active');
-    document.getElementById('tab-archived').classList.toggle('active', tab === 'archived');
-    loadThreads();
-}
-
-// ── Open thread ───────────────────────────────────────────────────────────────
+// FIX #1 + #2: AbortController on openThread, timer cleanup on thread switch
 async function openThread(threadId) {
-    document.querySelectorAll('.thread-item').forEach(el => el.classList.remove('active'));
-    const ti = document.getElementById(`thread-item-${threadId}`);
+    // Cancel any in-flight request from a previous openThread
+    if (currentAbortController) {
+        currentAbortController.abort();
+    }
+    currentAbortController = new AbortController();
+    var signal = currentAbortController.signal;
+
+    // FIX #2: Clear stale timers on thread switch
+    clearTimeout(typingTimer);
+    clearTimeout(typingHideTimer);
+    typingActive = false;
+
+    // FIX #3: Clear deduplication set
+    clearRenderedMessages();
+
+    // Update UI selection
+    document.querySelectorAll('.thread-item').forEach(function(el) { el.classList.remove('active'); });
+    var ti = document.getElementById('thread-item-' + threadId);
     if (ti) ti.classList.add('active');
 
     currentThreadId = threadId;
-    const _ha = document.getElementById('header-actions');
-    if (_ha) _ha.style.display = 'flex';
-    const _ce = document.getElementById('chat-empty');
-    if (_ce) _ce.style.display = 'none';
+    var headerActions = document.getElementById('header-actions');
+    if (headerActions) headerActions.style.display = 'flex';
+    var chatEmpty = document.getElementById('chat-empty');
+    if (chatEmpty) chatEmpty.style.display = 'none';
     enableInput(isConnected);
 
     // Join thread room for reactions/edits
@@ -690,33 +811,45 @@ async function openThread(threadId) {
     // Reset state
     pendingUploadUrl = null;
     oldestMsgTs      = null;
-    const _inp = document.getElementById('msg-input');
-    if (_inp) _inp.value = '';
+    var msgInput = document.getElementById('msg-input');
+    if (msgInput) msgInput.value = '';
     hideUploadPreview();
     document.getElementById('starter-suggestions').style.display = 'none';
     document.getElementById('search-bar').classList.remove('visible');
     document.getElementById('search-results').classList.remove('visible');
+    hideTypingIndicator();
 
-    document.getElementById('chat-body').innerHTML = `
-        <div class="chat-empty" id="chat-empty">
-            <i class="fa fa-spinner fa-spin"></i>
-            <div class="small" style="margin-top:0.5rem;">Loading messages...</div>
-        </div>`;
+    document.getElementById('chat-body').innerHTML =
+        '<div class="chat-empty" id="chat-empty">' +
+            '<i class="fa fa-spinner fa-spin"></i>' +
+            '<div class="small" style="margin-top:0.5rem;">Loading messages...</div>' +
+        '</div>';
 
     try {
-        const res = await apiFetch(`/api/messages/thread/${threadId}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const { thread, messages, hasMore } = await res.json();
+        var res = await apiFetch('/api/messages/thread/' + threadId, { signal: signal });
+
+        // FIX #1: Check if aborted after await
+        if (signal.aborted) return;
+
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var data = await res.json();
+
+        // FIX #1: Check abort again after JSON parse
+        if (signal.aborted) return;
+
+        var thread = data.thread;
+        var messages = data.messages;
+        var hasMore = data.hasMore;
 
         currentThread = thread;
-        enableInput(isConnected); // re-enable now that currentThread is set
+        enableInput(isConnected);
         renderThreadHeader(thread);
         renderContextCard(thread);
 
         // Load templates for sellers
         if (user.storeId) loadTemplates();
 
-        const chatBody = document.getElementById('chat-body');
+        var chatBody = document.getElementById('chat-body');
         chatBody.innerHTML = '';
 
         if (hasMore) {
@@ -726,12 +859,15 @@ async function openThread(threadId) {
         }
 
         if (!messages.length) {
-            const sug = (thread.context?.type && STARTER_SUGGESTIONS[thread.context.type]) || [];
+            var sug = (thread.context && thread.context.type && STARTER_SUGGESTIONS[thread.context.type]) || [];
             if (sug.length) renderStarterSuggestions(sug);
         } else {
-            messages.forEach(m => {
-                if (m.type === 'system') appendSystemMsg(m.body);
-                else appendBubble(m, m.senderId?.toString() === user.sub);
+            messages.forEach(function(m) {
+                if (m.type === 'system') {
+                    appendSystemMsg(m.body);
+                } else {
+                    appendBubble(m, m.senderId && m.senderId.toString() === user.sub);
+                }
             });
             if (messages.length) oldestMsgTs = messages[0].createdAt;
         }
@@ -739,105 +875,34 @@ async function openThread(threadId) {
         scrollToBottom();
         markRead(threadId);
         refreshUnreadBadge();
-
-        // Load presence
         loadPresence(thread);
 
     } catch (err) {
-        document.getElementById('chat-body').innerHTML = `
-            <div class="chat-empty" id="chat-empty">
-                <i class="fa fa-exclamation-triangle" style="color:var(--accent-red);"></i>
-                <div class="small">Failed to load messages.</div>
-            </div>`;
+        if (err.name === 'AbortError') return; // Thread switch cancelled this request
+        console.error('[MSG] openThread failed:', err.message);
+        document.getElementById('chat-body').innerHTML =
+            '<div class="chat-empty" id="chat-empty">' +
+                '<i class="fa fa-exclamation-triangle" style="color:var(--accent-red);"></i>' +
+                '<div class="small">Failed to load messages.</div>' +
+            '</div>';
     }
 }
 
-const STARTER_SUGGESTIONS = {
-    product: ["Is this available in a different size?", "What is the shipping time?", "Do you offer bulk pricing?"],
-    order:   ["I have a question about my order.", "Can I modify my order?", "I'd like to request a return."],
-    general: []
-};
-
-function renderStarterSuggestions(suggestions) {
-    const container = document.getElementById('starter-suggestions');
-    container.innerHTML = suggestions.map(s =>
-        `<button class="starter-chip" onclick="pasteToComposer(${JSON.stringify(s)})">${escapeHtml(s)}</button>`
-    ).join('');
-    container.style.display = 'flex';
-}
-
-function renderThreadHeader(thread) {
-    const otherMeta   = (thread.participantMeta || []).find(m => m.userId?.toString() !== user.sub);
-    const displayName = otherMeta?.displayName || '…' + (thread._id || '').slice(-6);
-    const avatar      = document.getElementById('chat-avatar');
-    avatar.style.background = stringToColor(thread._id);
-    avatar.style.color      = 'white';
-    avatar.textContent      = displayName.slice(0,2).toUpperCase();
-    document.getElementById('chat-title').textContent = displayName;
-
-    // Pin/archive button state
-    const isPinned   = (thread.pinnedBy   || []).some(p => p.toString() === user.sub);
-    const isArchived = (thread.archivedBy || []).some(p => p.toString() === user.sub);
-    document.getElementById('pin-btn').title    = isPinned   ? 'Unpin thread' : 'Pin thread';
-    document.getElementById('archive-btn').title = isArchived ? 'Unarchive'    : 'Archive thread';
-}
-
-function renderContextCard(thread) {
-    const container = document.getElementById('context-card-container');
-    const ctx = thread.context;
-    if (!ctx || ctx.type === 'general') { container.style.display = 'none'; return; }
-
-    const link  = ctx.type === 'order'   ? `/orders/${ctx.refId}` : `/product/${ctx.refId}`;
-    const label = ctx.refTitle || (ctx.type === 'order' ? 'Order' : 'Product');
-    const imgHtml = ctx.refImage
-        ? `<img src="${escapeHtml(ctx.refImage)}" alt="" onerror="this.style.display='none'">`
-        : `<i class="fa fa-${ctx.type === 'order' ? 'shopping-bag' : 'box'}" style="color:var(--accent-red);"></i>`;
-
-    container.innerHTML = `
-        <a href="${escapeHtml(link)}" class="context-card" target="_blank">
-            ${imgHtml}
-            <div>
-                <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase;">${ctx.type}</div>
-                <div class="context-card-title">${escapeHtml(label)}</div>
-            </div>
-            <i class="fa fa-external-link-alt" style="font-size:0.65rem; color:var(--text-muted); margin-left:auto;"></i>
-        </a>`;
-    container.style.display = 'block';
-}
-
-async function loadPresence(thread) {
-    const otherMeta = (thread.participantMeta || []).find(m => m.userId?.toString() !== user.sub);
-    if (!otherMeta) return;
-    try {
-        const res = await apiFetch(`/api/messages/presence/${otherMeta.userId}`);
-        if (!res.ok) return;
-        const { online } = await res.json();
-        const avatar = document.getElementById('chat-avatar');
-        const dot    = avatar.querySelector('.online-dot');
-        if (online && !dot) {
-            const d = document.createElement('div');
-            d.className = 'online-dot';
-            avatar.appendChild(d);
-        } else if (!online && dot) {
-            dot.remove();
-        }
-    } catch (_) {}
-}
-
-// ── Load more (backward pagination) ──────────────────────────────────────────
 async function loadMoreMessages() {
     if (!currentThreadId || !oldestMsgTs) return;
-    const btn = document.getElementById('load-more-btn');
+    var btn = document.getElementById('load-more-btn');
     btn.disabled = true;
     btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
     try {
-        const res = await apiFetch(`/api/messages/thread/${currentThreadId}?before=${encodeURIComponent(oldestMsgTs)}`);
-        if (!res.ok) return;
-        const { messages, hasMore } = await res.json();
-        const chatBody = document.getElementById('chat-body');
-        const prevScrollH = chatBody.scrollHeight;
-        messages.reverse().forEach(m => {
-            const el = m.type === 'system' ? makeSystemEl(m.body) : makeBubbleEl(m, m.senderId?.toString() === user.sub);
+        var res = await apiFetch('/api/messages/thread/' + currentThreadId + '?before=' + encodeURIComponent(oldestMsgTs));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var data = await res.json();
+        var messages = data.messages;
+        var hasMore = data.hasMore;
+        var chatBody = document.getElementById('chat-body');
+        var prevScrollH = chatBody.scrollHeight;
+        messages.reverse().forEach(function(m) {
+            var el = m.type === 'system' ? makeSystemEl(m.body) : makeBubbleEl(m, m.senderId && m.senderId.toString() === user.sub);
             chatBody.insertBefore(el, chatBody.firstChild);
         });
         if (messages.length) oldestMsgTs = messages[0].createdAt;
@@ -845,61 +910,121 @@ async function loadMoreMessages() {
         btn.disabled = false;
         btn.innerHTML = '<i class="fa fa-chevron-up" style="margin-right:0.3rem;"></i> Load earlier messages';
         if (!hasMore) btn.style.display = 'none';
-    } catch (_) {
+    } catch (err) {
+        console.error('[MSG] loadMoreMessages failed:', err.message);
         btn.disabled = false;
         btn.innerHTML = '<i class="fa fa-chevron-up" style="margin-right:0.3rem;"></i> Load earlier messages';
     }
 }
 
-// ── Open thread with ?target= (backward compat, no context) ──────────────────
-async function openThreadWithUser(targetId) {
-    try {
-        const res = await apiFetch('/api/messages/thread', {
-            method: 'POST',
-            body: JSON.stringify({ recipientId: targetId })
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const { threadId } = await res.json();
-        await openThread(threadId);
-    } catch { showToast('Failed to open conversation.', 'error'); }
+function renderThreadHeader(thread) {
+    var otherMeta = (thread.participantMeta || []).find(function(m) {
+        return m.userId && m.userId.toString() !== user.sub;
+    });
+    var displayName = (otherMeta && otherMeta.displayName) ? otherMeta.displayName : ('\u2026' + (thread._id || '').slice(-6));
+    var avatar = document.getElementById('chat-avatar');
+    avatar.style.background = stringToColor(thread._id);
+    avatar.style.color      = 'white';
+    avatar.textContent      = displayName.slice(0, 2).toUpperCase();
+    document.getElementById('chat-title').textContent = displayName;
+
+    // Pin/archive button state
+    var isPinned   = (thread.pinnedBy   || []).some(function(p) { return p.toString() === user.sub; });
+    var isArchived = (thread.archivedBy || []).some(function(p) { return p.toString() === user.sub; });
+    document.getElementById('pin-btn').title     = isPinned   ? 'Unpin thread'  : 'Pin thread';
+    document.getElementById('archive-btn').title = isArchived ? 'Unarchive'     : 'Archive thread';
 }
 
-// Open thread with full context (from product / order pages)
-async function openThreadWithContext({ recipientId, contextType, refId, refTitle, refImage }) {
-    try {
-        const res = await apiFetch('/api/messages/thread', {
-            method: 'POST',
-            body: JSON.stringify({ recipientId, contextType, refId, refTitle, refImage })
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const { threadId } = await res.json();
-        await openThread(threadId);
-    } catch { showToast('Failed to open conversation.', 'error'); }
+function renderContextCard(thread) {
+    var container = document.getElementById('context-card-container');
+    var ctx = thread.context;
+    if (!ctx || ctx.type === 'general') { container.style.display = 'none'; return; }
+
+    var link  = ctx.type === 'order' ? '/orders/' + ctx.refId : '/product/' + ctx.refId;
+    var label = ctx.refTitle || (ctx.type === 'order' ? 'Order' : 'Product');
+    var imgHtml = ctx.refImage
+        ? '<img src="' + escapeHtml(ctx.refImage) + '" alt="" onerror="this.style.display=\'none\'">'
+        : '<i class="fa fa-' + (ctx.type === 'order' ? 'shopping-bag' : 'box') + '" style="color:var(--accent-red);"></i>';
+
+    container.innerHTML =
+        '<a href="' + escapeHtml(link) + '" class="context-card" target="_blank">' +
+            imgHtml +
+            '<div>' +
+                '<div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase;">' + ctx.type + '</div>' +
+                '<div class="context-card-title">' + escapeHtml(label) + '</div>' +
+            '</div>' +
+            '<i class="fa fa-external-link-alt" style="font-size:0.65rem; color:var(--text-muted); margin-left:auto;"></i>' +
+        '</a>';
+    container.style.display = 'block';
 }
 
-// ── Send message ──────────────────────────────────────────────────────────────
+async function loadPresence(thread) {
+    var otherMeta = (thread.participantMeta || []).find(function(m) {
+        return m.userId && m.userId.toString() !== user.sub;
+    });
+    if (!otherMeta) return;
+    try {
+        var res = await apiFetch('/api/messages/presence/' + otherMeta.userId);
+        if (!res.ok) return;
+        var data = await res.json();
+        var avatar = document.getElementById('chat-avatar');
+        var dot = avatar.querySelector('.online-dot');
+        if (data.online && !dot) {
+            var d = document.createElement('div');
+            d.className = 'online-dot';
+            avatar.appendChild(d);
+        } else if (!data.online && dot) {
+            dot.remove();
+        }
+    } catch (err) {
+        console.error('[MSG] loadPresence failed:', err.message);
+    }
+}
+
+function switchTab(tab) {
+    activeTab = tab;
+    document.getElementById('tab-active').classList.toggle('active', tab === 'active');
+    document.getElementById('tab-archived').classList.toggle('active', tab === 'archived');
+    loadThreads();
+}
+
+function renderStarterSuggestions(suggestions) {
+    var container = document.getElementById('starter-suggestions');
+    container.innerHTML = suggestions.map(function(s) {
+        return '<button class="starter-chip" data-suggestion="' + escapeHtml(s) + '">' + escapeHtml(s) + '</button>';
+    }).join('');
+    container.style.display = 'flex';
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION E: Message Management
+// ═══════════════════════════════════════════════════════════════════════════════
+
 function sendMessage() {
     if (!socket || !isConnected) { showToast('Not connected.', 'error'); return; }
     if (!currentThread) { showToast('Open a conversation first.', 'error'); return; }
     if (uploadInProgress) { showToast('Wait for upload to finish.', 'error'); return; }
 
-    const input  = document.getElementById('msg-input');
-    const body   = input.value.trim();
+    var input = document.getElementById('msg-input');
+    var body  = input.value.trim();
     if (!body && !pendingUploadUrl) return;
     if (body.length > 1000) { showToast('Message too long (max 1000 characters).', 'error'); return; }
 
-    const otherMeta   = (currentThread.participantMeta || []).find(m => m.userId?.toString() !== user.sub);
-    const recipientId = otherMeta?.userId;
+    var otherMeta = (currentThread.participantMeta || []).find(function(m) {
+        return m.userId && m.userId.toString() !== user.sub;
+    });
+    var recipientId = otherMeta ? otherMeta.userId : null;
     if (!recipientId) { showToast('Cannot determine recipient.', 'error'); return; }
 
-    const ctx = currentThread.context;
+    var ctx = currentThread.context;
     socket.emit('send_message', {
-        recipientId,
-        body,
-        contextType:   ctx?.type     || 'general',
-        refId:         ctx?.refId    || '',
-        refTitle:      ctx?.refTitle || '',
-        attachmentUrl: pendingUploadUrl || '',
+        recipientId: recipientId,
+        body: body,
+        contextType:    (ctx && ctx.type)     || 'general',
+        refId:          (ctx && ctx.refId)    || '',
+        refTitle:       (ctx && ctx.refTitle) || '',
+        attachmentUrl:  pendingUploadUrl || '',
         attachmentType: pendingUploadUrl ? 'image' : ''
     });
 
@@ -910,56 +1035,319 @@ function sendMessage() {
     document.getElementById('starter-suggestions').style.display = 'none';
 }
 
-// ── Typing emit ───────────────────────────────────────────────────────────────
-function onInputChange() {
-    const body    = document.getElementById('msg-input').value;
-    const len     = body.length;
-    const counter = document.getElementById('char-counter');
-    if (len >= 800) {
-        counter.style.display = 'block';
-        counter.textContent   = `${len}/1000`;
-        counter.className     = `char-counter ${len > 1000 ? 'over' : 'warn'}`;
+// FIX #3: Message deduplication
+function appendBubble(msg, isSent) {
+    if (renderedMessageIds.has(msg._id)) return;
+    renderedMessageIds.add(msg._id);
+
+    var chatBody = document.getElementById('chat-body');
+    var empty = chatBody.querySelector('.chat-empty');
+    if (empty) empty.remove();
+    chatBody.appendChild(makeBubbleEl(msg, isSent));
+}
+
+function makeBubbleEl(msg, isSent) {
+    var row = document.createElement('div');
+    row.className = 'bubble-row ' + (isSent ? 'sent' : 'received');
+    row.setAttribute('data-msg-id', msg._id);
+
+    var group = document.createElement('div');
+    group.className = 'bubble-group ' + (isSent ? 'sent' : 'received');
+    group.setAttribute('data-msg-id', msg._id);
+
+    var bubble = document.createElement('div');
+    var isDeleted = msg.deleted;
+
+    if (isDeleted) {
+        bubble.className = 'bubble deleted';
+        bubble.innerHTML = '<i class="fa fa-ban" style="margin-right:0.3rem;font-size:0.75rem;"></i>This message was removed.';
     } else {
-        counter.style.display = 'none';
+        bubble.className = 'bubble ' + (isSent ? 'sent' : 'received');
+        var innerHtml = '';
+        if (msg.attachmentUrl && msg.attachmentType === 'image') {
+            innerHtml += '<img src="' + escapeHtml(msg.attachmentUrl) + '" class="msg-image" data-img-url="' + escapeHtml(msg.attachmentUrl) + '" alt="Image">';
+        } else if (msg.attachmentUrl) {
+            innerHtml += '<a href="' + escapeHtml(msg.attachmentUrl) + '" target="_blank" style="color:inherit;">Attachment</a>';
+        }
+        if (msg.body) innerHtml += escapeHtml(msg.body);
+        if (msg.edited) innerHtml += '<span class="msg-edited"> (edited)</span>';
+        bubble.innerHTML = innerHtml;
     }
 
-    if (!socket || !currentThread) return;
-    const otherMeta = (currentThread.participantMeta || []).find(m => m.userId?.toString() !== user.sub);
-    if (!otherMeta) return;
+    group.appendChild(bubble);
 
-    if (!typingActive) {
-        typingActive = true;
-        socket.emit('typing_start', { recipientId: otherMeta.userId, threadId: currentThreadId });
+    // Reactions container
+    var reactionDiv = document.createElement('div');
+    reactionDiv.className = 'msg-reactions';
+    reactionDiv.setAttribute('data-msg-id', msg._id);
+    if (msg.reactions && msg.reactions.length) {
+        renderReactionsInto(reactionDiv, msg._id, msg.reactions);
     }
-    clearTimeout(typingTimer);
-    typingTimer = setTimeout(() => stopTypingEmit(), 3000);
+    group.appendChild(reactionDiv);
+
+    // FIX #9: Hover actions use data attributes (event delegation), not inline onclick
+    if (!isDeleted) {
+        var actions = document.createElement('div');
+        actions.className = 'bubble-actions';
+        var actionsHtml = EMOJIS.map(function(e) {
+            return '<button class="bubble-act-btn" data-react-msg="' + msg._id + '" data-emoji="' + e + '">' + e + '</button>';
+        }).join('');
+        if (isSent) {
+            actionsHtml += '<button class="bubble-act-btn" data-edit-msg="' + msg._id + '"><i class="fa fa-pen"></i></button>';
+            actionsHtml += '<button class="bubble-act-btn" data-delete-msg="' + msg._id + '" style="color:#dc2626;"><i class="fa fa-trash"></i></button>';
+        }
+        actions.innerHTML = actionsHtml;
+        group.appendChild(actions);
+    }
+
+    var time = document.createElement('span');
+    time.className = 'bubble-time';
+    time.textContent = formatTime(msg.createdAt);
+
+    if (isSent) {
+        row.appendChild(time);
+        row.appendChild(group);
+    } else {
+        row.appendChild(group);
+        row.appendChild(time);
+    }
+
+    return row;
 }
 
-function stopTypingEmit() {
-    if (!typingActive) return;
-    typingActive = false;
-    if (!socket || !currentThread) return;
-    const otherMeta = (currentThread.participantMeta || []).find(m => m.userId?.toString() !== user.sub);
-    if (otherMeta) socket.emit('typing_stop', { recipientId: otherMeta.userId, threadId: currentThreadId });
-    clearTimeout(typingTimer);
+function appendSystemMsg(body) {
+    var chatBody = document.getElementById('chat-body');
+    var empty = chatBody.querySelector('.chat-empty');
+    if (empty) empty.remove();
+    chatBody.appendChild(makeSystemEl(body));
 }
 
-function showTyping(visible) {
-    const el = document.getElementById('typing-indicator');
-    el.classList.toggle('visible', visible);
-    if (visible) {
-        clearTimeout(typingHideTimer);
-        typingHideTimer = setTimeout(() => showTyping(false), 4000);
+function makeSystemEl(body) {
+    var el = document.createElement('div');
+    el.className = 'system-msg';
+    el.innerHTML = '<span>' + escapeHtml(body) + '</span>';
+    return el;
+}
+
+function clearRenderedMessages() {
+    renderedMessageIds.clear();
+}
+
+// ── Reaction UI ──────────────────────────────────────────────────────────────
+function renderReactionsInto(container, msgId, reactions) {
+    var groups = {};
+    reactions.forEach(function(r) {
+        if (!groups[r.emoji]) groups[r.emoji] = { count: 0, mine: false };
+        groups[r.emoji].count++;
+        if (r.userId && r.userId.toString() === user.sub) groups[r.emoji].mine = true;
+    });
+    container.innerHTML = Object.entries(groups).map(function(entry) {
+        var emoji = entry[0];
+        var info = entry[1];
+        return '<span class="reaction-chip' + (info.mine ? ' own' : '') + '" data-react-msg="' + msgId + '" data-emoji="' + emoji + '">' +
+            emoji + (info.count > 1 ? ' ' + info.count : '') +
+        '</span>';
+    }).join('');
+}
+
+function updateBubbleReactions(msgId, reactions) {
+    var containers = document.querySelectorAll('.msg-reactions[data-msg-id="' + msgId + '"]');
+    containers.forEach(function(c) { renderReactionsInto(c, msgId, reactions); });
+}
+
+async function reactToMessage(msgId, emoji) {
+    try {
+        var res = await apiFetch('/api/messages/' + msgId + '/react', {
+            method: 'POST',
+            body: JSON.stringify({ emoji: emoji })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var data = await res.json();
+        updateBubbleReactions(msgId, data.reactions || data);
+    } catch (err) {
+        console.error('[MSG] reactToMessage failed:', err.message);
+        showToast('Failed to react.', 'error');
     }
 }
 
-// ── Image upload ──────────────────────────────────────────────────────────────
+// ── Edit / Delete ────────────────────────────────────────────────────────────
+async function editMessage(msgId) {
+    var newBody = prompt('Edit message (within 5 minutes of sending):');
+    if (!newBody) return;
+    try {
+        var res = await apiFetch('/api/messages/' + msgId, {
+            method: 'PUT',
+            body: JSON.stringify({ body: newBody })
+        });
+        if (!res.ok) {
+            var errData = await res.json().catch(function() { return {}; });
+            throw new Error(errData.error || 'Failed');
+        }
+    } catch (err) {
+        console.error('[MSG] editMessage failed:', err.message);
+        showToast(err.message || 'Edit failed.', 'error');
+    }
+}
+
+async function deleteMessage(msgId) {
+    if (!confirm('Remove this message?')) return;
+    try {
+        var res = await apiFetch('/api/messages/' + msgId, { method: 'DELETE' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        updateBubbleDeleted(msgId);
+    } catch (err) {
+        console.error('[MSG] deleteMessage failed:', err.message);
+        showToast('Delete failed.', 'error');
+    }
+}
+
+function updateBubbleEdited(msg) {
+    var groups = document.querySelectorAll('.bubble-group[data-msg-id="' + msg._id + '"]');
+    groups.forEach(function(g) {
+        var bubble = g.querySelector('.bubble');
+        if (!bubble) return;
+        bubble.innerHTML = escapeHtml(msg.body) + '<span class="msg-edited"> (edited)</span>';
+    });
+}
+
+function updateBubbleDeleted(msgId) {
+    var groups = document.querySelectorAll('.bubble-group[data-msg-id="' + msgId + '"]');
+    groups.forEach(function(g) {
+        var bubble = g.querySelector('.bubble');
+        if (!bubble) return;
+        bubble.className = 'bubble deleted';
+        bubble.innerHTML = '<i class="fa fa-ban" style="margin-right:0.3rem;font-size:0.75rem;"></i>This message was removed.';
+        var actions = g.querySelector('.bubble-actions');
+        if (actions) actions.remove();
+    });
+}
+
+async function fetchMissedMessages() {
+    if (!currentThreadId || !reconnectTs) return;
+    try {
+        var res = await apiFetch('/api/messages/thread/' + currentThreadId + '/since?timestamp=' + encodeURIComponent(reconnectTs));
+        if (!res.ok) return;
+        var msgs = await res.json();
+        msgs.forEach(function(m) {
+            appendBubble(m, m.senderId && m.senderId.toString() === user.sub);
+        });
+        if (msgs.length) scrollToBottomIfNeeded();
+    } catch (err) {
+        console.error('[MSG] fetchMissedMessages failed:', err.message);
+    }
+    reconnectTs = null;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION F: UI Helpers
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// FIX #4: Smart auto-scroll — only scroll if user is within 100px of bottom
+function shouldAutoScroll() {
+    var b = document.getElementById('chat-body');
+    return b.scrollHeight - b.scrollTop - b.clientHeight < 100;
+}
+
+function scrollToBottom() {
+    var b = document.getElementById('chat-body');
+    b.scrollTop = b.scrollHeight;
+}
+
+function scrollToBottomIfNeeded() {
+    if (shouldAutoScroll()) {
+        scrollToBottom();
+    }
+}
+
+function showToast(msg, type) {
+    if (typeof window.showToast === 'function') {
+        window.showToast(msg, type);
+    } else {
+        console.log('[MSG Toast]', type, msg);
+    }
+}
+
+// FIX #8: String-based escapeHtml (not DOM-based)
+function escapeHtml(str) {
+    return (str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function formatTime(ts) {
+    if (!ts) return '';
+    return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function stringToColor(str) {
+    var hash = 0;
+    var s = str || '';
+    for (var i = 0; i < s.length; i++) {
+        hash = s.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    var colors = ['#cc0000','#1d4ed8','#15803d','#6d28d9','#0e7490','#b45309'];
+    return colors[Math.abs(hash) % colors.length];
+}
+
+function updateConnBadge(online, label) {
+    var b = document.getElementById('conn-badge');
+    if (!b) return;
+    b.textContent = label;
+    b.className   = 'conn-status ' + (online ? 'conn-online' : 'conn-offline');
+}
+
+function enableInput(on) {
+    var noThread = !currentThread;
+    document.getElementById('msg-input').disabled  = noThread;
+    document.getElementById('send-btn').disabled   = noThread || !on;
+    document.getElementById('attach-btn').disabled = noThread;
+}
+
+// Nav badge
+function updateMsgNavBadge(count) {
+    var badge = document.getElementById('msg-nav-badge');
+    if (!badge) return;
+    if (count > 0) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.style.display = 'flex';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+async function refreshUnreadBadge() {
+    try {
+        var res = await apiFetch('/api/messages/unread-count');
+        if (!res.ok) return;
+        var data = await res.json();
+        updateMsgNavBadge(data.total);
+    } catch (err) {
+        console.error('[MSG] refreshUnreadBadge failed:', err.message);
+    }
+}
+
+async function markRead(threadId) {
+    try {
+        await apiFetch('/api/messages/thread/' + threadId + '/read', { method: 'POST' });
+    } catch (err) {
+        console.error('[MSG] markRead failed:', err.message);
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION G: Upload Handling
+// ═══════════════════════════════════════════════════════════════════════════════
+
 function handleFileSelect(event) {
-    const file = event.target.files[0];
+    var file = event.target.files[0];
     if (!file) return;
-    // Preview locally first (FileReader)
-    const reader = new FileReader();
-    reader.onload = (e) => {
+    var reader = new FileReader();
+    reader.onload = function(e) {
         document.getElementById('upload-preview-img').src = e.target.result;
         document.getElementById('upload-preview-bar').classList.add('visible');
         document.getElementById('upload-status').textContent = 'Uploading...';
@@ -972,22 +1360,19 @@ function handleFileSelect(event) {
 async function uploadImage(file) {
     uploadInProgress = true;
     try {
-        const formData = new FormData();
+        var formData = new FormData();
         formData.append('image', file);
-        const res = await fetch('/api/messages/upload', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` },
-            body: formData
-        });
+        var res = await apiUploadFetch('/api/messages/upload', formData);
         if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || `HTTP ${res.status}`);
+            var errData = await res.json().catch(function() { return {}; });
+            throw new Error(errData.error || 'HTTP ' + res.status);
         }
-        const { url, sizeKb } = await res.json();
-        pendingUploadUrl = url;
-        document.getElementById('upload-status').textContent = `Ready (${sizeKb}KB)`;
+        var data = await res.json();
+        pendingUploadUrl = data.url;
+        document.getElementById('upload-status').textContent = 'Ready (' + data.sizeKb + 'KB)';
         document.getElementById('send-btn').disabled = !isConnected;
     } catch (err) {
+        console.error('[MSG] uploadImage failed:', err.message);
         showToast('Upload failed: ' + err.message, 'error');
         removeUpload();
     } finally {
@@ -1005,51 +1390,21 @@ function removeUpload() {
 
 function hideUploadPreview() { removeUpload(); }
 
-// ── Templates ─────────────────────────────────────────────────────────────────
-async function loadTemplates() {
-    try {
-        const res = await apiFetch('/api/messages/templates');
-        if (!res.ok) return;
-        const { templates: tpls } = await res.json();
-        templates = tpls || [];
-        if (templates.length) {
-            document.getElementById('templates-wrapper').style.display = 'block';
-            document.getElementById('templates-btn').style.display = 'flex';
-        }
-    } catch (_) {}
-}
 
-function toggleTemplates() {
-    const dd = document.getElementById('templates-dropdown');
-    if (dd.classList.contains('open')) {
-        dd.classList.remove('open');
-        return;
-    }
-    dd.innerHTML = templates.map(t =>
-        `<div class="template-item" onclick="pasteToComposer(${JSON.stringify(t.body)}); toggleTemplates();">
-            <div class="t-label">${escapeHtml(t.label)}</div>
-            <div class="t-body">${escapeHtml(t.body)}</div>
-        </div>`
-    ).join('') || '<div class="template-item" style="color:var(--text-muted);">No templates yet.</div>';
-    dd.classList.add('open');
-}
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION H: Search + Export
+// ═══════════════════════════════════════════════════════════════════════════════
 
-function pasteToComposer(text) {
-    const input = document.getElementById('msg-input');
-    input.value = text;
-    input.focus();
-    onInputChange();
-}
-
-// ── Search ────────────────────────────────────────────────────────────────────
-let searchDebounce = null;
 function toggleSearch() {
-    const bar = document.getElementById('search-bar');
-    const results = document.getElementById('search-results');
-    const visible = bar.classList.contains('visible');
+    var bar = document.getElementById('search-bar');
+    var results = document.getElementById('search-results');
+    var visible = bar.classList.contains('visible');
     bar.classList.toggle('visible', !visible);
-    if (visible) { results.classList.remove('visible'); }
-    else { document.getElementById('search-input').focus(); }
+    if (visible) {
+        results.classList.remove('visible');
+    } else {
+        document.getElementById('search-input').focus();
+    }
 }
 
 function debounceSearch() {
@@ -1058,334 +1413,282 @@ function debounceSearch() {
 }
 
 async function runSearch() {
-    const q = document.getElementById('search-input').value.trim();
-    const results = document.getElementById('search-results');
+    var q = document.getElementById('search-input').value.trim();
+    var results = document.getElementById('search-results');
     if (!q || !currentThreadId) { results.classList.remove('visible'); return; }
     try {
-        const res = await apiFetch(`/api/messages/thread/${currentThreadId}/search?q=${encodeURIComponent(q)}`);
+        var res = await apiFetch('/api/messages/thread/' + currentThreadId + '/search?q=' + encodeURIComponent(q));
         if (!res.ok) return;
-        const items = await res.json();
+        var data = await res.json();
+        var items = data.results || data;
         if (!items.length) {
             results.innerHTML = '<span style="color:var(--text-muted);">No results.</span>';
         } else {
-            results.innerHTML = items.map(({ match }) =>
-                `<div style="margin-bottom:0.25rem;">
-                    <span style="color:var(--text-muted); font-size:0.68rem;">${formatTime(match.createdAt)}</span>
-                    <span style="margin-left:0.5rem;">${escapeHtml((match.body||'').slice(0, 100))}</span>
-                </div>`
-            ).join('');
+            results.innerHTML = items.map(function(item) {
+                var match = item.match || item;
+                return '<div style="margin-bottom:0.25rem;">' +
+                    '<span style="color:var(--text-muted); font-size:0.68rem;">' + formatTime(match.createdAt) + '</span>' +
+                    '<span style="margin-left:0.5rem;">' + escapeHtml((match.body || '').slice(0, 100)) + '</span>' +
+                '</div>';
+            }).join('');
         }
         results.classList.add('visible');
-    } catch (_) {}
+    } catch (err) {
+        console.error('[MSG] runSearch failed:', err.message);
+    }
 }
 
-// ── Archive / Pin ─────────────────────────────────────────────────────────────
-async function archiveThread() { if (currentThreadId) await archiveThreadId(currentThreadId); }
+// Archive / Pin
+async function archiveThread() {
+    if (currentThreadId) await archiveThreadId(currentThreadId);
+}
+
 async function archiveThreadId(threadId) {
     try {
-        const res = await apiFetch(`/api/messages/thread/${threadId}/archive`, { method: 'POST' });
-        if (!res.ok) throw new Error();
-        const { archived } = await res.json();
-        showToast(archived ? 'Thread archived.' : 'Thread unarchived.', 'success');
+        var res = await apiFetch('/api/messages/thread/' + threadId + '/archive', { method: 'POST' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var data = await res.json();
+        showToast(data.archived ? 'Thread archived.' : 'Thread unarchived.', 'success');
         loadThreads();
-    } catch { showToast('Failed to update archive state.', 'error'); }
+    } catch (err) {
+        console.error('[MSG] archiveThreadId failed:', err.message);
+        showToast('Failed to update archive state.', 'error');
+    }
 }
 
-async function pinThread() { if (currentThreadId) await pinThreadId(currentThreadId); }
+async function pinThread() {
+    if (currentThreadId) await pinThreadId(currentThreadId);
+}
+
 async function pinThreadId(threadId) {
     try {
-        const res = await apiFetch(`/api/messages/thread/${threadId}/pin`, { method: 'POST' });
+        var res = await apiFetch('/api/messages/thread/' + threadId + '/pin', { method: 'POST' });
         if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || 'Failed');
+            var errData = await res.json().catch(function() { return {}; });
+            throw new Error(errData.error || 'Failed');
         }
-        const { pinned } = await res.json();
-        showToast(pinned ? 'Thread pinned.' : 'Thread unpinned.', 'success');
+        var data = await res.json();
+        showToast(data.pinned ? 'Thread pinned.' : 'Thread unpinned.', 'success');
         loadThreads();
-    } catch (err) { showToast(err.message || 'Failed to pin thread.', 'error'); }
+    } catch (err) {
+        console.error('[MSG] pinThreadId failed:', err.message);
+        showToast(err.message || 'Failed to pin thread.', 'error');
+    }
 }
 
-// ── Export ────────────────────────────────────────────────────────────────────
 async function exportThread() {
     if (!currentThreadId) return;
     try {
-        const res = await apiFetch(`/api/messages/thread/${currentThreadId}/export`);
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const a    = document.createElement('a');
-        a.href     = URL.createObjectURL(blob);
-        a.download = `thread-export-${currentThreadId.slice(-8)}.json`;
+        var res = await apiFetch('/api/messages/thread/' + currentThreadId + '/export');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var data = await res.json();
+        var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'thread-export-' + currentThreadId.slice(-8) + '.json';
         a.click();
-    } catch { showToast('Export failed.', 'error'); }
+        URL.revokeObjectURL(a.href);
+    } catch (err) {
+        console.error('[MSG] exportThread failed:', err.message);
+        showToast('Export failed.', 'error');
+    }
 }
 
-// ── Mark read ─────────────────────────────────────────────────────────────────
-async function markRead(threadId) {
-    try {
-        await apiFetch(`/api/messages/thread/${threadId}/read`, { method: 'POST' });
-    } catch (_) {}
-}
 
-// ── Render bubbles ────────────────────────────────────────────────────────────
-function appendBubble(msg, isSent) {
-    const chatBody = document.getElementById('chat-body');
-    const empty    = chatBody.querySelector('.chat-empty');
-    if (empty) empty.remove();
-    chatBody.appendChild(makeBubbleEl(msg, isSent));
-}
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION I: Typing Indicator
+// ═══════════════════════════════════════════════════════════════════════════════
 
-function makeBubbleEl(msg, isSent) {
-    const row = document.createElement('div');
-    row.className = `bubble-row ${isSent ? 'sent' : 'received'}`;
-    row.setAttribute('data-msg-id', msg._id);
+function onInputChange() {
+    var body    = document.getElementById('msg-input').value;
+    var len     = body.length;
+    var counter = document.getElementById('char-counter');
 
-    const group = document.createElement('div');
-    group.className = `bubble-group ${isSent ? 'sent' : 'received'}`;
-    group.setAttribute('data-msg-id', msg._id);
-
-    const bubble = document.createElement('div');
-    const isDeleted = msg.deleted;
-
-    if (isDeleted) {
-        bubble.className = 'bubble deleted';
-        bubble.innerHTML = '<i class="fa fa-ban" style="margin-right:0.3rem;font-size:0.75rem;"></i>This message was removed.';
+    if (len >= 800) {
+        counter.style.display = 'block';
+        counter.textContent   = len + '/1000';
+        counter.className     = 'char-counter ' + (len > 1000 ? 'over' : 'warn');
     } else {
-        bubble.className = `bubble ${isSent ? 'sent' : 'received'}`;
-        let innerHtml = '';
-        if (msg.attachmentUrl && msg.attachmentType === 'image') {
-            innerHtml += `<img src="${escapeHtml(msg.attachmentUrl)}" class="msg-image" onclick="window.open('${escapeHtml(msg.attachmentUrl)}','_blank')" alt="Image">`;
-        } else if (msg.attachmentUrl) {
-            innerHtml += `<a href="${escapeHtml(msg.attachmentUrl)}" target="_blank" style="color:inherit;">Attachment</a>`;
-        }
-        if (msg.body) innerHtml += escapeHtml(msg.body);
-        if (msg.edited) innerHtml += `<span class="msg-edited"> (edited)</span>`;
-        bubble.innerHTML = innerHtml;
+        counter.style.display = 'none';
     }
 
-    group.appendChild(bubble);
-
-    // Reactions
-    const reactionDiv = document.createElement('div');
-    reactionDiv.className = 'msg-reactions';
-    reactionDiv.setAttribute('data-msg-id', msg._id);
-    if (msg.reactions && msg.reactions.length) {
-        renderReactionsInto(reactionDiv, msg._id, msg.reactions);
-    }
-    group.appendChild(reactionDiv);
-
-    // Hover actions (non-deleted messages)
-    if (!isDeleted) {
-        const actions = document.createElement('div');
-        actions.className = 'bubble-actions';
-        const EMOJIS = ['👍','❤️','😮'];
-        actions.innerHTML = EMOJIS.map(e =>
-            `<button class="bubble-act-btn" onclick="reactToMessage('${msg._id}', '${e}')">${e}</button>`
-        ).join('');
-        if (isSent) {
-            actions.innerHTML += `<button class="bubble-act-btn" onclick="editMessage('${msg._id}')"><i class="fa fa-pen"></i></button>`;
-            actions.innerHTML += `<button class="bubble-act-btn" onclick="deleteMessage('${msg._id}')" style="color:#dc2626;"><i class="fa fa-trash"></i></button>`;
-        }
-        group.appendChild(actions);
-    }
-
-    const time = document.createElement('span');
-    time.className = 'bubble-time';
-    time.textContent = formatTime(msg.createdAt);
-
-    if (isSent) {
-        row.appendChild(time);
-        row.appendChild(group);
-    } else {
-        row.appendChild(group);
-        row.appendChild(time);
-    }
-
-    return row;
-}
-
-function appendSystemMsg(body) {
-    const chatBody = document.getElementById('chat-body');
-    chatBody.appendChild(makeSystemEl(body));
-}
-
-function makeSystemEl(body) {
-    const el = document.createElement('div');
-    el.className = 'system-msg';
-    el.innerHTML = `<span>${escapeHtml(body)}</span>`;
-    return el;
-}
-
-// ── Reaction UI ───────────────────────────────────────────────────────────────
-function renderReactionsInto(container, msgId, reactions) {
-    const groups = {};
-    reactions.forEach(r => {
-        if (!groups[r.emoji]) groups[r.emoji] = { count: 0, mine: false };
-        groups[r.emoji].count++;
-        if (r.userId?.toString() === user.sub) groups[r.emoji].mine = true;
+    if (!socket || !currentThread) return;
+    var otherMeta = (currentThread.participantMeta || []).find(function(m) {
+        return m.userId && m.userId.toString() !== user.sub;
     });
-    container.innerHTML = Object.entries(groups).map(([emoji, { count, mine }]) =>
-        `<span class="reaction-chip${mine ? ' own' : ''}" onclick="reactToMessage('${msgId}','${emoji}')">
-            ${emoji} ${count > 1 ? count : ''}
-        </span>`
-    ).join('');
+    if (!otherMeta) return;
+
+    if (!typingActive) {
+        typingActive = true;
+        socket.emit('typing_start', { recipientId: otherMeta.userId, threadId: currentThreadId });
+    }
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(function() { stopTypingEmit(); }, 3000);
 }
 
-function updateBubbleReactions(msgId, reactions) {
-    const containers = document.querySelectorAll(`.msg-reactions[data-msg-id="${msgId}"]`);
-    containers.forEach(c => renderReactionsInto(c, msgId, reactions));
-}
-
-async function reactToMessage(msgId, emoji) {
-    try {
-        const res = await apiFetch(`/api/messages/${msgId}/react`, {
-            method: 'POST',
-            body: JSON.stringify({ emoji })
-        });
-        if (!res.ok) throw new Error();
-        const reactions = await res.json();
-        updateBubbleReactions(msgId, reactions);
-    } catch { showToast('Failed to react.', 'error'); }
-}
-
-// ── Edit / delete ─────────────────────────────────────────────────────────────
-async function editMessage(msgId) {
-    const newBody = prompt('Edit message (within 5 minutes of sending):');
-    if (!newBody) return;
-    try {
-        const res = await apiFetch(`/api/messages/${msgId}`, {
-            method: 'PUT',
-            body: JSON.stringify({ body: newBody })
-        });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || 'Failed');
-        }
-    } catch (err) { showToast(err.message || 'Edit failed.', 'error'); }
-}
-
-async function deleteMessage(msgId) {
-    if (!confirm('Remove this message?')) return;
-    try {
-        const res = await apiFetch(`/api/messages/${msgId}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error();
-        updateBubbleDeleted(msgId);
-    } catch { showToast('Delete failed.', 'error'); }
-}
-
-function updateBubbleEdited(msg) {
-    const groups = document.querySelectorAll(`.bubble-group[data-msg-id="${msg._id}"]`);
-    groups.forEach(g => {
-        const bubble = g.querySelector('.bubble');
-        if (!bubble) return;
-        bubble.innerHTML = escapeHtml(msg.body) + '<span class="msg-edited"> (edited)</span>';
+function stopTypingEmit() {
+    if (!typingActive) return;
+    typingActive = false;
+    if (!socket || !currentThread) return;
+    var otherMeta = (currentThread.participantMeta || []).find(function(m) {
+        return m.userId && m.userId.toString() !== user.sub;
     });
+    if (otherMeta) {
+        socket.emit('typing_stop', { recipientId: otherMeta.userId, threadId: currentThreadId });
+    }
+    clearTimeout(typingTimer);
 }
 
-function updateBubbleDeleted(msgId) {
-    const groups = document.querySelectorAll(`.bubble-group[data-msg-id="${msgId}"]`);
-    groups.forEach(g => {
-        const bubble = g.querySelector('.bubble');
-        if (!bubble) return;
-        bubble.className = 'bubble deleted';
-        bubble.innerHTML = '<i class="fa fa-ban" style="margin-right:0.3rem;font-size:0.75rem;"></i>This message was removed.';
-        const actions = g.querySelector('.bubble-actions');
-        if (actions) actions.remove();
-    });
-}
-
-// ── Nav badge ─────────────────────────────────────────────────────────────────
-function updateMsgNavBadge(count) {
-    let badge = document.getElementById('msg-nav-badge');
-    if (!badge) return;
-    if (count > 0) {
-        badge.textContent = count > 99 ? '99+' : count;
-        badge.style.display = 'flex';
-    } else {
-        badge.style.display = 'none';
+function showTypingIndicator(visible) {
+    var el = document.getElementById('typing-indicator');
+    if (!el) return;
+    el.classList.toggle('visible', visible);
+    if (visible) {
+        clearTimeout(typingHideTimer);
+        typingHideTimer = setTimeout(function() { showTypingIndicator(false); }, 4000);
     }
 }
 
-async function refreshUnreadBadge() {
+function hideTypingIndicator() {
+    showTypingIndicator(false);
+    clearTimeout(typingHideTimer);
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION J: Templates
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function loadTemplates() {
     try {
-        const res = await apiFetch('/api/messages/unread-count');
+        var res = await apiFetch('/api/messages/templates');
         if (!res.ok) return;
-        const { total } = await res.json();
-        updateMsgNavBadge(total);
-    } catch (_) {}
-}
-
-// Poll unread count every 30s
-setInterval(refreshUnreadBadge, 30000);
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function updateConnBadge(online, label) {
-    const b = document.getElementById('conn-badge');
-    b.textContent = label;
-    b.className   = `conn-status ${online ? 'conn-online' : 'conn-offline'}`;
-}
-
-function enableInput(on) {
-    const noThread = !currentThread;
-    // Input and attach only need a thread selected; send also needs socket
-    document.getElementById('msg-input').disabled  = noThread;
-    document.getElementById('send-btn').disabled   = noThread || !on;
-    document.getElementById('attach-btn').disabled = noThread;
-}
-
-function scrollToBottom() {
-    const b = document.getElementById('chat-body');
-    b.scrollTop = b.scrollHeight;
-}
-
-function escapeHtml(str) {
-    const d = document.createElement('div');
-    d.appendChild(document.createTextNode(str || ''));
-    return d.innerHTML;
-}
-
-function formatTime(ts) {
-    if (!ts) return '';
-    return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-}
-
-function stringToColor(str) {
-    let hash = 0;
-    for (let i = 0; i < (str || '').length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        var data = await res.json();
+        templates = data.templates || [];
+        if (templates.length) {
+            document.getElementById('templates-wrapper').style.display = 'block';
+            document.getElementById('templates-btn').style.display = 'flex';
+        }
+    } catch (err) {
+        console.error('[MSG] loadTemplates failed:', err.message);
     }
-    const colors = ['#cc0000','#1d4ed8','#15803d','#6d28d9','#0e7490','#b45309'];
-    return colors[Math.abs(hash) % colors.length];
 }
 
-// ── Handle ?with=, ?re=, ?type= query params (from Message Seller buttons) ───
-const _urlParams = new URLSearchParams(window.location.search);
-const _withId    = _urlParams.get('with');
-const _reId      = _urlParams.get('re');
-const _reType    = _urlParams.get('type');
+function toggleTemplates() {
+    var dd = document.getElementById('templates-dropdown');
+    if (dd.classList.contains('open')) {
+        dd.classList.remove('open');
+        return;
+    }
+    dd.innerHTML = templates.map(function(t) {
+        return '<div class="template-item" data-template-body="' + escapeHtml(t.body) + '">' +
+            '<div class="t-label">' + escapeHtml(t.label) + '</div>' +
+            '<div class="t-body">' + escapeHtml(t.body) + '</div>' +
+        '</div>';
+    }).join('') || '<div class="template-item" style="color:var(--text-muted);">No templates yet.</div>';
+    dd.classList.add('open');
+}
 
-async function _openOrStartThread(recipientId, contextId, contextType) {
-    // Try to find an existing thread with this recipient
+function pasteToComposer(text) {
+    var input = document.getElementById('msg-input');
+    input.value = text;
+    input.focus();
+    onInputChange();
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION K: Entry Point Parsing
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function parseUrlParams() {
+    var params  = new URLSearchParams(window.location.search);
+    var threadP = params.get('thread');
+    var withId  = params.get('with');
+    var target  = params.get('target');
+    var reId    = params.get('re');
+    var reType  = params.get('type');
+    var ctxStr  = params.get('ctx');
+
+    if (threadP) {
+        openThread(threadP);
+    } else if (withId) {
+        _openOrStartThread(withId, reId, reType);
+    } else if (target) {
+        openThreadWithUser(target);
+    }
+
+    if (ctxStr) {
+        try {
+            var ctx = JSON.parse(decodeURIComponent(ctxStr));
+            openThreadWithContext(ctx);
+        } catch (err) {
+            console.error('[MSG] Failed to parse ctx param:', err.message);
+        }
+    }
+}
+
+// Open thread with target userId (backward compat, no context)
+async function openThreadWithUser(targetId) {
     try {
-        const r = await fetch(`/api/messages/threads`, {
-            headers: { Authorization: `Bearer ${token}` }
+        var res = await apiFetch('/api/messages/thread', {
+            method: 'POST',
+            body: JSON.stringify({ recipientId: targetId })
         });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var data = await res.json();
+        await openThread(data.threadId || (data.thread && data.thread._id));
+    } catch (err) {
+        console.error('[MSG] openThreadWithUser failed:', err.message);
+        showToast('Failed to open conversation.', 'error');
+    }
+}
+
+// Open thread with full context (from product/order pages)
+async function openThreadWithContext(ctx) {
+    try {
+        var res = await apiFetch('/api/messages/thread', {
+            method: 'POST',
+            body: JSON.stringify({
+                recipientId: ctx.recipientId,
+                contextType: ctx.contextType,
+                refId:       ctx.refId,
+                refTitle:    ctx.refTitle,
+                refImage:    ctx.refImage
+            })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var data = await res.json();
+        await openThread(data.threadId || (data.thread && data.thread._id));
+    } catch (err) {
+        console.error('[MSG] openThreadWithContext failed:', err.message);
+        showToast('Failed to open conversation.', 'error');
+    }
+}
+
+// Open or start thread with known user (from ?with= param)
+async function _openOrStartThread(recipientId, contextId, contextType) {
+    try {
+        var r = await apiFetch('/api/messages/threads');
         if (r.ok) {
-            const threads = await r.json();
-            const threadList = Array.isArray(threads) ? threads : (threads.threads || []);
-            // GET /threads returns participantMeta (not participants array)
-            const existing = threadList.find(t =>
-                (t.participantMeta || []).some(p => p.userId?.toString() === recipientId.toString())
-            );
+            var data = await r.json();
+            var threadList = Array.isArray(data) ? data : (data.threads || []);
+            var existing = threadList.find(function(t) {
+                return (t.participantMeta || []).some(function(p) {
+                    return p.userId && p.userId.toString() === recipientId.toString();
+                });
+            });
             if (existing) {
                 openThread(existing.threadId || existing._id);
                 return;
             }
         }
-    } catch {}
-    // No existing thread — open with context
+    } catch (err) {
+        console.error('[MSG] _openOrStartThread thread lookup failed:', err.message);
+    }
+    // No existing thread found -- create with context
     openThreadWithContext({
-        recipientId,
+        recipientId: recipientId,
         contextType: contextType || 'product',
         refId: contextId || '',
         refTitle: '',
@@ -1393,53 +1696,201 @@ async function _openOrStartThread(recipientId, contextId, contextType) {
     });
 }
 
-// ── Token refresh (JWT expires in 1h — keep socket alive for long sessions) ──
-setInterval(async () => {
-    const rt = localStorage.getItem('refresh_token');
-    if (!rt) return;
-    try {
-        const r = await fetch('/oauth/refresh', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ grant_type: 'refresh_token', refresh_token: rt, client_id: 'markee-gateway' })
-        });
-        if (!r.ok) return;
-        const data = await r.json();
-        if (!data.access_token) return;
-        localStorage.setItem('access_token', data.access_token);
-        token = data.access_token;
-        if (socket) { socket.disconnect(); connectSocket(); }
-    } catch {}
-}, 50 * 60 * 1000);
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
-connectSocket();
-loadThreads().then(() => {
-    const params  = new URLSearchParams(window.location.search);
-    const target  = params.get('target');
-    const threadP = params.get('thread');
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION L: Lifecycle (init, token refresh, intervals, cleanup)
+// ═══════════════════════════════════════════════════════════════════════════════
 
-    if (threadP) {
-        openThread(threadP);
-    } else if (_withId) {
-        // From Message Seller button (?with=sellerId&re=productId&type=product)
-        _openOrStartThread(_withId, _reId, _reType);
-    } else if (target) {
-        openThreadWithUser(target);
-    }
+// FIX #9: Event delegation — wire all interactive elements via delegation
+function setupEventDelegation() {
+    // ── Chat body: reactions, edit, delete, image open ──
+    document.getElementById('chat-body').addEventListener('click', function(e) {
+        // Reaction button (bubble actions or reaction chips)
+        var reactBtn = e.target.closest('[data-react-msg]');
+        if (reactBtn) {
+            e.preventDefault();
+            reactToMessage(reactBtn.dataset.reactMsg, reactBtn.dataset.emoji);
+            return;
+        }
+        // Edit button
+        var editBtn = e.target.closest('[data-edit-msg]');
+        if (editBtn) {
+            e.preventDefault();
+            editMessage(editBtn.dataset.editMsg);
+            return;
+        }
+        // Delete button
+        var deleteBtn = e.target.closest('[data-delete-msg]');
+        if (deleteBtn) {
+            e.preventDefault();
+            deleteMessage(deleteBtn.dataset.deleteMsg);
+            return;
+        }
+        // Image click to open in new tab
+        var img = e.target.closest('.msg-image');
+        if (img) {
+            window.open(img.dataset.imgUrl || img.src, '_blank');
+            return;
+        }
+    });
 
-    // Context-aware open from product/order pages
-    const ctxStr = params.get('ctx');
-    if (ctxStr) {
+    // ── Thread list: open thread, archive, pin ──
+    document.getElementById('thread-list').addEventListener('click', function(e) {
+        // Archive action button
+        var archiveBtn = e.target.closest('[data-archive-thread]');
+        if (archiveBtn) {
+            e.stopPropagation();
+            archiveThreadId(archiveBtn.dataset.archiveThread);
+            return;
+        }
+        // Pin action button
+        var pinBtn = e.target.closest('[data-pin-thread]');
+        if (pinBtn) {
+            e.stopPropagation();
+            pinThreadId(pinBtn.dataset.pinThread);
+            return;
+        }
+        // Thread item click
+        var threadItem = e.target.closest('[data-thread-id]');
+        if (threadItem) {
+            openThread(threadItem.dataset.threadId);
+            return;
+        }
+    });
+
+    // ── Tab buttons ──
+    document.querySelector('.tabs-row').addEventListener('click', function(e) {
+        var btn = e.target.closest('.tab-btn');
+        if (btn && btn.dataset.tab) {
+            switchTab(btn.dataset.tab);
+        }
+    });
+
+    // ── Header action buttons ──
+    document.getElementById('search-toggle-btn').addEventListener('click', toggleSearch);
+    document.getElementById('export-btn').addEventListener('click', exportThread);
+    document.getElementById('archive-btn').addEventListener('click', archiveThread);
+    document.getElementById('pin-btn').addEventListener('click', pinThread);
+
+    // ── Search bar ──
+    document.getElementById('search-input').addEventListener('input', debounceSearch);
+    document.getElementById('search-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') toggleSearch();
+    });
+    document.getElementById('search-close-btn').addEventListener('click', toggleSearch);
+
+    // ── Load more button ──
+    document.getElementById('load-more-btn').addEventListener('click', loadMoreMessages);
+
+    // ── Composer input ──
+    document.getElementById('msg-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    document.getElementById('msg-input').addEventListener('input', onInputChange);
+
+    // ── Send button ──
+    document.getElementById('send-btn').addEventListener('click', sendMessage);
+
+    // ── Attachment ──
+    document.getElementById('attach-btn').addEventListener('click', function() {
+        document.getElementById('file-input').click();
+    });
+    document.getElementById('file-input').addEventListener('change', handleFileSelect);
+
+    // ── Remove upload ──
+    document.getElementById('remove-upload-btn').addEventListener('click', removeUpload);
+
+    // ── Templates ──
+    document.getElementById('templates-btn').addEventListener('click', toggleTemplates);
+    document.getElementById('templates-dropdown').addEventListener('click', function(e) {
+        var item = e.target.closest('[data-template-body]');
+        if (item) {
+            pasteToComposer(item.dataset.templateBody);
+            toggleTemplates();
+        }
+    });
+
+    // ── Starter suggestions ──
+    document.getElementById('starter-suggestions').addEventListener('click', function(e) {
+        var chip = e.target.closest('[data-suggestion]');
+        if (chip) {
+            pasteToComposer(chip.dataset.suggestion);
+        }
+    });
+}
+
+// FIX #10: Token refresh without dropping messages
+function setupTokenRefresh() {
+    startInterval(async function() {
+        var rt = localStorage.getItem('refresh_token');
+        if (!rt) return;
         try {
-            const ctx = JSON.parse(decodeURIComponent(ctxStr));
-            openThreadWithContext(ctx);
-        } catch (_) {}
-    }
-});
+            var r = await fetch('/oauth/refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ grant_type: 'refresh_token', refresh_token: rt, client_id: 'markee-gateway' })
+            });
+            if (!r.ok) return;
+            var data = await r.json();
+            if (!data.access_token) return;
+            localStorage.setItem('access_token', data.access_token);
+            token = data.access_token;
+            // Update socket auth without full disconnect/reconnect if possible
+            if (socket && socket.connected) {
+                socket.auth = function(cb) { cb({ token: token }); };
+                // The new token will be used on next reconnect automatically
+            } else if (socket) {
+                socket.disconnect();
+                connectSocket();
+            }
+        } catch (err) {
+            console.error('[MSG] Token refresh failed:', err.message);
+        }
+    }, 50 * 60 * 1000);
+}
 
-MarkeeCart.updateAllCartBadges();
-refreshUnreadBadge();
+// FIX #5: Unread badge polling with managed interval
+function setupUnreadPolling() {
+    startInterval(refreshUnreadBadge, 30000);
+}
+
+// Cleanup on page unload
+function setupCleanup() {
+    window.addEventListener('beforeunload', function() {
+        clearAllIntervals();
+        clearTimeout(typingTimer);
+        clearTimeout(typingHideTimer);
+        clearTimeout(searchDebounce);
+        if (currentAbortController) currentAbortController.abort();
+        if (socket) socket.disconnect();
+    });
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+function init() {
+    setupEventDelegation();
+    setupCleanup();
+    connectSocket();
+    setupTokenRefresh();
+    setupUnreadPolling();
+
+    loadThreads().then(function() {
+        parseUrlParams();
+    });
+
+    if (typeof MarkeeCart !== 'undefined' && MarkeeCart.updateAllCartBadges) {
+        MarkeeCart.updateAllCartBadges();
+    }
+    refreshUnreadBadge();
+}
+
+// Boot
+init();
+
+})();
 </script>
 </body>
 </html>

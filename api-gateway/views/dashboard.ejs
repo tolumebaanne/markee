@@ -2665,12 +2665,12 @@
     // ── Messages unread badge ─────────────────────────────────────────────────
     async function loadUnreadMessageCount() {
         try {
-            const res = await fetch('/api/messages/threads', {
+            const res = await fetch('/api/messages/unread-count', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (!res.ok) return;
-            const threads = await res.json();
-            const total = (threads || []).reduce((s, t) => s + (t.unreadCount || 0), 0);
+            const data = await res.json();
+            const total = data.total || 0;
             const badge = document.getElementById('messages-badge');
             if (badge) {
                 badge.textContent = total;

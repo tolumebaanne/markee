@@ -19,7 +19,7 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Thread ID</th><th>Buyer</th><th>Seller</th><th>Subject</th><th>Priority</th><th>Flagged</th><th>Status</th><th>Last Activity</th><th>Actions</th></tr>
+          <tr><th>Thread ID</th><th>User 1</th><th>User 2</th><th>Subject</th><th>Priority</th><th>Flagged</th><th>Status</th><th>Last Activity</th><th>Actions</th></tr>
         </thead>
         <tbody id="msg-all-body"></tbody>
       </table>
@@ -33,7 +33,7 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Thread ID</th><th>Buyer</th><th>Seller</th><th>Subject</th><th>Priority</th><th>Status</th><th>Last Activity</th><th>Actions</th></tr>
+          <tr><th>Thread ID</th><th>User 1</th><th>User 2</th><th>Subject</th><th>Priority</th><th>Status</th><th>Last Activity</th><th>Actions</th></tr>
         </thead>
         <tbody id="msg-flagged-body"></tbody>
       </table>
@@ -46,7 +46,7 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Thread ID</th><th>Buyer</th><th>Seller</th><th>Subject</th><th>Priority</th><th>Status</th><th>Last Activity</th><th>Actions</th></tr>
+          <tr><th>Thread ID</th><th>User 1</th><th>User 2</th><th>Subject</th><th>Priority</th><th>Status</th><th>Last Activity</th><th>Actions</th></tr>
         </thead>
         <tbody id="msg-disputes-body"></tbody>
       </table>
@@ -214,20 +214,25 @@ function _priorityBadge(priority) {
 }
 
 function _threadRow(t, showFlagCol, flagged) {
+  const isSuspended = t.admin?.suspended;
   const actions = `<div class="btn-gap">
-    <button class="btn btn-xs btn-warn" onclick="suspendThread('${t._id}')"><i class="fas fa-pause-circle"></i> Suspend</button>
+    <button class="btn btn-xs btn-warn" onclick="suspendThread('${t._id}')"><i class="fas fa-pause-circle"></i> ${isSuspended ? 'Unsuspend' : 'Suspend'}</button>
     <button class="btn btn-xs btn-info" onclick="openInjectModal('${t._id}')"><i class="fas fa-paper-plane"></i> Inject</button>
   </div>`;
   const flagStyle = flagged ? 'border-left:3px solid #f59e0b;' : '';
+  const p0 = t.participants?.[0] || '—';
+  const p1 = t.participants?.[1] || '—';
+  const subject = t.context?.refTitle || '(no subject)';
+  const statusLabel = isSuspended ? 'suspended' : 'active';
   return `<tr style="${flagStyle}">
     <td style="font-family:monospace;font-size:.72rem">${trunc(t._id,16)}</td>
-    <td style="font-family:monospace;font-size:.72rem">${trunc(t.buyerId,14)}</td>
-    <td style="font-family:monospace;font-size:.72rem">${trunc(t.sellerId,14)}</td>
-    <td title="${t.subject||''}">${trunc(t.subject||'(no subject)',26)}</td>
+    <td style="font-family:monospace;font-size:.72rem">${trunc(p0,14)}</td>
+    <td style="font-family:monospace;font-size:.72rem">${trunc(p1,14)}</td>
+    <td title="${subject}">${trunc(subject,26)}</td>
     <td>${_priorityBadge(t.priority)}</td>
-    ${showFlagCol ? `<td>${t.isFlagged ? '<span style="color:#f59e0b">⚑</span>' : '—'}</td>` : ''}
-    <td>${badge(t.status)}</td>
-    <td style="font-size:.78rem">${fmtDate(t.updatedAt)}</td>
+    ${showFlagCol ? `<td>${t.admin?.flagged ? '<span style="color:#f59e0b">⚑</span>' : '—'}</td>` : ''}
+    <td>${badge(statusLabel)}</td>
+    <td style="font-size:.78rem">${fmtDate(t.lastAt || t.updatedAt)}</td>
     <td>${actions}</td>
   </tr>`;
 }
@@ -256,7 +261,7 @@ async function submitInjectMessage() {
   if (!content) { toast('Message content is required', 'warn'); return; }
   if (!_injectThreadId) { toast('No thread selected', 'error'); return; }
   try {
-    await adminApi('POST', `/proxy/messages/thread/${_injectThreadId}/system-message`, {content, type});
+    await adminApi('POST', `/proxy/messages/thread/${_injectThreadId}/system-message`, {body: content, type});
     toast('System message injected', 'success');
     closeModal('injectMsgModal');
     _injectThreadId = null;
