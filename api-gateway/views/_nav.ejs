@@ -78,6 +78,12 @@
     if (!t) return;
     try {
         const u = JSON.parse(atob(t.split('.')[1]));
+        // If token is expired, clear it and stop — don't make API calls with a dead token
+        if (u.exp && u.exp * 1000 < Date.now()) {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            return;
+        }
         document.getElementById('auth-links').style.display = 'none';
         document.getElementById('user-links').style.display = 'flex';
 

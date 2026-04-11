@@ -320,6 +320,23 @@ bus.on('order.status_updated', async (payload) => {
     } catch (err) { console.error('[SELLER] order.status_updated publicStats error:', err.message); }
 });
 
+// ── Identity sync — respond to request.store_sync with all store mappings ────
+// messaging-service (and any other service) emits this on startup to warm its
+// storeId → personal userId cache from the EventBus without a direct DB connection.
+bus.on('request.store_sync', async () => {
+    try {
+        const stores = await Store.find({}).select('_id sellerId').lean();
+        for (const s of stores) {
+            if (!s.sellerId) continue;
+            bus.emit('store.verified', {
+                storeId:  s._id.toString(),
+                sellerId: s.sellerId.toString()
+            });
+        }
+        console.log(`[SELLER] store_sync: emitted ${stores.length} store mappings`);
+    } catch (err) { console.error('[SELLER] store_sync error:', err.message); }
+});
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 app.post('/register', async (req, res) => {

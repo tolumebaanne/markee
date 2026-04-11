@@ -130,6 +130,29 @@ const TemplateSchema = new mongoose.Schema({
 
 const Template = db.model('Template', TemplateSchema);
 
+// ── Seller identity cache: storeId → personal userId (C0 / S0) ───────────────
+// seller-service emits store.verified/updated/reactivated with both IDs.
+// We cache the mapping here so every order/shipment handler can resolve
+// storeId → personal userId without a DB call or hard-coded connection string.
+const sellerUserCache = new Map();
+
+bus.on('store.verified',     p => { if (p.storeId && p.sellerId) sellerUserCache.set(p.storeId, p.sellerId); });
+bus.on('store.updated',      p => { if (p.storeId && p.sellerId) sellerUserCache.set(p.storeId, p.sellerId); });
+bus.on('seller.reactivated', p => { if (p.storeId && p.sellerId) sellerUserCache.set(p.storeId, p.sellerId); });
+bus.on('seller.deactivated', p => { if (p.storeId && p.sellerId) sellerUserCache.set(p.storeId, p.sellerId); });
+
+// On startup: ask seller-service to re-emit all existing stores so the cache
+// is warm before any order.placed arrives. 500ms delay lets seller-service
+// register its request.store_sync handler first.
+setTimeout(() => bus.emit('request.store_sync'), 500);
+
+// Resolve storeId → personal userId. Falls back to the raw value if the store
+// is not yet in cache (e.g. startup race) — same contamination as before, but
+// this should not happen after cache warms.
+function resolveSellerUserId(storeId) {
+    return sellerUserCache.get(storeId?.toString()) || storeId?.toString();
+}
+
 // ── Context-aware threadId (R2) ───────────────────────────────────────────────
 // General threads: SHA-256(sorted userIds) — backward compatible
 // Product/Order threads: SHA-256(sorted userIds + contextType + refId)
@@ -922,9 +945,10 @@ bus.on('order.placed', async (payload) => {
         const { orderId, buyerId, sellerIds, items, totalAmount } = payload;
         if (!orderId || !buyerId || !Array.isArray(sellerIds) || !sellerIds.length) return;
 
-        for (const sellerId of sellerIds) {
+        for (const rawSellerId of sellerIds) {
+            const sellerId = resolveSellerUserId(rawSellerId);
             const threadId = makeThreadId(
-                buyerId.toString(), sellerId.toString(), 'order', orderId.toString()
+                buyerId.toString(), sellerId, 'order', orderId.toString()
             );
             const shortId = orderId.toString().slice(-8).toUpperCase();
 
@@ -944,7 +968,7 @@ bus.on('order.placed', async (payload) => {
                 { upsert: true, new: true }
             );
 
-            const sellerItems = (items || []).filter(i => i.sellerId?.toString() === sellerId.toString());
+            const sellerItems = (items || []).filter(i => i.sellerId?.toString() === rawSellerId.toString());
             const itemCount = sellerItems.length;
             const total = totalAmount ? ` — Total: $${(totalAmount / 100).toFixed(2)}` : '';
             const body  = `Order #${shortId} placed${total}. ${itemCount} item${itemCount !== 1 ? 's' : ''}.`;
@@ -957,11 +981,12 @@ bus.on('order.placed', async (payload) => {
 // shipment.created → inject system message (C2 / S23)
 bus.on('shipment.created', async (payload) => {
     try {
-        const { orderId, buyerId, sellerId, carrier, trackingNumber } = payload;
-        if (!orderId || !buyerId || !sellerId) return;
+        const { orderId, buyerId, sellerId: rawSellerId, carrier, trackingNumber } = payload;
+        if (!orderId || !buyerId || !rawSellerId) return;
+        const sellerId = resolveSellerUserId(rawSellerId);
 
         const threadId = makeThreadId(
-            buyerId.toString(), sellerId.toString(), 'order', orderId.toString()
+            buyerId.toString(), sellerId, 'order', orderId.toString()
         );
         const thread = await Thread.findById(threadId);
         if (!thread) return;
@@ -980,11 +1005,12 @@ bus.on('shipment.created', async (payload) => {
 // shipment.delivered → system message + auto-archive flag (C2, C12 / S23)
 bus.on('shipment.delivered', async (payload) => {
     try {
-        const { orderId, buyerId, sellerId } = payload;
-        if (!orderId || !buyerId || !sellerId) return;
+        const { orderId, buyerId, sellerId: rawSellerId } = payload;
+        if (!orderId || !buyerId || !rawSellerId) return;
+        const sellerId = resolveSellerUserId(rawSellerId);
 
         const threadId = makeThreadId(
-            buyerId.toString(), sellerId.toString(), 'order', orderId.toString()
+            buyerId.toString(), sellerId, 'order', orderId.toString()
         );
         const thread = await Thread.findById(threadId);
         if (!thread) return;
@@ -1021,11 +1047,11 @@ bus.on('order.status_updated', async (payload) => {
         if (!body) return;
 
         const URGENT = ['cancelled', 'refund_requested', 'disputed'];
-        const sellers = Array.isArray(sellerIds) ? sellerIds : [];
+        const sellers = Array.isArray(sellerIds) ? sellerIds.map(resolveSellerUserId) : [];
 
         for (const sellerId of sellers) {
             const threadId = makeThreadId(
-                buyerId.toString(), sellerId.toString(), 'order', orderId.toString()
+                buyerId.toString(), sellerId, 'order', orderId.toString()
             );
             const thread = await Thread.findById(threadId);
             if (!thread) continue;

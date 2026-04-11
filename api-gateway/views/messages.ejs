@@ -688,6 +688,8 @@ async function openThread(threadId) {
     // Reset state
     pendingUploadUrl = null;
     oldestMsgTs      = null;
+    const _inp = document.getElementById('msg-input');
+    if (_inp) _inp.value = '';
     hideUploadPreview();
     document.getElementById('starter-suggestions').style.display = 'none';
     document.getElementById('search-bar').classList.remove('visible');
