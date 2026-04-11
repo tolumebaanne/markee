@@ -507,8 +507,15 @@
             const imgs = data.images || [];
             document.getElementById('main-image').src = imgs[0] || '';
 
-            sellerUserId = data.sellerId;
+            // data.sellerId = storeId; resolve to seller's personal userId via store profile
+            const _storeId = data.sellerId;
             window.currentProduct = data;
+            // Fetch store profile to get personal userId (store.sellerId = owner userId)
+            fetch(`/api/public-seller/${_storeId}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(store => { if (store?.sellerId) sellerUserId = store.sellerId; })
+                .catch(() => {});
+            sellerUserId = _storeId; // temp fallback until store fetch completes
 
             if (imgs.length > 1) {
                 document.getElementById('gallery-container').innerHTML = imgs.map((img, i) => `

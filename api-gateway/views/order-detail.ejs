@@ -1030,9 +1030,11 @@
         // For buyer: find a seller from order items; for seller: use buyerId
         let otherUserId;
         if (isBuyer) {
-            // pick the first seller's userId — for multi-seller orders this opens the first thread
+            // Resolve storeId → seller's personal userId via sellerMap (store.sellerId = personal userId)
             const firstSellerItem = order.items.find(i => i.sellerId);
-            otherUserId = firstSellerItem?.sellerId;
+            const storeId = firstSellerItem?.sellerId?.toString();
+            const storeProfile = (window._sellerMap || {})[storeId];
+            otherUserId = storeProfile?.sellerId || storeId; // fallback to storeId if profile not loaded
         } else {
             otherUserId = order.buyerId;
         }
@@ -1190,6 +1192,7 @@
 
             _order = await res.json();
             window._currentOrder = _order;  // expose for openOrderThread()
+            window._sellerMap    = {};       // storeId → store object (populated below)
 
             // ── Resolve product titles, seller names, and shipment in parallel ──
             const productIds = [...new Set((_order.items || []).map(i => i.productId).filter(Boolean))];
@@ -1213,6 +1216,7 @@
 
             const productMap = Object.fromEntries(productIds.map((id, i) => [id, productResults[i]]));
             const sellerMap  = Object.fromEntries(sellerIds.map((id, i) => [id, sellerResults[i]]));
+            window._sellerMap = sellerMap; // expose for openOrderThread()
             // Shipping service returns an array — take the first shipment or null
             const shipment = Array.isArray(shipmentResult)
                 ? (shipmentResult.length ? shipmentResult[0] : null)
@@ -1334,11 +1338,13 @@
             if (uniqueSellers.length > 0 && user.storeId?.toString() !== uniqueSellers[0][0]) {
                 const msgSection = document.getElementById('message-sellers-section');
                 if (msgSection) {
-                    msgSection.innerHTML = uniqueSellers.map(([sellerId, seller]) => `
-                        <button class="btn btn-sm btn-outline" onclick="window.location.href='/messages?with=${sellerId}&re=${_order._id}&type=order'" style="margin-right:0.5rem;">
+                    msgSection.innerHTML = uniqueSellers.map(([, seller]) => {
+                        // seller.sellerId = store owner's personal userId; use that, not the storeId
+                        const recipientId = seller.sellerId || seller._id;
+                        return `<button class="btn btn-sm btn-outline" onclick="window.location.href='/messages?with=${recipientId}&re=${_order._id}&type=order'" style="margin-right:0.5rem;">
                             <i class="fa fa-comment"></i> Message ${seller.storeName || seller.name || 'Seller'}
-                        </button>
-                    `).join('');
+                        </button>`;
+                    }).join('');
                     msgSection.style.display = 'block';
                 }
             }
