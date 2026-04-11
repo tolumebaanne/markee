@@ -1011,11 +1011,25 @@ function sendMessage() {
     if (!body && !pendingUploadUrl) return;
     if (body.length > 1000) { showToast('Message too long (max 1000 characters).', 'error'); return; }
 
+    // Try participantMeta first, then fall back to participants array
+    var recipientId = null;
     var otherMeta = (currentThread.participantMeta || []).find(function(m) {
         return m.userId && m.userId.toString() !== user.sub;
     });
-    var recipientId = otherMeta ? otherMeta.userId : null;
-    if (!recipientId) { showToast('Cannot determine recipient.', 'error'); return; }
+    if (otherMeta) {
+        recipientId = otherMeta.userId;
+    } else if (currentThread.participants && currentThread.participants.length) {
+        // Fallback: use participants array directly
+        var other = currentThread.participants.find(function(p) {
+            return p && p.toString() !== user.sub;
+        });
+        if (other) recipientId = other.toString();
+    }
+    if (!recipientId) {
+        console.error('[MSG] Cannot determine recipient. participantMeta:', JSON.stringify(currentThread.participantMeta), 'participants:', JSON.stringify(currentThread.participants), 'user.sub:', user.sub);
+        showToast('Cannot determine recipient.', 'error');
+        return;
+    }
 
     var ctx = currentThread.context;
     socket.emit('send_message', {
