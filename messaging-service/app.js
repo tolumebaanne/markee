@@ -14,15 +14,6 @@ const bus           = require('../shared/eventBus');
 const logger        = require('./utils/logger');
 
 // ── Validate required env vars — hard fail if missing ────────────────────────
-if (!process.env.MONGODB_URI) {
-    logger.error('MONGODB_URI is required. Exiting.');
-    process.exit(1);
-}
-if (!process.env.JWT_SECRET) {
-    logger.error('JWT_SECRET is required. Exiting.');
-    process.exit(1);
-}
-
 // ── Schemas ──────────────────────────────────────────────────────────────────
 const ThreadSchema       = require('./models/Thread');
 const MessageSchema      = require('./models/Message');
@@ -54,6 +45,16 @@ const createUnreadService = require('./services/unreadService');
 const imageService        = require('./services/imageService');
 
 async function start() {
+    // 0. Validate required env vars — log and bail (no process.exit in monolith)
+    if (!process.env.MONGODB_URI) {
+        logger.error('MONGODB_URI is required. Messaging service will not start.');
+        return;
+    }
+    if (!process.env.JWT_SECRET) {
+        logger.error('JWT_SECRET is required. Messaging service will not start.');
+        return;
+    }
+
     // 1. Connect to MongoDB via createConnection (not default connection)
     const db = await mongoose.createConnection(process.env.MONGODB_URI).asPromise();
     logger.info('MongoDB connected');
@@ -175,5 +176,5 @@ async function start() {
 
 start().catch(err => {
     logger.error('Startup error:', err.message);
-    process.exit(1);
+    logger.error('Messaging service failed to start. Other services unaffected.');
 });
