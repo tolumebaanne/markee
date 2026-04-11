@@ -328,7 +328,7 @@ bus.on('request.store_sync', async () => {
         const stores = await Store.find({}).select('_id sellerId name').lean();
         for (const s of stores) {
             if (!s.sellerId) continue;
-            bus.emit('store.verified', {
+            bus.emit('store.cache_sync', {
                 storeId:  s._id.toString(),
                 sellerId: s.sellerId.toString(),
                 storeName: s.name

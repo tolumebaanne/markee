@@ -64,6 +64,20 @@ async function getTransporter() {
 
 // inApp: { userId, link, icon, priority } — optional; when provided, notification is also stored for in-app display
 async function sendNotification(type, recipient, subject, body, eventData, inApp = null) {
+    // Dedup: skip if same type+userId notification exists within 24h
+    if (inApp?.userId) {
+        try {
+            const recent = await Notification.findOne({
+                type,
+                userId: new mongoose.Types.ObjectId(inApp.userId.toString()),
+                sentAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+            });
+            if (recent) return; // Already notified recently — skip duplicate
+        } catch (dedupErr) {
+            // Dedup check failed — proceed with notification (fail open)
+        }
+    }
+
     const doc = { type, recipient, subject, body, eventData, channel: 'email' };
     if (inApp?.userId) {
         doc.userId   = inApp.userId;
@@ -988,6 +1002,282 @@ bus.on('user.deleted', async (payload) => {
         );
         console.log(`[NOTIFY] Scrubbed PII from ${result.modifiedCount} notification record(s) for user ${uid}`);
     } catch (err) { console.error('[NOTIFY] user.deleted PII scrub error:', err.message); }
+});
+
+// ── CC-1: Payment + Order gap listeners ──────────────────────────────────────
+
+// payment.split_resolved → buyer + seller: dispute resolved with split decision
+bus.on('payment.split_resolved', async (payload) => {
+    try {
+        const { orderId, buyerPercent, amounts } = payload;
+        const shortId = orderId?.toString().slice(-8).toUpperCase() || '';
+        if (payload.buyerId) {
+            await sendNotification(
+                'ORDER_CANCELLED_BUYER',
+                `buyer-${payload.buyerId}@markee.local`,
+                `Dispute Resolved — Order #${shortId}`,
+                `Your dispute for order #${shortId} has been resolved. You will receive ${buyerPercent || ''}% of the payment. Check your orders for details.`,
+                payload,
+                { userId: payload.buyerId, link: `/orders/${orderId}`, icon: 'fa-gavel', priority: 'high' }
+            );
+        }
+        const sellerIds = Array.isArray(payload.sellerIds) ? payload.sellerIds : (payload.sellerId ? [payload.sellerId] : []);
+        for (const sellerId of sellerIds) {
+            const sellerAmount = amounts?.[sellerId] ? `$${((amounts[sellerId]) / 100).toFixed(2)}` : 'your share';
+            await sendNotification(
+                'DELIVERED_SELLER',
+                `seller-${sellerId}@markee.local`,
+                `Dispute Resolved — Order #${shortId}`,
+                `The dispute for order #${shortId} has been settled. You will receive ${sellerAmount}. Check your orders for details.`,
+                payload,
+                { userId: sellerId, link: `/orders/${orderId}`, icon: 'fa-gavel', priority: 'high' }
+            );
+        }
+    } catch (err) { console.error('[NOTIFY] payment.split_resolved handler error:', err.message); }
+});
+
+// payment.pending → seller: new COD order pending collection
+bus.on('payment.pending', async (payload) => {
+    try {
+        const { orderId, buyerId, amountCents } = payload;
+        const shortId = orderId?.toString().slice(-8).toUpperCase() || '';
+        const amount  = `$${((amountCents || 0) / 100).toFixed(2)}`;
+        const sellerIds = Array.isArray(payload.sellerIds) ? payload.sellerIds : (payload.sellerId ? [payload.sellerId] : []);
+        for (const sellerId of sellerIds) {
+            await sendNotification(
+                'PAYMENT_CAPTURED',
+                `seller-${sellerId}@markee.local`,
+                `New COD Order — #${shortId}`,
+                `You have a new Cash on Delivery order (#${shortId}) pending collection of ${amount} from the buyer.`,
+                payload,
+                { userId: sellerId, link: `/orders/${orderId}`, icon: 'fa-hand-holding-usd', priority: 'medium' }
+            );
+        }
+    } catch (err) { console.error('[NOTIFY] payment.pending handler error:', err.message); }
+});
+
+// order.reservation_expired → buyer: payment window timed out, order cancelled
+bus.on('order.reservation_expired', async (payload) => {
+    try {
+        const { orderId, buyerId } = payload;
+        if (!buyerId) return;
+        const shortId = orderId?.toString().slice(-8).toUpperCase() || '';
+        await sendNotification(
+            'ORDER_CANCELLED_BUYER',
+            `buyer-${buyerId}@markee.local`,
+            `Order #${shortId} Reservation Expired`,
+            `Your order reservation (#${shortId}) has expired — payment was not completed in time and the order has been cancelled. You can place a new order at any time.`,
+            payload,
+            { userId: buyerId, link: `/orders`, icon: 'fa-clock', priority: 'medium' }
+        );
+    } catch (err) { console.error('[NOTIFY] order.reservation_expired handler error:', err.message); }
+});
+
+// ── CC-2: Seller/Store lifecycle listeners ────────────────────────────────────
+
+// store.suspended → seller: store has been suspended
+bus.on('store.suspended', async (payload) => {
+    try {
+        if (!payload.sellerId) return;
+        await sendNotification(
+            'STORE_VERIFIED',
+            `seller-${payload.sellerId}@markee.local`,
+            `Your Store Has Been Suspended`,
+            `Your store "${payload.storeName || 'your store'}" has been suspended.${payload.reason ? ` Reason: ${payload.reason}` : ''} Contact support if you believe this is an error.`,
+            payload,
+            { userId: payload.sellerId, link: `/dashboard`, icon: 'fa-ban', priority: 'critical' }
+        );
+    } catch (err) { console.error('[NOTIFY] store.suspended handler error:', err.message); }
+});
+
+// store.restored → seller: store has been restored
+bus.on('store.restored', async (payload) => {
+    try {
+        if (!payload.sellerId) return;
+        await sendNotification(
+            'STORE_VERIFIED',
+            `seller-${payload.sellerId}@markee.local`,
+            `Your Store Has Been Restored`,
+            `Your store "${payload.storeName || 'your store'}" has been restored and is now active.`,
+            payload,
+            { userId: payload.sellerId, link: `/dashboard`, icon: 'fa-check-circle', priority: 'high' }
+        );
+    } catch (err) { console.error('[NOTIFY] store.restored handler error:', err.message); }
+});
+
+// store.unverified → seller: store verification revoked
+bus.on('store.unverified', async (payload) => {
+    try {
+        if (!payload.sellerId) return;
+        await sendNotification(
+            'STORE_VERIFIED',
+            `seller-${payload.sellerId}@markee.local`,
+            `Store Verification Revoked`,
+            `Your store "${payload.storeName || 'your store'}" has had its verification status revoked. Contact support for more information.`,
+            payload,
+            { userId: payload.sellerId, link: `/dashboard`, icon: 'fa-times-circle', priority: 'high' }
+        );
+    } catch (err) { console.error('[NOTIFY] store.unverified handler error:', err.message); }
+});
+
+// store.vacation_ended → seller: vacation mode ended, store is live
+bus.on('store.vacation_ended', async (payload) => {
+    try {
+        if (!payload.sellerId) return;
+        await sendNotification(
+            'STORE_VACATION_STARTED',
+            `seller-${payload.sellerId}@markee.local`,
+            `Vacation Mode Ended`,
+            `Your store "${payload.storeName || 'your store'}" has exited vacation mode and is now visible to buyers.`,
+            payload,
+            { userId: payload.sellerId, link: `/dashboard`, icon: 'fa-store', priority: 'medium' }
+        );
+    } catch (err) { console.error('[NOTIFY] store.vacation_ended handler error:', err.message); }
+});
+
+// seller.tier_updated → seller: tier promotion or demotion
+bus.on('seller.tier_updated', async (payload) => {
+    try {
+        const sellerId = payload.sellerId;
+        if (!sellerId) return;
+        await sendNotification(
+            'PAYMENT_CAPTURED',
+            `seller-${sellerId}@markee.local`,
+            `Your Seller Tier Has Changed`,
+            `Your seller tier has been updated to ${payload.tier || 'a new tier'}. Log in to your dashboard to see your updated benefits and limits.`,
+            payload,
+            { userId: sellerId, link: `/dashboard`, icon: 'fa-trophy', priority: 'medium' }
+        );
+    } catch (err) { console.error('[NOTIFY] seller.tier_updated handler error:', err.message); }
+});
+
+// seller.deactivated → seller: account deactivated, products no longer visible
+bus.on('seller.deactivated', async (payload) => {
+    try {
+        const sellerId = payload.sellerId;
+        if (!sellerId) return;
+        await sendNotification(
+            'STORE_VERIFIED',
+            `seller-${sellerId}@markee.local`,
+            `Seller Account Deactivated`,
+            `Your seller account has been deactivated. Your products are no longer visible to buyers. Contact support for assistance.`,
+            payload,
+            { userId: sellerId, link: `/dashboard`, icon: 'fa-user-slash', priority: 'critical' }
+        );
+    } catch (err) { console.error('[NOTIFY] seller.deactivated handler error:', err.message); }
+});
+
+// seller.reactivated → seller: account reactivated, products visible again
+bus.on('seller.reactivated', async (payload) => {
+    try {
+        const sellerId = payload.sellerId;
+        if (!sellerId) return;
+        await sendNotification(
+            'STORE_VERIFIED',
+            `seller-${sellerId}@markee.local`,
+            `Seller Account Reactivated`,
+            `Your seller account has been reactivated. Your products are visible to buyers again.`,
+            payload,
+            { userId: sellerId, link: `/dashboard`, icon: 'fa-user-check', priority: 'high' }
+        );
+    } catch (err) { console.error('[NOTIFY] seller.reactivated handler error:', err.message); }
+});
+
+// ── CC-3: User lifecycle listeners ────────────────────────────────────────────
+
+// user.pending_deletion → user: account scheduled for deletion in 24h
+bus.on('user.pending_deletion', async (payload) => {
+    try {
+        const userId = payload.userId;
+        if (!userId) return;
+        await sendNotification(
+            'ORDER_PLACED',
+            `user-${userId}@markee.local`,
+            `Account Deletion Scheduled`,
+            `Your Markee account is scheduled for permanent deletion in 24 hours. If you did not request this, log in immediately to cancel.`,
+            payload,
+            { userId, link: `/profile`, icon: 'fa-user-clock', priority: 'critical' }
+        );
+    } catch (err) { console.error('[NOTIFY] user.pending_deletion handler error:', err.message); }
+});
+
+// user.deletion_cancelled → user: deletion cancelled, account safe
+bus.on('user.deletion_cancelled', async (payload) => {
+    try {
+        const userId = payload.userId;
+        if (!userId) return;
+        await sendNotification(
+            'ORDER_PLACED',
+            `user-${userId}@markee.local`,
+            `Account Deletion Cancelled`,
+            `Your account deletion request has been cancelled. Your Markee account is safe.`,
+            payload,
+            { userId, link: `/profile`, icon: 'fa-user-shield', priority: 'high' }
+        );
+    } catch (err) { console.error('[NOTIFY] user.deletion_cancelled handler error:', err.message); }
+});
+
+// user.self_deleted → email only (user no longer exists for in-app)
+bus.on('user.self_deleted', async (payload) => {
+    try {
+        if (!payload.email) return;
+        await sendNotification(
+            'ORDER_PLACED',
+            payload.email,
+            `Your Markee Account Has Been Deleted`,
+            `Your Markee account has been permanently deleted as requested. If you change your mind, you can create a new account at any time.`,
+            payload
+            // no inApp — user is deleted
+        );
+    } catch (err) { console.error('[NOTIFY] user.self_deleted handler error:', err.message); }
+});
+
+// user.suspended → user: account suspended
+bus.on('user.suspended', async (payload) => {
+    try {
+        const userId = payload.userId;
+        if (!userId) return;
+        await sendNotification(
+            'ORDER_PLACED',
+            `user-${userId}@markee.local`,
+            `Account Suspended`,
+            `Your Markee account has been suspended.${payload.reason ? ` Reason: ${payload.reason}` : ''} Contact support if you believe this is an error.`,
+            payload,
+            { userId, link: `/profile`, icon: 'fa-user-lock', priority: 'critical' }
+        );
+    } catch (err) { console.error('[NOTIFY] user.suspended handler error:', err.message); }
+});
+
+// user.banned → user: account banned
+bus.on('user.banned', async (payload) => {
+    try {
+        const userId = payload.userId;
+        if (!userId) return;
+        await sendNotification(
+            'ORDER_PLACED',
+            `user-${userId}@markee.local`,
+            `Account Banned`,
+            `Your Markee account has been banned.${payload.reason ? ` Reason: ${payload.reason}` : ''} Contact support to appeal.`,
+            payload,
+            { userId, link: `/profile`, icon: 'fa-ban', priority: 'critical' }
+        );
+    } catch (err) { console.error('[NOTIFY] user.banned handler error:', err.message); }
+});
+
+// user.unbanned → user: account reinstated
+bus.on('user.unbanned', async (payload) => {
+    try {
+        const userId = payload.userId;
+        if (!userId) return;
+        await sendNotification(
+            'ORDER_PLACED',
+            `user-${userId}@markee.local`,
+            `Account Reinstated`,
+            `Your Markee account has been reinstated. Welcome back — you can now log in and use Markee as normal.`,
+            payload,
+            { userId, link: `/`, icon: 'fa-user-check', priority: 'high' }
+        );
+    } catch (err) { console.error('[NOTIFY] user.unbanned handler error:', err.message); }
 });
 
 // ── Routes ───────────────────────────────────────────────────────────────────

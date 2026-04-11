@@ -8,6 +8,7 @@ class IdentityService {
         this.ready = false;
 
         bus.on('store.verified',     (p) => this._set(p));
+        bus.on('store.cache_sync',   (p) => this._set(p));
         bus.on('store.updated',      (p) => this._set(p));
         bus.on('seller.reactivated', (p) => this._set(p));
         bus.on('seller.deactivated', (p) => this._set(p));

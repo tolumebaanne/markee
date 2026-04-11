@@ -61,9 +61,14 @@ function registerListeners() {
     }
   });
 
-  // Listen for store verification events
+  // Listen for store verification events (actual admin verification)
   bus.on('store.verified', (payload) => {
     console.log(`[ADMIN][INTEL] Store verified: storeId=${payload.storeId} (${payload.storeName})`);
+  });
+
+  // Listen for cache sync events (startup warming — not a real verification)
+  bus.on('store.cache_sync', (payload) => {
+    console.log(`[ADMIN][INTEL] Store cache sync: storeId=${payload.storeId} (${payload.storeName})`);
   });
 
   console.log('[ADMIN] Event listeners registered');

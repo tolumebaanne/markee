@@ -94,15 +94,23 @@
         if (dr) dr.textContent = u.role || 'buyer';
     } catch {}
 
-    // Bell badge — non-blocking
-    fetch('/api/notifications/unread-count', {
-        headers: { Authorization: 'Bearer ' + t }
-    }).then(r => r.ok ? r.json() : null).then(data => {
-        if (data?.count > 0) {
+    // Bell badge — refreshed every 30s (matches message badge pattern)
+    function refreshBellBadge() {
+        fetch('/api/notifications/unread-count', {
+            headers: { Authorization: 'Bearer ' + t }
+        }).then(r => r.ok ? r.json() : null).then(data => {
             const b = document.getElementById('bell-badge');
-            if (b) { b.textContent = data.count > 9 ? '9+' : data.count; b.style.display = 'block'; }
-        }
-    }).catch(() => {});
+            if (!b) return;
+            if (data && data.count > 0) {
+                b.textContent = data.count > 9 ? '9+' : data.count;
+                b.style.display = 'block';
+            } else {
+                b.style.display = 'none';
+            }
+        }).catch(() => {});
+    }
+    refreshBellBadge();
+    setInterval(refreshBellBadge, 30000);
 
     // Messages badge — non-blocking, refreshed every 30s
     function refreshMsgBadge() {
