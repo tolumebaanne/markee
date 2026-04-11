@@ -498,11 +498,13 @@ app.post('/upload', (req, res, next) => {
 // POST /thread — create or retrieve a thread with context (S5/S6)
 app.post('/thread', async (req, res) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
-    const { recipientId, contextType = 'general', refId, refTitle = '', refImage = '' } = req.body;
-    if (!recipientId) return errorResponse(res, 400, 'recipientId required');
+    const { recipientId: rawRecipientId, contextType = 'general', refId, refTitle = '', refImage = '' } = req.body;
+    if (!rawRecipientId) return errorResponse(res, 400, 'recipientId required');
     try {
-        const userId   = req.user.sub;
-        const threadId = makeThreadId(userId, recipientId, contextType, refId);
+        const userId      = req.user.sub;
+        // Resolve storeId → personal userId so threads always use personal identities
+        const recipientId = resolveSellerUserId(rawRecipientId);
+        const threadId    = makeThreadId(userId, recipientId, contextType, refId);
 
         const thread = await Thread.findOneAndUpdate(
             { _id: threadId },
