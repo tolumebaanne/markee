@@ -51,7 +51,7 @@ const OrderSchema = new mongoose.Schema({
     cancellationCategory: {
         type: String,
         enum: ['buyer_request', 'seller_request', 'inventory_failure', 'payment_failure',
-               'cod_rejection', 'reservation_expired', 'admin_action'],
+               'cod_rejection', 'reservation_expired', 'admin_action', 'system'],
         default: null
     },
     timeline:   [{ status: String, timestamp: Date }],
@@ -139,6 +139,48 @@ bus.on('shipment.cancelled', async (payload) => {
         await advanceStatus(payload.orderId, 'processing');
         console.log(`[ORDER] Reverted order ${payload.orderId} to processing after shipment cancellation`);
     } catch (err) { console.error('[ORDER] shipment.cancelled error:', err.message); }
+});
+
+// Shipping auto-cancellation (e.g. carrier rejected, label expired)
+bus.on('shipment.auto_cancelled', async (payload) => {
+    try {
+        const order = await Order.findById(payload.orderId);
+        if (!order || order.status === 'cancelled') return;
+        order.status              = 'cancelled';
+        order.cancellationReason  = payload.reason || 'Shipment auto-cancelled by system';
+        order.cancellationCategory = 'system';
+        order.timeline.push({ status: 'cancelled', timestamp: new Date() });
+        await order.save();
+        bus.emit('order.status_updated', {
+            orderId:   order._id,
+            status:    'cancelled',
+            buyerId:   order.buyerId,
+            sellerIds: [...new Set(order.items.map(i => i.sellerId?.toString()).filter(Boolean))],
+            items:     order.items
+        });
+        console.log(`[ORDER] ${payload.orderId} → cancelled (shipment.auto_cancelled)`);
+    } catch (err) { console.error('[ORDER] shipment.auto_cancelled error:', err.message); }
+});
+
+// Buyer no-show for pickup
+bus.on('shipment.pickup_noshow', async (payload) => {
+    try {
+        const order = await Order.findById(payload.orderId);
+        if (!order || order.status === 'cancelled') return;
+        order.status              = 'cancelled';
+        order.cancellationReason  = 'buyer_pickup_noshow';
+        order.cancellationCategory = 'system';
+        order.timeline.push({ status: 'cancelled', timestamp: new Date() });
+        await order.save();
+        bus.emit('order.status_updated', {
+            orderId:   order._id,
+            status:    'cancelled',
+            buyerId:   order.buyerId,
+            sellerIds: [...new Set(order.items.map(i => i.sellerId?.toString()).filter(Boolean))],
+            items:     order.items
+        });
+        console.log(`[ORDER] ${payload.orderId} → cancelled (shipment.pickup_noshow)`);
+    } catch (err) { console.error('[ORDER] shipment.pickup_noshow error:', err.message); }
 });
 
 bus.on('order.inventory_failed', async (payload) => {

@@ -1,4 +1,4 @@
 const EventEmitter = require('events');
 const bus = new EventEmitter();
-bus.setMaxListeners(50);
+bus.setMaxListeners(60);
 module.exports = bus;

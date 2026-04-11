@@ -268,6 +268,44 @@ bus.on('shipment.buyer_confirmed', async (payload) => {
     } catch (err) { console.error('[PAYMENT] shipment.buyer_confirmed error:', err.message); }
 });
 
+// Shipping auto-cancellation: refund held escrow
+bus.on('shipment.auto_cancelled', async (payload) => {
+    try {
+        const esc = await Escrow.findOne({ orderId: payload.orderId });
+        if (!esc || esc.status !== 'held') return;
+        esc.status       = 'refunded';
+        esc.refundReason = payload.reason || 'shipment_auto_cancelled';
+        await esc.save();
+        await logEvent(esc.orderId, 'escrow_refunded', null, 'system', { reason: esc.refundReason });
+        bus.emit('payment.refunded', {
+            orderId:     esc.orderId,
+            buyerId:     esc.buyerId,
+            amountCents: esc.amountCents ?? esc.amount ?? 0,
+            reason:      esc.refundReason
+        });
+        console.log(`[PAYMENT] Escrow refunded for auto-cancelled shipment on order ${payload.orderId}`);
+    } catch (err) { console.error('[PAYMENT] shipment.auto_cancelled error:', err.message); }
+});
+
+// Buyer pickup no-show: refund held escrow
+bus.on('shipment.pickup_noshow', async (payload) => {
+    try {
+        const esc = await Escrow.findOne({ orderId: payload.orderId });
+        if (!esc || esc.status !== 'held') return;
+        esc.status       = 'refunded';
+        esc.refundReason = 'buyer_pickup_noshow';
+        await esc.save();
+        await logEvent(esc.orderId, 'escrow_refunded', null, 'system', { reason: 'buyer_pickup_noshow' });
+        bus.emit('payment.refunded', {
+            orderId:     esc.orderId,
+            buyerId:     esc.buyerId,
+            amountCents: esc.amountCents ?? esc.amount ?? 0,
+            reason:      'buyer_pickup_noshow'
+        });
+        console.log(`[PAYMENT] Escrow refunded for buyer pickup no-show on order ${payload.orderId}`);
+    } catch (err) { console.error('[PAYMENT] shipment.pickup_noshow error:', err.message); }
+});
+
 bus.on('order.inventory_failed', async (payload) => {
     try {
         const esc = await Escrow.findOne({ orderId: payload.orderId });

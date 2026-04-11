@@ -42,7 +42,12 @@ const trackedEvents = [
     'product.approved', 'product.rejected', 'product.question_asked',
     'inventory.restocked', 'order.reservation_expired', 'order.modified',
     'store.verified', 'store.vacation_started', 'store.vacation_ended',
-    'seller.tier_updated'
+    'seller.tier_updated',
+    // Shipping lifecycle events
+    'shipment.auto_cancelled', 'shipment.pickup_noshow', 'shipment.delay_flagged',
+    'shipment.escalated', 'shipment.proof_uploaded', 'shipment.delivery_rated',
+    // Seller penalties
+    'seller.fulfillment_penalty'
 ];
 trackedEvents.forEach(ev => {
     bus.on(ev, async (payload) => {
@@ -503,7 +508,26 @@ async function runTierEvaluation() {
                 const store = r.ok ? await r.json() : null;
                 const avgRating = store?.sellerAvgRating || 0;
 
-                if (gmv >= TOP_GMV_THRESHOLD && avgRating >= TOP_RATING_MIN) {
+                // Fulfillment rate: (delivered + picked_up) / (delivered + picked_up + auto_cancelled + pickup_noshow)
+                let fulfillmentRate = 1;
+                try {
+                    const [successCount, failCount] = await Promise.all([
+                        Metric.countDocuments({
+                            event: { $in: ['shipment.delivered', 'order.picked_up'] },
+                            'data.sellerId': sellerId,
+                            timestamp: { $gte: since }
+                        }),
+                        Metric.countDocuments({
+                            event: { $in: ['shipment.auto_cancelled', 'shipment.pickup_noshow'] },
+                            'data.sellerId': sellerId,
+                            timestamp: { $gte: since }
+                        })
+                    ]);
+                    const total = successCount + failCount;
+                    if (total > 0) fulfillmentRate = successCount / total;
+                } catch { /* fail open — keep fulfillmentRate = 1 */ }
+
+                if (gmv >= TOP_GMV_THRESHOLD && avgRating >= TOP_RATING_MIN && fulfillmentRate >= 0.90) {
                     tier = 'top';
                 } else if (gmv >= RISING_GMV_THRESHOLD || avgRating >= RISING_RATING_MIN) {
                     tier = 'rising';

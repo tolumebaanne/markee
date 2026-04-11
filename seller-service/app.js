@@ -127,6 +127,14 @@ const StoreSchema = new mongoose.Schema({
         resumesAt: Date
     },
 
+    // Fulfillment penalties log (appended by seller.fulfillment_penalty events)
+    fulfillmentPenalties: [{
+        reason:    String,
+        orderId:   mongoose.Schema.Types.ObjectId,
+        detail:    String,
+        issuedAt:  { type: Date, default: Date.now }
+    }],
+
     // S4/C-S4 — Public performance stats
     publicStats: {
         onTimeDeliveryRate:   { type: Number, default: 0 },
@@ -282,6 +290,24 @@ bus.on('seller.tier_updated', async (payload) => {
             console.log(`[SELLER] Tier updated: sellerId=${payload.sellerId} → ${payload.tier}`);
         }
     } catch (err) { console.error('[SELLER] seller.tier_updated error:', err.message); }
+});
+
+// Fulfillment penalty: append to store record (e.g. late shipment, auto-cancel, no-show)
+bus.on('seller.fulfillment_penalty', async (payload) => {
+    try {
+        if (!payload.sellerId) return;
+        const entry = {
+            reason:   payload.reason   || 'unspecified',
+            orderId:  payload.orderId  || null,
+            detail:   payload.detail   || '',
+            issuedAt: new Date()
+        };
+        await Store.findOneAndUpdate(
+            { sellerId: payload.sellerId },
+            { $push: { fulfillmentPenalties: { $each: [entry], $slice: -50 } } }
+        );
+        console.log(`[SELLER] Fulfillment penalty recorded for seller ${payload.sellerId}: ${entry.reason}`);
+    } catch (err) { console.error('[SELLER] seller.fulfillment_penalty error:', err.message); }
 });
 
 // S27/C-S4 — message.seller_response: update rolling avgResponseTimeHrs

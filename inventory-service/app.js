@@ -231,6 +231,40 @@ bus.on('order.status_updated', async (payload) => {
     }
 });
 
+// Shipping auto-cancellation: restore reserved stock
+bus.on('shipment.auto_cancelled', async (payload) => {
+    if (!Array.isArray(payload.items)) return;
+    for (const item of payload.items) {
+        try {
+            const inv = await Inventory.findOne({ productId: item.productId });
+            const oldReserved = inv?.reserved ?? 0;
+            await Inventory.findOneAndUpdate(
+                { productId: item.productId },
+                { $inc: { reserved: -item.qty }, $set: { updatedAt: new Date() } }
+            );
+            await writeAuditEntry(item.productId, 'reserved', oldReserved, Math.max(0, oldReserved - item.qty), 'order_cancelled');
+            console.log(`[INVENTORY] Restored ${item.qty} reserved units for product ${item.productId} (shipment.auto_cancelled)`);
+        } catch (err) { console.error('[INVENTORY] shipment.auto_cancelled restore error:', err.message); }
+    }
+});
+
+// Buyer pickup no-show: restore reserved stock
+bus.on('shipment.pickup_noshow', async (payload) => {
+    if (!Array.isArray(payload.items)) return;
+    for (const item of payload.items) {
+        try {
+            const inv = await Inventory.findOne({ productId: item.productId });
+            const oldReserved = inv?.reserved ?? 0;
+            await Inventory.findOneAndUpdate(
+                { productId: item.productId },
+                { $inc: { reserved: -item.qty }, $set: { updatedAt: new Date() } }
+            );
+            await writeAuditEntry(item.productId, 'reserved', oldReserved, Math.max(0, oldReserved - item.qty), 'order_cancelled');
+            console.log(`[INVENTORY] Restored ${item.qty} reserved units for product ${item.productId} (shipment.pickup_noshow)`);
+        } catch (err) { console.error('[INVENTORY] shipment.pickup_noshow restore error:', err.message); }
+    }
+});
+
 bus.on('user.deleted', async (payload) => {
     try {
         // R-I3 fix: accept storeId OR userId as the seller key

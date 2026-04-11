@@ -6,6 +6,11 @@ const errorResponse = require('../shared/utils/errorResponse');
 const parseUser = require('../shared/middleware/parseUser');
 const platformGuard = require('../shared/middleware/platformGuard');
 const bus = require('../shared/eventBus');
+const path = require('path');
+const multer = require('multer');
+const { v4: uuidv4 } = require('uuid');
+const imageService = require('./services/imageService');
+const fs = require('fs');
 
 const app = express();
 app.use(express.json());
@@ -17,14 +22,45 @@ const db = mongoose.createConnection(process.env.MONGODB_URI);
 db.on('connected', () => console.log('Shipping DB Connected'));
 db.on('error', (err) => console.error('[SHIPPING] DB error:', err.message));
 
-const VALID_STATUSES = ['created', 'in_transit', 'out_for_delivery', 'delivered'];
-const ALL_STATUSES   = [...VALID_STATUSES, 'cancelled'];
+// ── Status constants (B) ────────────────────────────────────────────────────
+
+const CARRIER_STATUSES      = ['created', 'in_transit', 'out_for_delivery', 'delivered'];
+const SELF_FULFILL_STATUSES = ['created', 'preparing', 'in_transit', 'delivered'];
+const PICKUP_STATUSES       = ['created', 'preparing', 'ready_for_pickup', 'picked_up'];
+const ALL_STATUSES          = [...new Set([
+    ...CARRIER_STATUSES,
+    ...SELF_FULFILL_STATUSES,
+    ...PICKUP_STATUSES,
+    'cancelled'
+])];
+const VALID_STATUSES = CARRIER_STATUSES; // backward compat alias
+
+const CARRIER_TRACKING_URLS = {
+    UPS:   'https://www.ups.com/track?tracknum=',
+    USPS:  'https://tools.usps.com/go/TrackConfirmAction?tLabels=',
+    FedEx: 'https://www.fedex.com/fedextrack/?trknbr='
+};
+
+function getStatusArray(fulfillmentType) {
+    switch (fulfillmentType) {
+        case 'self_fulfill': return SELF_FULFILL_STATUSES;
+        case 'pickup':       return PICKUP_STATUSES;
+        default:             return CARRIER_STATUSES;
+    }
+}
+
+const EST_DELIVERY_BOUNDS = {
+    carrier:      { minDays: 1, maxDays: 14 },
+    self_fulfill: { minDays: 0, maxDays: 7 },
+    pickup:       { minDays: 0, maxDays: 7 }
+};
 
 // ── Schemas (S1) ─────────────────────────────────────────────────────────────
 
 const TimelineEntrySchema = new mongoose.Schema({
     status:    { type: String, enum: ALL_STATUSES, required: true },
     note:      String,
+    proofUrl:  String,
     location:  String,
     timestamp: { type: Date, default: Date.now }
 }, { _id: false });
@@ -35,19 +71,35 @@ const ShipmentItemSchema = new mongoose.Schema({
     qty:         { type: Number, default: 1 }
 }, { _id: false });
 
+const EscalationHistoryEntrySchema = new mongoose.Schema({
+    tier:      Number,
+    reason:    String,
+    timestamp: { type: Date, default: Date.now }
+}, { _id: false });
+
 const ShipmentSchema = new mongoose.Schema({
     orderId:           { type: mongoose.Schema.Types.ObjectId, required: true },
     sellerId:          { type: mongoose.Schema.Types.ObjectId, required: true },
     buyerId:           { type: mongoose.Schema.Types.ObjectId },
     carrier:           String,
     trackingNumber:    String,
+    fulfillmentType:   { type: String, enum: ['carrier', 'self_fulfill', 'pickup'], default: 'carrier' },
     status:            { type: String, enum: ALL_STATUSES, default: 'created' },
     timeline:          { type: [TimelineEntrySchema], default: [] },
     items:             { type: [ShipmentItemSchema],  default: [] },
     estimatedDelivery: Date,
     deliveredAt:       Date,
     buyerConfirmedAt:  Date,
-    sellerNotes:       String,   // internal only — not exposed in buyer-facing responses
+    deliveryProof: {
+        url:        String,
+        uploadedAt: Date,
+        uploadedBy: String
+    },
+    escalationTier:          { type: Number, default: 0 },
+    escalationHistory:       { type: [EscalationHistoryEntrySchema], default: [] },
+    sellerResponseDeadline:  Date,
+    delayFlaggedAt:          Date,
+    sellerNotes:       String,
     updatedAt:         { type: Date, default: Date.now }
 });
 
@@ -57,11 +109,19 @@ ShipmentSchema.index({ status: 1, updatedAt: -1 });
 
 const Shipment = db.model('Shipment', ShipmentSchema);
 
+// ── Static serving + multer config (D) ──────────────────────────────────────
+
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+app.use('/uploads', express.static(uploadsDir));
+
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 8 * 1024 * 1024 }  // 8 MB
+});
+
 // ── Event listeners ────────────────────────────────────────────────────────────
 
-// Two-phase delete: order-service emits this after anonymizing buyer orders.
-// We delete shipments for those specific orders rather than listening to user.deleted directly —
-// this eliminates the race where shipping-service might act before order-service finishes.
 bus.on('user.orders_anonymized', async (payload) => {
     try {
         const { userId, orderIds } = payload;
@@ -73,7 +133,7 @@ bus.on('user.orders_anonymized', async (payload) => {
 });
 
 // ── Carrier auto-detection (C1) ───────────────────────────────────────────────
-// Heuristic only — seller-provided carrier always wins if supplied.
+
 function detectCarrier(trackingNumber) {
     if (!trackingNumber) return null;
     const t = trackingNumber.trim();
@@ -84,16 +144,28 @@ function detectCarrier(trackingNumber) {
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
-// Route order: specific named paths before parameterised ones.
 
-// POST / — Create shipment (S1, S3)
+// POST / — Create shipment (S1, S3, E)
 app.post('/', async (req, res) => {
     if (!req.user || !req.user.storeId) return errorResponse(res, 401, 'Unauthorized');
     if (req.user.storeId !== req.body.sellerId?.toString()) {
         return errorResponse(res, 403, 'storeId claim mismatch');
     }
     try {
-        // Best-effort: fetch buyerId from order-service to store on the shipment
+        const fulfillmentType = req.body.fulfillmentType || 'carrier';
+        if (!['carrier', 'self_fulfill', 'pickup'].includes(fulfillmentType)) {
+            return errorResponse(res, 400, 'Invalid fulfillmentType. Must be carrier, self_fulfill, or pickup');
+        }
+
+        // Validate per mode
+        if (fulfillmentType === 'carrier' && !req.body.trackingNumber) {
+            return errorResponse(res, 400, 'trackingNumber is required for carrier fulfillment');
+        }
+        if (fulfillmentType === 'pickup' && !req.body.estimatedDelivery) {
+            return errorResponse(res, 400, 'estimatedDelivery (pickup-ready date) is required for pickup fulfillment');
+        }
+
+        // Best-effort: fetch buyerId from order-service
         let buyerId = null;
         try {
             const orderRes = await fetch(`${process.env.ORDER_SERVICE_URL || 'http://localhost:5003'}/${req.body.orderId}`);
@@ -103,45 +175,55 @@ app.post('/', async (req, res) => {
         // Carrier auto-detect if not explicitly provided (C1)
         const carrier = req.body.carrier || detectCarrier(req.body.trackingNumber) || undefined;
 
+        const timelineEntries = [{ status: 'created', timestamp: new Date() }];
+
+        // Auto-advance carrier shipments to in_transit on creation
+        if (fulfillmentType === 'carrier' && req.body.trackingNumber) {
+            timelineEntries.push({ status: 'in_transit', timestamp: new Date() });
+        }
+
+        const initialStatus = fulfillmentType === 'carrier' && req.body.trackingNumber
+            ? 'in_transit'
+            : 'created';
+
         const shipment = await Shipment.create({
             ...req.body,
+            fulfillmentType,
             carrier,
             buyerId,
+            status:   initialStatus,
             items:    Array.isArray(req.body.items) ? req.body.items : [],
-            timeline: [{ status: 'created', timestamp: new Date() }]
+            timeline: timelineEntries
         });
 
-        // shipment.created covers the 'created' state in messaging — do NOT also emit
-        // shipment.status_updated for 'created' (would duplicate the system message). (C4 note)
         bus.emit('shipment.created', {
-            orderId:        shipment.orderId,
-            sellerId:       shipment.sellerId,
-            buyerId:        shipment.buyerId,
-            carrier:        shipment.carrier        || null,
-            trackingNumber: shipment.trackingNumber || null
+            orderId:         shipment.orderId,
+            sellerId:        shipment.sellerId,
+            buyerId:         shipment.buyerId,
+            carrier:         shipment.carrier        || null,
+            trackingNumber:  shipment.trackingNumber || null,
+            fulfillmentType: shipment.fulfillmentType
         });
-        console.log(`[SHIPPING] Shipment created for order ${shipment.orderId}`);
+        console.log(`[SHIPPING] Shipment created for order ${shipment.orderId} (${fulfillmentType})`);
         res.status(201).json(shipment);
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// GET /seller/stats — Seller delivery statistics (C6) — must precede GET /seller
+// GET /seller/stats — Seller delivery statistics (C6)
 app.get('/seller/stats', async (req, res) => {
     if (!req.user || !req.user.storeId) return errorResponse(res, 401, 'Unauthorized');
     try {
         const sellerId = req.user.storeId;
         const shipments = await Shipment.find({ sellerId }).lean();
 
-        const delivered  = shipments.filter(s => s.status === 'delivered');
-        const inTransit  = shipments.filter(s => ['in_transit','out_for_delivery'].includes(s.status));
+        const delivered  = shipments.filter(s => ['delivered', 'picked_up'].includes(s.status));
+        const inTransit  = shipments.filter(s => ['in_transit', 'out_for_delivery', 'preparing', 'ready_for_pickup'].includes(s.status));
         const cancelled  = shipments.filter(s => s.status === 'cancelled');
 
-        // On-time rate — only shipments that had estimatedDelivery set
         const timed = delivered.filter(s => s.estimatedDelivery && s.deliveredAt);
         const onTime = timed.filter(s => new Date(s.deliveredAt) <= new Date(s.estimatedDelivery));
         const onTimeRate = timed.length ? Math.round((onTime.length / timed.length) * 100) / 100 : null;
 
-        // Avg days from creation (timeline[0].timestamp) to deliveredAt
         const withTiming = delivered.filter(s => s.deliveredAt && s.timeline?.length);
         const avgDaysToShip = withTiming.length
             ? Math.round((withTiming.reduce((sum, s) => {
@@ -150,7 +232,6 @@ app.get('/seller/stats', async (req, res) => {
               }, 0) / withTiming.length) / 86400000 * 10) / 10
             : null;
 
-        // Carrier breakdown
         const carrierBreakdown = {};
         shipments.forEach(s => {
             if (s.carrier) carrierBreakdown[s.carrier] = (carrierBreakdown[s.carrier] || 0) + 1;
@@ -213,7 +294,68 @@ app.get('/admin', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// GET /order/:orderId — Buyer or seller tracking, auth-scoped (R6)
+// GET /admin/escalated — Admin view of escalated shipments, sorted by tier (I)
+app.get('/admin/escalated', async (req, res) => {
+    if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    try {
+        const { page = 1, limit = 50 } = req.query;
+        const query = { escalationTier: { $gte: 1 } };
+
+        const skip  = (parseInt(page) - 1) * parseInt(limit);
+        const total = await Shipment.countDocuments(query);
+        const shipments = await Shipment.find(query)
+            .sort({ escalationTier: -1, updatedAt: 1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        res.json({ shipments, total, page: parseInt(page), hasMore: skip + shipments.length < total });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// POST /upload-proof — Upload delivery/pickup proof photo (G)
+// MUST be before parameterized routes
+app.post('/upload-proof', upload.single('proof'), async (req, res) => {
+    if (!req.user || !req.user.storeId) return errorResponse(res, 401, 'Unauthorized');
+    if (!req.file) return errorResponse(res, 400, 'No file uploaded');
+    if (!req.body.shipmentId) return errorResponse(res, 400, 'shipmentId is required');
+    try {
+        const shipment = await Shipment.findById(req.body.shipmentId);
+        if (!shipment) return errorResponse(res, 404, 'Shipment not found');
+        if (shipment.sellerId.toString() !== req.user.storeId) {
+            return errorResponse(res, 403, 'Not owned by you');
+        }
+
+        // Compress to 50KB
+        const compressed = await imageService.compress(req.file.buffer, 50);
+        const filename = `${uuidv4()}.jpg`;
+        const filePath = path.join(uploadsDir, filename);
+        fs.writeFileSync(filePath, compressed);
+
+        const proofUrl = `/uploads/${filename}`;
+        const timestamp = new Date();
+
+        shipment.deliveryProof = {
+            url:        proofUrl,
+            uploadedAt: timestamp,
+            uploadedBy: req.user.sub || req.user.storeId
+        };
+        shipment.updatedAt = timestamp;
+        await shipment.save();
+
+        bus.emit('shipment.proof_uploaded', {
+            orderId:    shipment.orderId,
+            sellerId:   shipment.sellerId,
+            buyerId:    shipment.buyerId || null,
+            shipmentId: shipment._id,
+            proofUrl
+        });
+
+        console.log(`[SHIPPING] Proof uploaded for shipment ${shipment._id}`);
+        res.json({ proofUrl, shipmentId: shipment._id });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// GET /order/:orderId — Buyer or seller tracking, auth-scoped (R6, J)
 app.get('/order/:orderId', async (req, res) => {
     if (!req.user) return errorResponse(res, 401, 'Unauthorized');
     try {
@@ -229,17 +371,33 @@ app.get('/order/:orderId', async (req, res) => {
 
         if (!isAdmin && !isBuyer && !isSeller) return errorResponse(res, 403, 'Access denied');
 
-        // Strip sellerNotes from buyer-facing response
-        const response = (isSeller || isAdmin)
-            ? shipments
-            : shipments.map(({ sellerNotes: _sn, ...rest }) => rest);
+        // Enrich response
+        const response = shipments.map(s => {
+            const enriched = (isSeller || isAdmin) ? { ...s } : (() => {
+                const { sellerNotes: _sn, ...rest } = s;
+                return rest;
+            })();
+
+            // Add carrierTrackingUrl
+            if (s.carrier && s.trackingNumber && CARRIER_TRACKING_URLS[s.carrier]) {
+                enriched.carrierTrackingUrl = CARRIER_TRACKING_URLS[s.carrier] + encodeURIComponent(s.trackingNumber);
+            }
+
+            // Conditionally include deliveryProof (only for delivered/picked_up or admin)
+            if (s.deliveryProof?.url && (['delivered', 'picked_up'].includes(s.status) || isAdmin)) {
+                enriched.deliveryProof = s.deliveryProof;
+            } else if (!isAdmin && !['delivered', 'picked_up'].includes(s.status)) {
+                delete enriched.deliveryProof;
+            }
+
+            return enriched;
+        });
 
         res.json(response);
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// POST /order/:orderId/confirm-delivery — Buyer confirms receipt (C7)
-// Optional ?shipmentId= to target a specific shipment; falls back to most recent delivered.
+// POST /order/:orderId/confirm-delivery — Buyer confirms receipt (C7, L)
 app.post('/order/:orderId/confirm-delivery', async (req, res) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
     try {
@@ -248,13 +406,15 @@ app.post('/order/:orderId/confirm-delivery', async (req, res) => {
 
         const shipment = req.query.shipmentId
             ? await Shipment.findOne(baseQuery)
-            : await Shipment.findOne({ orderId: req.params.orderId, status: 'delivered' })
+            : await Shipment.findOne({ orderId: req.params.orderId, status: { $in: ['delivered', 'picked_up'] } })
                             .sort({ updatedAt: -1 });
 
         if (!shipment) return errorResponse(res, 404, 'Shipment not found');
         if (shipment.buyerId?.toString() !== req.user.sub) return errorResponse(res, 403, 'Not your order');
         if (shipment.buyerConfirmedAt)                     return errorResponse(res, 400, 'Already confirmed');
-        if (shipment.status !== 'delivered')               return errorResponse(res, 400, 'Shipment not yet delivered');
+        if (!['delivered', 'picked_up'].includes(shipment.status)) {
+            return errorResponse(res, 400, 'Shipment not yet delivered or picked up');
+        }
 
         shipment.buyerConfirmedAt = new Date();
         shipment.updatedAt        = new Date();
@@ -270,12 +430,61 @@ app.post('/order/:orderId/confirm-delivery', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// PATCH /:id/status — Structured carrier webhook, forward-only (S2, S3)
+// POST /:id/seller-response — Seller responds to escalation (H)
+app.post('/:id/seller-response', async (req, res) => {
+    if (!req.user || !req.user.storeId) return errorResponse(res, 401, 'Unauthorized');
+    try {
+        const shipment = await Shipment.findById(req.params.id);
+        if (!shipment) return errorResponse(res, 404, 'Shipment not found');
+        if (shipment.sellerId.toString() !== req.user.storeId) {
+            return errorResponse(res, 403, 'Not owned by you');
+        }
+        if (shipment.escalationTier < 1) {
+            return errorResponse(res, 400, 'Shipment is not escalated');
+        }
+
+        const { note, newEstimatedDelivery } = req.body;
+        if (!note || typeof note !== 'string' || !note.trim()) {
+            return errorResponse(res, 400, 'note is required');
+        }
+
+        const timestamp = new Date();
+        shipment.timeline.push({
+            status: shipment.status,
+            note: `Seller response: ${note.trim()}`,
+            timestamp
+        });
+
+        if (newEstimatedDelivery) {
+            const newDate = new Date(newEstimatedDelivery);
+            if (isNaN(newDate.getTime())) {
+                return errorResponse(res, 400, 'Invalid newEstimatedDelivery date');
+            }
+            shipment.estimatedDelivery = newDate;
+        }
+
+        // Reset escalation tier back to 0 and extend seller response deadline
+        shipment.escalationTier = 0;
+        shipment.sellerResponseDeadline = null;
+        shipment.updatedAt = timestamp;
+        await shipment.save();
+
+        bus.emit('shipment.seller_responded', {
+            orderId:    shipment.orderId,
+            sellerId:   shipment.sellerId,
+            buyerId:    shipment.buyerId || null,
+            shipmentId: shipment._id,
+            note:       note.trim()
+        });
+
+        console.log(`[SHIPPING] Seller responded to escalation on shipment ${shipment._id}`);
+        res.json(shipment);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// PATCH /:id/status — Structured status update, type-aware forward-only (S2, S3, F)
 app.patch('/:id/status', async (req, res) => {
     const { status, note, location } = req.body;
-    if (!VALID_STATUSES.includes(status)) {
-        return errorResponse(res, 400, `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`);
-    }
     try {
         const shipment = await Shipment.findById(req.params.id);
         if (!shipment) return errorResponse(res, 404, 'Shipment not found');
@@ -286,11 +495,24 @@ app.patch('/:id/status', async (req, res) => {
             return errorResponse(res, 400, 'Cannot update a cancelled shipment');
         }
 
+        // Get the correct status progression for this fulfillment type
+        const statusArray = getStatusArray(shipment.fulfillmentType);
+        if (!statusArray.includes(status)) {
+            return errorResponse(res, 400, `Invalid status '${status}' for ${shipment.fulfillmentType}. Must be one of: ${statusArray.join(', ')}`);
+        }
+
         // Forward-only progression
-        const currentIdx = VALID_STATUSES.indexOf(shipment.status);
-        const newIdx     = VALID_STATUSES.indexOf(status);
+        const currentIdx = statusArray.indexOf(shipment.status);
+        const newIdx     = statusArray.indexOf(status);
         if (newIdx <= currentIdx) {
             return errorResponse(res, 400, `Cannot go backwards from '${shipment.status}' to '${status}'`);
+        }
+
+        // Proof guard: self_fulfill and pickup require proof before final status
+        const finalStatuses = { self_fulfill: 'delivered', pickup: 'picked_up' };
+        const requiresProof = finalStatuses[shipment.fulfillmentType];
+        if (requiresProof && status === requiresProof && !shipment.deliveryProof?.url) {
+            return errorResponse(res, 400, `Delivery proof is required before marking as '${status}'. Upload proof first via POST /upload-proof`);
         }
 
         const timestamp = new Date();
@@ -304,21 +526,20 @@ app.patch('/:id/status', async (req, res) => {
             if (detected) shipment.carrier = detected;
         }
 
-        if (status === 'delivered') {
+        if (status === 'delivered' || status === 'picked_up') {
             shipment.deliveredAt = timestamp;
-            // Compute onTime: true if delivered on or before estimated; null if no estimate set
             const onTime = shipment.estimatedDelivery
                 ? (timestamp <= new Date(shipment.estimatedDelivery))
                 : null;
             await shipment.save();
 
-            // Enriched delivered payload (R8)
             bus.emit('shipment.delivered', {
                 orderId:           shipment.orderId,
                 sellerId:          shipment.sellerId,
                 buyerId:           shipment.buyerId        || null,
                 carrier:           shipment.carrier        || null,
                 trackingNumber:    shipment.trackingNumber || null,
+                fulfillmentType:   shipment.fulfillmentType,
                 createdAt:         shipment.timeline[0]?.timestamp || null,
                 deliveredAt:       timestamp,
                 estimatedDelivery: shipment.estimatedDelivery || null,
@@ -327,7 +548,6 @@ app.patch('/:id/status', async (req, res) => {
                 items:             shipment.items
             });
 
-            // Late delivery signal (C2)
             if (onTime === false) {
                 const daysLate = Math.round(
                     (timestamp - new Date(shipment.estimatedDelivery)) / 86400000 * 10
@@ -353,8 +573,6 @@ app.patch('/:id/status', async (req, res) => {
             }
         }
 
-        // Every non-'created' status push emits status_updated for messaging-service thread injection (C4)
-        // 'created' is excluded — shipment.created already covers it to avoid duplicate system messages.
         bus.emit('shipment.status_updated', {
             orderId:        shipment.orderId,
             sellerId:       shipment.sellerId,
@@ -396,7 +614,6 @@ app.patch('/:id/cancel', async (req, res) => {
             buyerId:    shipment.buyerId || null,
             shipmentId: shipment._id
         });
-        // Emit status_updated so messaging-service can inject "Shipment cancelled" system message (C4)
         bus.emit('shipment.status_updated', {
             orderId:   shipment.orderId,
             sellerId:  shipment.sellerId,
@@ -411,38 +628,236 @@ app.patch('/:id/cancel', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// ── Ship-by reminder sweep (C5) ───────────────────────────────────────────────
-// Every 6h: find shipments stuck in 'created' for > 48h and nudge the seller.
-// Implemented within shipping-service's own data — queries stalled shipments
-// (created but never advanced) rather than querying order-service for processing orders.
-const OVERDUE_MS      = 48 * 60 * 60 * 1000;
-const SWEEP_INTERVAL  =  6 * 60 * 60 * 1000;
+// ── Background jobs (K) ─────────────────────────────────────────────────────
 
+const TWO_HOURS  = 2 * 60 * 60 * 1000;
+const SIX_HOURS  = 6 * 60 * 60 * 1000;
+const ONE_DAY    = 24 * 60 * 60 * 1000;
+const TWO_DAYS   = 48 * 60 * 60 * 1000;
+
+// K1: Escalation sweep (every 2h)
+// tier 0 -> 1 -> 2 -> 3 based on overdue estimated delivery
+// Auto-cancel at tier 3 + 48h with no seller response
 setInterval(async () => {
     try {
-        const cutoff  = new Date(Date.now() - OVERDUE_MS);
-        const stalled = await Shipment.find(
-            { status: 'created', updatedAt: { $lt: cutoff } },
-            { orderId: 1, sellerId: 1 }
-        ).lean();
+        const now = new Date();
+        // Find shipments past estimated delivery that are not yet delivered/cancelled/picked_up
+        const overdue = await Shipment.find({
+            status: { $nin: ['delivered', 'picked_up', 'cancelled'] },
+            estimatedDelivery: { $lt: now }
+        });
 
-        for (const s of stalled) {
-            bus.emit('shipment.overdue', {
-                orderId:    s.orderId,
-                sellerId:   s.sellerId,
-                shipmentId: s._id
+        for (const shipment of overdue) {
+            const hoursPastDue = (now - new Date(shipment.estimatedDelivery)) / (60 * 60 * 1000);
+            let newTier = shipment.escalationTier;
+
+            if (hoursPastDue >= 72 && newTier < 3) newTier = 3;
+            else if (hoursPastDue >= 48 && newTier < 2) newTier = 2;
+            else if (hoursPastDue >= 24 && newTier < 1) newTier = 1;
+
+            // Auto-cancel: tier 3 and sellerResponseDeadline passed (48h after tier 3)
+            if (shipment.escalationTier >= 3 && shipment.sellerResponseDeadline && now > new Date(shipment.sellerResponseDeadline)) {
+                shipment.status = 'cancelled';
+                shipment.timeline.push({ status: 'cancelled', note: 'Auto-cancelled: escalation tier 3 with no seller response', timestamp: now });
+                shipment.updatedAt = now;
+                await shipment.save();
+                bus.emit('shipment.auto_cancelled', {
+                    orderId:    shipment.orderId,
+                    sellerId:   shipment.sellerId,
+                    buyerId:    shipment.buyerId || null,
+                    shipmentId: shipment._id,
+                    reason:     'escalation_timeout'
+                });
+                bus.emit('shipment.status_updated', {
+                    orderId:  shipment.orderId,
+                    sellerId: shipment.sellerId,
+                    buyerId:  shipment.buyerId || null,
+                    status:   'cancelled',
+                    note:     'Auto-cancelled: escalation tier 3 with no seller response',
+                    location: null,
+                    timestamp: now
+                });
+                console.log(`[SHIPPING] Auto-cancelled shipment ${shipment._id} (escalation timeout)`);
+                continue;
+            }
+
+            if (newTier > shipment.escalationTier) {
+                shipment.escalationTier = newTier;
+                shipment.escalationHistory.push({ tier: newTier, reason: `Auto-escalated: ${hoursPastDue.toFixed(0)}h past estimated delivery`, timestamp: now });
+                if (newTier === 3) {
+                    shipment.sellerResponseDeadline = new Date(now.getTime() + TWO_DAYS);
+                }
+                shipment.delayFlaggedAt = shipment.delayFlaggedAt || now;
+                shipment.updatedAt = now;
+                await shipment.save();
+                bus.emit('shipment.escalated', {
+                    orderId:    shipment.orderId,
+                    sellerId:   shipment.sellerId,
+                    buyerId:    shipment.buyerId || null,
+                    shipmentId: shipment._id,
+                    tier:       newTier
+                });
+                console.log(`[SHIPPING] Escalated shipment ${shipment._id} to tier ${newTier}`);
+            }
+        }
+    } catch (err) { console.error('[SHIPPING] Escalation sweep error:', err.message); }
+}, TWO_HOURS);
+
+// K2: Buyer confirmation sweep (every 2h)
+// Auto-confirm carrier shipments 48h after delivery
+// Nudge self_fulfill/pickup buyers
+setInterval(async () => {
+    try {
+        const now = new Date();
+        const cutoff = new Date(now.getTime() - TWO_DAYS);
+
+        // Auto-confirm carrier shipments delivered >48h ago with no buyer confirmation
+        const carrierAutoConfirm = await Shipment.find({
+            fulfillmentType: 'carrier',
+            status: 'delivered',
+            deliveredAt: { $lt: cutoff },
+            buyerConfirmedAt: null
+        });
+
+        for (const shipment of carrierAutoConfirm) {
+            shipment.buyerConfirmedAt = now;
+            shipment.updatedAt = now;
+            await shipment.save();
+            bus.emit('shipment.buyer_confirmed', {
+                orderId:    shipment.orderId,
+                sellerId:   shipment.sellerId,
+                buyerId:    shipment.buyerId,
+                shipmentId: shipment._id,
+                autoConfirmed: true
+            });
+            console.log(`[SHIPPING] Auto-confirmed carrier shipment ${shipment._id}`);
+        }
+
+        // Nudge self_fulfill/pickup buyers who haven't confirmed after 48h
+        const needsNudge = await Shipment.find({
+            fulfillmentType: { $in: ['self_fulfill', 'pickup'] },
+            status: { $in: ['delivered', 'picked_up'] },
+            deliveredAt: { $lt: cutoff },
+            buyerConfirmedAt: null
+        });
+
+        for (const shipment of needsNudge) {
+            bus.emit('shipment.confirmation_nudge', {
+                orderId:    shipment.orderId,
+                sellerId:   shipment.sellerId,
+                buyerId:    shipment.buyerId || null,
+                shipmentId: shipment._id,
+                fulfillmentType: shipment.fulfillmentType
             });
         }
-        if (stalled.length) {
-            console.log(`[SHIPPING] Overdue sweep: ${stalled.length} stalled shipment(s) flagged`);
+        if (needsNudge.length) {
+            console.log(`[SHIPPING] Buyer confirmation nudge: ${needsNudge.length} shipment(s)`);
         }
-    } catch (err) { console.error('[SHIPPING] Overdue sweep error:', err.message); }
-}, SWEEP_INTERVAL);
+    } catch (err) { console.error('[SHIPPING] Buyer confirmation sweep error:', err.message); }
+}, TWO_HOURS);
+
+// K3: Pickup no-show sweep (every 6h)
+// Day 3: nudge buyer, Day 5: flag seller, Day 7: auto-cancel
+setInterval(async () => {
+    try {
+        const now = new Date();
+        const pickupReady = await Shipment.find({
+            fulfillmentType: 'pickup',
+            status: 'ready_for_pickup'
+        });
+
+        for (const shipment of pickupReady) {
+            const readyEntry = shipment.timeline.find(t => t.status === 'ready_for_pickup');
+            if (!readyEntry) continue;
+            const daysSinceReady = (now - new Date(readyEntry.timestamp)) / ONE_DAY;
+
+            if (daysSinceReady >= 7) {
+                // Auto-cancel
+                shipment.status = 'cancelled';
+                shipment.timeline.push({ status: 'cancelled', note: 'Auto-cancelled: pickup no-show after 7 days', timestamp: now });
+                shipment.updatedAt = now;
+                await shipment.save();
+                bus.emit('shipment.auto_cancelled', {
+                    orderId:    shipment.orderId,
+                    sellerId:   shipment.sellerId,
+                    buyerId:    shipment.buyerId || null,
+                    shipmentId: shipment._id,
+                    reason:     'pickup_no_show'
+                });
+                bus.emit('shipment.status_updated', {
+                    orderId:  shipment.orderId,
+                    sellerId: shipment.sellerId,
+                    buyerId:  shipment.buyerId || null,
+                    status:   'cancelled',
+                    note:     'Auto-cancelled: pickup no-show after 7 days',
+                    location: null,
+                    timestamp: now
+                });
+                console.log(`[SHIPPING] Auto-cancelled pickup shipment ${shipment._id} (no-show 7d)`);
+            } else if (daysSinceReady >= 5) {
+                bus.emit('shipment.pickup_noshow_flag', {
+                    orderId:    shipment.orderId,
+                    sellerId:   shipment.sellerId,
+                    buyerId:    shipment.buyerId || null,
+                    shipmentId: shipment._id,
+                    daysSinceReady: Math.floor(daysSinceReady)
+                });
+            } else if (daysSinceReady >= 3) {
+                bus.emit('shipment.pickup_nudge', {
+                    orderId:    shipment.orderId,
+                    sellerId:   shipment.sellerId,
+                    buyerId:    shipment.buyerId || null,
+                    shipmentId: shipment._id,
+                    daysSinceReady: Math.floor(daysSinceReady)
+                });
+            }
+        }
+    } catch (err) { console.error('[SHIPPING] Pickup no-show sweep error:', err.message); }
+}, SIX_HOURS);
+
+// K4: Dead order detection (every 6h)
+// Shipments stuck in 'created' for >7 days -> auto-cancel
+setInterval(async () => {
+    try {
+        const now = new Date();
+        const cutoff = new Date(now.getTime() - 7 * ONE_DAY);
+        const dead = await Shipment.find({
+            status: 'created',
+            updatedAt: { $lt: cutoff }
+        });
+
+        for (const shipment of dead) {
+            shipment.status = 'cancelled';
+            shipment.timeline.push({ status: 'cancelled', note: 'Auto-cancelled: no activity for 7+ days', timestamp: now });
+            shipment.updatedAt = now;
+            await shipment.save();
+            bus.emit('shipment.auto_cancelled', {
+                orderId:    shipment.orderId,
+                sellerId:   shipment.sellerId,
+                buyerId:    shipment.buyerId || null,
+                shipmentId: shipment._id,
+                reason:     'dead_order'
+            });
+            bus.emit('shipment.status_updated', {
+                orderId:  shipment.orderId,
+                sellerId: shipment.sellerId,
+                buyerId:  shipment.buyerId || null,
+                status:   'cancelled',
+                note:     'Auto-cancelled: no activity for 7+ days',
+                location: null,
+                timestamp: now
+            });
+            console.log(`[SHIPPING] Auto-cancelled dead shipment ${shipment._id} (>7d in created)`);
+        }
+        if (dead.length) {
+            console.log(`[SHIPPING] Dead order sweep: ${dead.length} shipment(s) cancelled`);
+        }
+    } catch (err) { console.error('[SHIPPING] Dead order sweep error:', err.message); }
+}, SIX_HOURS);
 
 // ── ADMIN ROUTES ──────────────────────────────────────────────────────────────
 
-// GET /admin/unshipped — shipments in 'created' status for > 24h (paid but not yet shipped)
-// Query params: page=1, limit=50
+// GET /admin/unshipped — shipments in 'created' status for > 24h
 app.get('/admin/unshipped', async (req, res) => {
     if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
@@ -481,7 +896,6 @@ app.get('/admin/stuck-in-transit', async (req, res) => {
 });
 
 // PATCH /admin/:id/force-status — force any shipment to any valid status
-// Body: { status, reason }
 app.patch('/admin/:id/force-status', async (req, res) => {
     if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     const { status, reason } = req.body;
@@ -496,7 +910,7 @@ app.patch('/admin/:id/force-status', async (req, res) => {
         shipment.timeline.push({ status, note: reason || 'Admin force-status', timestamp });
         shipment.status    = status;
         shipment.updatedAt = timestamp;
-        if (status === 'delivered' && !shipment.deliveredAt) {
+        if ((status === 'delivered' || status === 'picked_up') && !shipment.deliveredAt) {
             shipment.deliveredAt = timestamp;
         }
         await shipment.save();
@@ -517,7 +931,6 @@ app.patch('/admin/:id/force-status', async (req, res) => {
 });
 
 // PATCH /admin/:id/mark-delivered — force mark shipment as delivered
-// Body: { reason }
 app.patch('/admin/:id/mark-delivered', async (req, res) => {
     if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
@@ -542,8 +955,6 @@ app.patch('/admin/:id/mark-delivered', async (req, res) => {
 });
 
 // POST /admin/:id/note — attach internal admin note to a shipment
-// Body: { note }
-// Appends to adminNotes array: { note, addedAt, addedBy }
 app.post('/admin/:id/note', async (req, res) => {
     if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     const { note } = req.body;
