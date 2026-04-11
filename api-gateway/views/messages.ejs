@@ -483,6 +483,8 @@ function connectSocket() {
         isConnected = true;
         updateConnBadge(true, 'Online');
         enableInput(true);
+        // Refresh thread list on (re)connect so new threads created while offline appear
+        loadThreads();
         if (currentThreadId && reconnectTs) fetchMissedMessages();
     });
 
@@ -687,6 +689,7 @@ async function openThread(threadId) {
         const { thread, messages, hasMore } = await res.json();
 
         currentThread = thread;
+        enableInput(isConnected); // re-enable now that currentThread is set
         renderThreadHeader(thread);
         renderContextCard(thread);
 
