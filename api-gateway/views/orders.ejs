@@ -375,12 +375,10 @@
     const isSeller = user.storeActive === true;
     const isAdmin  = user.role === 'admin';
 
-    if (isSeller || isAdmin) {
-        document.getElementById('nav-dashboard').style.display = 'inline-flex';
-    }
-    if (isAdmin) {
-        document.getElementById('nav-admin').style.display = 'inline-flex';
-    }
+    const _ndEl = document.getElementById('nav-dashboard');
+    if ((isSeller || isAdmin) && _ndEl) _ndEl.style.display = 'inline-flex';
+    const _naEl = document.getElementById('nav-admin');
+    if (isAdmin && _naEl) _naEl.style.display = 'inline-flex';
     if (isSeller || isAdmin) {
         document.getElementById('tab-bar').style.display = 'flex';
         document.getElementById('orders-subtitle').textContent = 'Your purchases and storefront sales';
