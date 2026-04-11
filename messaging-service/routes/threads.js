@@ -44,14 +44,14 @@ module.exports = function createThreadRoutes(services) {
     router.post('/thread', async (req, res) => {
         try {
             const userId = req.user.sub;
-            const { recipientId, contextType, refId, refTitle, refImage } = req.body;
+            const { recipientId, contextType, refId, refTitle, refImage, recipientName } = req.body;
             if (!recipientId) return errorResponse(res, 400, 'recipientId required');
             // Resolve storeId → personal userId (passthrough if already a userId)
             const resolvedRecipient = identityService.resolve(recipientId);
             const thread = await threadService.findOrCreate(
                 userId, resolvedRecipient,
                 { type: contextType || 'general', refId, refTitle, refImage },
-                req.user.displayName || '', ''
+                req.user.displayName || '', recipientName || ''
             );
             res.json({ thread });
         } catch (err) {

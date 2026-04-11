@@ -1073,6 +1073,7 @@
         const p = window.currentProduct;
         const ctx = {
             recipientId: sellerUserId,
+            recipientName: window._sellerStoreName || 'Seller',
             contextType: 'product',
             refId:       window.PRODUCT_ID,
             refTitle:    p?.title || 'Product',
@@ -1193,6 +1194,7 @@
             if (!res.ok) return;
             const store = await res.json();
             document.getElementById('store-name-label').textContent = store.name || 'Unknown Store';
+            window._sellerStoreName = store.name || 'Seller';
             const dot = document.getElementById('store-open-dot');
             dot.innerHTML = store.isOpen
                 ? '<span style="color:#15803d; font-size:0.72rem; font-weight:700;">● Open</span>'

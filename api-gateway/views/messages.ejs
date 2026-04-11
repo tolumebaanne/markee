@@ -1664,11 +1664,12 @@ async function openThreadWithContext(ctx) {
         var res = await apiFetch('/api/messages/thread', {
             method: 'POST',
             body: JSON.stringify({
-                recipientId: ctx.recipientId,
-                contextType: ctx.contextType,
-                refId:       ctx.refId,
-                refTitle:    ctx.refTitle,
-                refImage:    ctx.refImage
+                recipientId:   ctx.recipientId,
+                recipientName: ctx.recipientName || '',
+                contextType:   ctx.contextType,
+                refId:         ctx.refId,
+                refTitle:      ctx.refTitle,
+                refImage:      ctx.refImage
             })
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
