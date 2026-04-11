@@ -100,6 +100,122 @@
         .act-btn.danger:hover { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
         .act-btn.activate:hover { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
 
+        /* ── Orders Received two-column layout ─────────────────────────────── */
+        .orders-panel-row {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+        .orders-received-panel {
+            flex: 1;
+            min-width: 280px;
+            overflow-y: auto;
+            max-height: 72vh;
+        }
+        .needs-action-card {
+            flex: 1;
+            min-width: 220px;
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            overflow-y: auto;
+            max-height: 72vh;
+        }
+        .action-badge {
+            background: var(--accent-red, #e53e3e);
+            color: white;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+        .action-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-light);
+            font-size: 0.84rem;
+        }
+        .action-row:last-child { border-bottom: none; }
+        .needs-action-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            text-align: center;
+            gap: 0.5rem;
+        }
+
+        /* ── Purchases: filter chips ────────────────────────────────────────── */
+        .filter-chip-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .filter-chip {
+            border: 1px solid var(--border-light);
+            border-radius: 20px;
+            padding: 3px 10px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            background: transparent;
+            color: var(--text-muted);
+            transition: background 0.15s, color 0.15s;
+        }
+        .filter-chip.active,
+        .filter-chip:hover {
+            background: var(--accent-red);
+            color: white;
+            border-color: var(--accent-red);
+        }
+
+        /* ── Suggestions strip ──────────────────────────────────────────────── */
+        .suggestions-strip {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            padding-bottom: 6px;
+        }
+        .suggestion-card {
+            min-width: 90px;
+            max-width: 90px;
+            scroll-snap-align: start;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border-light);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .suggestion-card img {
+            width: 100%;
+            aspect-ratio: 1/1;
+            object-fit: cover;
+            display: block;
+        }
+        .suggestion-label {
+            font-size: 0.7rem;
+            padding: 4px 6px;
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text-main);
+        }
+        .suggestions-empty {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+        }
+
+        @media (max-width: 768px) {
+            .orders-panel-row { flex-direction: column; }
+            .orders-received-panel,
+            .needs-action-card { min-width: unset; max-height: unset; }
+        }
+
         /* ── Image upload preview ──────────────────────────────────────────── */
         .img-preview-row {
             display: flex;
@@ -768,12 +884,48 @@
 
             <!-- My Purchases panel (always shown, default tab) -->
             <div id="panel-purchases">
+                <!-- Active Purchases card -->
+                <div class="card" style="margin-bottom:1rem;">
+                    <div class="card-header flex-between">
+                        <h4 style="margin:0"><i class="fa fa-shopping-bag" style="margin-right:0.5rem; color:var(--accent-red);"></i>Active Purchases</h4>
+                    </div>
+                    <div id="active-orders-list" class="list-group">
+                        <p class="text-muted p-4">Loading your orders...</p>
+                    </div>
+                </div>
+
+                <!-- Order History card -->
+                <div class="card" style="margin-bottom:1rem;">
+                    <div class="card-header flex-between">
+                        <h4 style="margin:0"><i class="fa fa-history" style="margin-right:0.5rem; color:var(--text-muted);"></i>Order History</h4>
+                        <div class="filter-chip-row">
+                            <button class="filter-chip active" data-range="all" onclick="filterOrderHistory(this)">All</button>
+                            <button class="filter-chip" data-range="7d" onclick="filterOrderHistory(this)">1 week</button>
+                            <button class="filter-chip" data-range="1m" onclick="filterOrderHistory(this)">1 month</button>
+                            <button class="filter-chip" data-range="3m" onclick="filterOrderHistory(this)">3 months</button>
+                            <button class="filter-chip" data-range="range" onclick="filterOrderHistory(this)">Range</button>
+                        </div>
+                    </div>
+                    <div id="history-date-range" style="display:none; padding:0.6rem 1rem; border-bottom:1px solid var(--border-light); display:none; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                        <input type="date" id="history-range-start" style="font-size:0.8rem; height:30px;">
+                        <span style="color:var(--text-muted); font-size:0.8rem;">to</span>
+                        <input type="date" id="history-range-end" style="font-size:0.8rem; height:30px;">
+                        <button class="btn" style="width:auto; padding:0.3rem 0.8rem; font-size:0.78rem;" onclick="applyHistoryDateRange()">Apply</button>
+                    </div>
+                    <div id="history-orders-list" class="list-group">
+                        <p class="text-muted p-4">Loading history...</p>
+                    </div>
+                </div>
+
+                <!-- Suggestions strip -->
                 <div class="card">
                     <div class="card-header">
-                        <h4 style="margin:0">My Purchases</h4>
+                        <h4 style="margin:0; font-size:0.9rem; color:var(--text-muted);"><i class="fa fa-lightbulb-o" style="margin-right:0.5rem;"></i>Based on your purchases</h4>
                     </div>
-                    <div id="buyer-orders-list" class="list-group">
-                        <p class="text-muted p-4">Loading your orders...</p>
+                    <div style="padding:0.75rem 1rem;">
+                        <div id="suggestions-strip" class="suggestions-strip">
+                            <p class="text-muted suggestions-empty" style="font-size:0.82rem;">Loading suggestions...</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -809,23 +961,41 @@
             <div id="panel-orders" style="display:none;">
                 <!-- Status summary chips -->
                 <div id="orders-status-summary" style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.75rem;"></div>
-                <div class="card">
-                    <div class="card-header flex-between">
-                        <h4 style="margin:0"><i class="fa fa-inbox" style="margin-right:0.5rem; color:var(--accent-red);"></i>Orders Received</h4>
-                        <div style="display:flex; gap:0.5rem; align-items:center;">
-                            <select id="orders-status-filter" style="font-size:0.78rem; height:30px; width:auto; padding:0 0.5rem; border-radius:6px;" onchange="filterSellerOrders()">
-                                <option value="">All statuses</option>
-                                <option value="pending">Pending</option>
-                                <option value="paid">Paid</option>
-                                <option value="processing">Processing</option>
-                                <option value="shipped">Shipped</option>
-                                <option value="delivered">Delivered</option>
-                                <option value="cancelled">Cancelled</option>
-                            </select>
+                <!-- Two-column layout: Orders Received (left) + Needs Action (right) -->
+                <div class="orders-panel-row">
+                    <!-- Left: Orders Received list -->
+                    <div class="orders-received-panel">
+                        <div class="card">
+                            <div class="card-header flex-between">
+                                <h4 style="margin:0"><i class="fa fa-inbox" style="margin-right:0.5rem; color:var(--accent-red);"></i>Orders Received</h4>
+                                <div style="display:flex; gap:0.5rem; align-items:center;">
+                                    <select id="orders-status-filter" style="font-size:0.78rem; height:30px; width:auto; padding:0 0.5rem; border-radius:6px;" onchange="filterSellerOrders()">
+                                        <option value="">All statuses</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="paid">Paid</option>
+                                        <option value="processing">Processing</option>
+                                        <option value="shipped">Shipped</option>
+                                        <option value="delivered">Delivered</option>
+                                        <option value="cancelled">Cancelled</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="seller-orders-list" class="list-group">
+                                <p class="text-muted p-4">Loading orders...</p>
+                            </div>
                         </div>
                     </div>
-                    <div id="seller-orders-list" class="list-group">
-                        <p class="text-muted p-4">Loading orders...</p>
+                    <!-- Right: Needs Action card -->
+                    <div class="needs-action-card">
+                        <div class="card-header" style="padding:0.85rem 1rem; border-bottom:1px solid var(--border-light); display:flex; align-items:center; gap:0.5rem;">
+                            <h4 style="margin:0; font-size:0.95rem;"><i class="fa fa-exclamation-circle" style="color:var(--accent-red); margin-right:0.4rem;"></i>Needs Action</h4>
+                            <span class="action-badge" id="needs-action-count">0</span>
+                        </div>
+                        <div id="needs-action-list" style="padding:0.5rem 0;"></div>
+                        <div class="needs-action-empty" id="needs-action-empty" style="display:none;">
+                            <i class="fa fa-check-circle" style="color:#15803d; font-size:1.4rem; margin-bottom:0.4rem;"></i>
+                            <div>You're all caught up</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1815,6 +1985,7 @@
             }
 
             renderSellerOrders(_sellerOrders);
+            renderNeedsAction(_sellerOrders);
             updateFloatTray();
         } catch (err) {
             list.innerHTML = `<p class="text-red p-4">Error loading orders: ${err.message}</p>`;
@@ -1924,6 +2095,36 @@
                         <i class="fa fa-paper-plane" style="margin-right:0.4rem;"></i> Mark Shipped
                     </button>
                 </div>` : ''}
+            </div>`;
+        }).join('');
+    }
+
+    function renderNeedsAction(orders) {
+        const actionList  = document.getElementById('needs-action-list');
+        const emptyEl     = document.getElementById('needs-action-empty');
+        const countBadge  = document.getElementById('needs-action-count');
+        if (!actionList) return;
+        const actionable = orders.filter(o => ['pending','paid','processing','payment_dispute'].includes(o.status));
+        const STATUS_LABEL = { pending: 'Awaiting acceptance', paid: 'Ready to process', processing: 'Ready to ship', payment_dispute: 'Dispute filed' };
+        if (countBadge) countBadge.textContent = actionable.length;
+        if (!actionable.length) {
+            actionList.innerHTML = '';
+            if (emptyEl) emptyEl.style.display = 'flex';
+            return;
+        }
+        if (emptyEl) emptyEl.style.display = 'none';
+        actionList.innerHTML = actionable.slice(0, 8).map(o => {
+            const shortId  = '…' + o._id.slice(-8);
+            const statusCls = `status-${o.status}`;
+            const label    = STATUS_LABEL[o.status] || o.status;
+            return `
+            <div class="action-row">
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:600; font-size:0.82rem;">Order ${shortId}</div>
+                    <div style="font-size:0.75rem; color:var(--text-muted);">${label}</div>
+                </div>
+                <span class="status-badge ${statusCls}" style="font-size:0.65rem;">${o.status}</span>
+                <a href="/orders/${o._id}" class="act-btn" style="font-size:0.72rem; text-decoration:none; white-space:nowrap;">View</a>
             </div>`;
         }).join('');
     }
@@ -2372,98 +2573,140 @@
     }
 
     // ── Load buyer orders (My Purchases) ─────────────────────────────────────
+    // Cached buyer orders for history filtering
+    let _buyerOrders = [];
+    let _historyRange = 'all';
+
+    function renderBuyerOrderRow(o) {
+        const statusCls = ['pending','paid','processing','shipped','delivered','cancelled'].includes(o.status)
+            ? `status-${o.status}` : 'status-pending';
+        const shortId   = '…' + o._id.slice(-8);
+        const date      = new Date(o.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+        const total     = `$${((o.totalAmount || o.totalCents || 0) / 100).toFixed(2)}`;
+        const itemCount = (o.items || []).reduce((s, i) => s + (i.qty || 1), 0);
+        const firstImg  = (o.items || [])[0]?.image || '';
+        const thumb     = firstImg
+            ? `<img src="${firstImg}" style="width:38px;height:38px;border-radius:6px;object-fit:cover;flex-shrink:0;background:var(--bg-secondary);" onerror="this.style.display='none'">`
+            : `<div style="width:38px;height:38px;border-radius:6px;background:var(--bg-secondary);flex-shrink:0;display:flex;align-items:center;justify-content:center;"><i class="fa fa-box" style="color:var(--text-muted);font-size:0.8rem;"></i></div>`;
+        const canBuyerCancel = o.status === 'pending';
+        const firstTitle = (o.items || [])[0]?.title || 'your item';
+        const reviewPrompt = o.status === 'delivered'
+            ? `<div style="margin-top:0.5rem; padding:0.5rem 0.75rem; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; font-size:0.75rem; display:flex; align-items:center; justify-content:space-between;">
+                   <span style="color:#15803d;"><i class="fa fa-star" style="margin-right:0.3rem;"></i>How was "${firstTitle.slice(0,28)}${firstTitle.length > 28 ? '…' : ''}"?</span>
+                   <a href="/orders/${o._id}" style="color:#15803d; font-weight:700; text-decoration:none;">Leave a review →</a>
+               </div>`
+            : '';
+        return `
+        <div class="list-item animate-fade" style="flex-direction:column; gap:0.4rem; cursor:pointer;" onclick="window.location='/orders/${o._id}'">
+        <div style="display:flex; align-items:center; gap:0.75rem;">
+            ${thumb}
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:600; font-size:0.875rem;">Order ${shortId}</div>
+                <div class="text-muted small">${date} · ${itemCount} item${itemCount !== 1 ? 's' : ''} · ${total}</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.5rem; flex-shrink:0;" onclick="event.stopPropagation()">
+                <span class="status-badge ${statusCls}" style="font-size:0.65rem; padding:0.15rem 0.4rem;">${o.status.toUpperCase()}</span>
+                ${canBuyerCancel ? `
+                <button class="act-btn danger" onclick="buyerCancelOrder('${o._id}')" title="Cancel order" style="font-size:0.7rem;">
+                    <i class="fa fa-times"></i> Cancel
+                </button>` : ''}
+                <i class="fa fa-chevron-right text-muted small"></i>
+            </div>
+        </div>
+        ${reviewPrompt}
+        </div>`;
+    }
+
+    function renderHistoryList(range) {
+        const histList = document.getElementById('history-orders-list');
+        if (!histList) return;
+        const historyStatuses = ['delivered','completed','cancelled'];
+        let history = _buyerOrders.filter(o => historyStatuses.includes(o.status));
+        const now = Date.now();
+        if (range === '7d')  history = history.filter(o => now - new Date(o.createdAt).getTime() <= 7 * 86400000);
+        if (range === '1m')  history = history.filter(o => now - new Date(o.createdAt).getTime() <= 30 * 86400000);
+        if (range === '3m')  history = history.filter(o => now - new Date(o.createdAt).getTime() <= 90 * 86400000);
+        if (range === 'custom') {
+            const start = document.getElementById('history-range-start')?.value;
+            const end   = document.getElementById('history-range-end')?.value;
+            if (start) history = history.filter(o => new Date(o.createdAt) >= new Date(start));
+            if (end)   history = history.filter(o => new Date(o.createdAt) <= new Date(end + 'T23:59:59'));
+        }
+        histList.innerHTML = history.length
+            ? history.map(renderBuyerOrderRow).join('')
+            : '<p class="text-muted p-4">No orders in this period.</p>';
+    }
+
+    function filterOrderHistory(btn) {
+        document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        const range = btn.dataset.range;
+        _historyRange = range;
+        const picker = document.getElementById('history-date-range');
+        if (picker) picker.style.display = range === 'range' ? 'flex' : 'none';
+        if (range !== 'range') renderHistoryList(range);
+    }
+
+    function applyHistoryDateRange() {
+        renderHistoryList('custom');
+    }
+
     async function loadBuyerOrders() {
-        const list = document.getElementById('buyer-orders-list');
-        if (!list) return;
+        const activeList  = document.getElementById('active-orders-list');
+        const histList    = document.getElementById('history-orders-list');
+        const sugStrip    = document.getElementById('suggestions-strip');
+        if (!activeList) return;
         try {
             const res = await fetch('/api/orders/my-orders', { headers: { 'Authorization': `Bearer ${token}` } });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const orders = await res.json();
+            _buyerOrders = orders;
 
-            // Populate buyer stat strip
+            // Populate buyer stat strip + watchlist
             updateBuyerStats(orders);
-            // Also update watchlist stat
             renderWatchlist();
 
-            if (!orders.length) {
-                list.innerHTML = '<p class="text-muted p-4">No purchases yet. <a href="/" style="color:var(--accent-red);">Start shopping →</a></p>';
-                return;
+            // Split orders
+            const historyStatuses = ['delivered','completed','cancelled'];
+            const activeOrders  = orders.filter(o => !historyStatuses.includes(o.status));
+            const historyOrders = orders.filter(o => historyStatuses.includes(o.status));
+
+            // Active purchases
+            if (!activeOrders.length) {
+                activeList.innerHTML = '<p class="text-muted p-4">No active orders. <a href="/" style="color:var(--accent-red);">Start shopping →</a></p>';
+            } else {
+                activeList.innerHTML = activeOrders.map(renderBuyerOrderRow).join('');
             }
 
-            // Spending summary banner
-            const totalSpent = orders.reduce((s, o) => s + (o.totalAmount || o.totalCents || 0), 0);
-            const delivered  = orders.filter(o => o.status === 'delivered').length;
-            const active     = orders.filter(o => ['pending','paid','processing','shipped'].includes(o.status)).length;
+            // Order history (render with current filter)
+            renderHistoryList(_historyRange);
 
-            list.innerHTML = `
-            <div style="display:flex; gap:1.5rem; padding:0.85rem 1.25rem; background:var(--bg-secondary); border-bottom:1px solid var(--border-light); flex-wrap:wrap;">
-                <div style="font-size:0.78rem;">
-                    <span style="font-weight:700; color:var(--text-main);">${orders.length}</span>
-                    <span style="color:var(--text-muted); margin-left:0.2rem;">total orders</span>
-                </div>
-                <div style="font-size:0.78rem;">
-                    <span style="font-weight:700; color:#15803d;">$${(totalSpent/100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    <span style="color:var(--text-muted); margin-left:0.2rem;">lifetime spend</span>
-                </div>
-                <div style="font-size:0.78rem;">
-                    <span style="font-weight:700; color:#1d4ed8;">${active}</span>
-                    <span style="color:var(--text-muted); margin-left:0.2rem;">in progress</span>
-                </div>
-                <div style="font-size:0.78rem;">
-                    <span style="font-weight:700; color:#15803d;">${delivered}</span>
-                    <span style="color:var(--text-muted); margin-left:0.2rem;">delivered</span>
-                </div>
-            </div>
-            ` + orders.map(o => {
-                const statusCls = ['pending','paid','processing','shipped','delivered','cancelled'].includes(o.status)
-                    ? `status-${o.status}` : 'status-pending';
-                const shortId   = '…' + o._id.slice(-8);
-                const date      = new Date(o.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-                const total     = `$${((o.totalAmount || o.totalCents || 0) / 100).toFixed(2)}`;
-                const itemCount = (o.items || []).reduce((s, i) => s + (i.qty || 1), 0);
-                // thumbnail from first item
-                const firstImg  = (o.items || [])[0]?.image || '';
-                const thumb     = firstImg
-                    ? `<img src="${firstImg}" style="width:38px;height:38px;border-radius:6px;object-fit:cover;flex-shrink:0;background:var(--bg-secondary);" onerror="this.style.display='none'">`
-                    : `<div style="width:38px;height:38px;border-radius:6px;background:var(--bg-secondary);flex-shrink:0;display:flex;align-items:center;justify-content:center;"><i class="fa fa-box" style="color:var(--text-muted);font-size:0.8rem;"></i></div>`;
-                const canBuyerCancel = o.status === 'pending';
-                const firstTitle = (o.items || [])[0]?.title || 'your item';
-                const reviewPrompt = o.status === 'delivered'
-                    ? `<div style="margin-top:0.5rem; padding:0.5rem 0.75rem; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; font-size:0.75rem; display:flex; align-items:center; justify-content:space-between;">
-                           <span style="color:#15803d;"><i class="fa fa-star" style="margin-right:0.3rem;"></i>How was "${firstTitle.slice(0,28)}${firstTitle.length > 28 ? '…' : ''}"?</span>
-                           <a href="/orders/${o._id}" style="color:#15803d; font-weight:700; text-decoration:none;">Leave a review →</a>
-                       </div>`
-                    : '';
-                return `
-                <div class="list-item animate-fade" style="flex-direction:column; gap:0.4rem; cursor:pointer;" onclick="window.location='/orders/${o._id}'">
-                <div style="display:flex; align-items:center; gap:0.75rem;">
-                    ${thumb}
-                    <div style="flex:1; min-width:0;">
-                        <div style="font-weight:600; font-size:0.875rem;">Order ${shortId}</div>
-                        <div class="text-muted small">${date} · ${itemCount} item${itemCount !== 1 ? 's' : ''} · ${total}</div>
-                    </div>
-                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0.4rem; flex-shrink:0;" onclick="event.stopPropagation()">
-                        <div class="order-progress">
-                            <div class="step completed">Cart</div>
-                            <div class="step ${['paid','processing','shipped','delivered'].includes(o.status) ? 'completed' : 'active'}">Paid</div>
-                            <div class="step ${['shipped','delivered'].includes(o.status) ? 'completed' : o.status === 'processing' ? 'active' : ''}">Prep</div>
-                            <div class="step ${o.status === 'delivered' ? 'completed' : o.status === 'shipped' ? 'active' : ''}">Shipped</div>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:0.5rem;">
-                            <span class="status-badge ${statusCls}" style="font-size:0.65rem; padding:0.15rem 0.4rem;">${o.status.toUpperCase()}</span>
-                            ${canBuyerCancel ? `
-                            <button class="act-btn danger" onclick="buyerCancelOrder('${o._id}')" title="Cancel order" style="font-size:0.7rem;">
-                                <i class="fa fa-times"></i> Cancel
-                            </button>` : ''}
-                            <i class="fa fa-chevron-right text-muted small"></i>
-                        </div>
-                    </div>
-                </div>
-                ${reviewPrompt}
-                </div>`;
-            }).join('');
+            // Suggestions strip — unique products from past orders
+            if (sugStrip) {
+                const seen = new Set();
+                const suggestions = [];
+                for (const o of orders) {
+                    for (const item of (o.items || [])) {
+                        if (item.productId && !seen.has(item.productId.toString())) {
+                            seen.add(item.productId.toString());
+                            suggestions.push(item);
+                        }
+                    }
+                }
+                if (!suggestions.length) {
+                    sugStrip.innerHTML = '<p class="suggestions-empty">Shop something to see suggestions here.</p>';
+                } else {
+                    sugStrip.innerHTML = suggestions.slice(0, 10).map(item => `
+                        <a href="/product/${item.productId}" class="suggestion-card" style="text-decoration:none; color:inherit;">
+                            ${item.image
+                                ? `<img src="${item.image}" alt="${item.title || ''}" onerror="this.style.display='none'">`
+                                : `<div style="width:100%;aspect-ratio:1/1;background:var(--bg-secondary);display:flex;align-items:center;justify-content:center;"><i class="fa fa-box" style="color:var(--text-muted);"></i></div>`}
+                            <span class="suggestion-label">${(item.title || 'Item').slice(0, 22)}</span>
+                        </a>`).join('');
+                }
+            }
         } catch (err) {
-            list.innerHTML = `<p class="text-red p-4">Error loading orders: ${err.message}</p>`;
+            if (activeList) activeList.innerHTML = `<p class="text-red p-4">Error loading orders: ${err.message}</p>`;
         }
     }
 
