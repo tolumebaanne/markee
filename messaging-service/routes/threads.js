@@ -48,10 +48,12 @@ module.exports = function createThreadRoutes(services) {
             if (!recipientId) return errorResponse(res, 400, 'recipientId required');
             // Resolve storeId → personal userId (passthrough if already a userId)
             const resolvedRecipient = identityService.resolve(recipientId);
+            // Auto-fill recipient name from identity cache if not provided
+            const resolvedName = recipientName || identityService.getStoreName(recipientId) || identityService.getStoreName(resolvedRecipient) || '';
             const thread = await threadService.findOrCreate(
                 userId, resolvedRecipient,
                 { type: contextType || 'general', refId, refTitle, refImage },
-                req.user.displayName || '', recipientName || ''
+                req.user.displayName || '', resolvedName
             );
             res.json({ thread });
         } catch (err) {

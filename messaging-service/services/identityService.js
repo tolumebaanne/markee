@@ -2,7 +2,8 @@ const logger = require('../utils/logger');
 
 class IdentityService {
     constructor(bus) {
-        this.cache = new Map();
+        this.cache = new Map();      // storeId → sellerId
+        this.nameCache = new Map();  // storeId → storeName
         this.bus = bus;
         this.ready = false;
 
@@ -37,9 +38,26 @@ class IdentityService {
         return this.cache.get(key) || key;
     }
 
+    getStoreName(id) {
+        if (!id) return '';
+        // Try by storeId first, then by sellerId (reverse lookup)
+        const byStore = this.nameCache.get(id.toString());
+        if (byStore) return byStore;
+        // Reverse: if id is a sellerId, find the store name
+        for (const [storeId, sellerId] of this.cache) {
+            if (sellerId === id.toString()) {
+                return this.nameCache.get(storeId) || '';
+            }
+        }
+        return '';
+    }
+
     _set(payload) {
         if (payload && payload.storeId && payload.sellerId) {
             this.cache.set(payload.storeId.toString(), payload.sellerId.toString());
+            if (payload.storeName) {
+                this.nameCache.set(payload.storeId.toString(), payload.storeName);
+            }
         }
     }
 }

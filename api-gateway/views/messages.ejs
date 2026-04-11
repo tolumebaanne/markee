@@ -1643,11 +1643,11 @@ function parseUrlParams() {
 }
 
 // Open thread with target userId (backward compat, no context)
-async function openThreadWithUser(targetId) {
+async function openThreadWithUser(targetId, recipientName) {
     try {
         var res = await apiFetch('/api/messages/thread', {
             method: 'POST',
-            body: JSON.stringify({ recipientId: targetId })
+            body: JSON.stringify({ recipientId: targetId, recipientName: recipientName || '' })
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         var data = await res.json();
