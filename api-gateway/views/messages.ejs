@@ -145,8 +145,9 @@
         .bubble-row.received { justify-content: flex-start; }
 
         .bubble {
-            max-width: 85%; padding: 0.6rem 0.85rem; border-radius: 14px;
+            padding: 0.6rem 0.85rem; border-radius: 14px;
             font-size: 0.875rem; line-height: 1.5; word-break: break-word; position: relative;
+            white-space: pre-wrap;
         }
         .bubble.sent {
             background: var(--accent-red); color: white;
@@ -191,7 +192,7 @@
         .reaction-chip.own { background: #fef2f2; border-color: #fecaca; }
 
         /* Hover actions on bubble */
-        .bubble-group { display: flex; flex-direction: column; }
+        .bubble-group { display: flex; flex-direction: column; max-width: 85%; }
         .bubble-group.sent { align-items: flex-end; }
         .bubble-group.received { align-items: flex-start; }
         .bubble-actions {
