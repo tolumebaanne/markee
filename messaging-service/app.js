@@ -13,7 +13,9 @@ const platformGuard = require('../shared/middleware/platformGuard');
 const bus           = require('../shared/eventBus');
 const logger        = require('./utils/logger');
 
-// ── Validate required env vars — hard fail if missing ────────────────────────
+// ── Capture PORT synchronously (monolith overwrites process.env.PORT later) ──
+const MSG_PORT = process.env.PORT || 5009;
+
 // ── Schemas ──────────────────────────────────────────────────────────────────
 const ThreadSchema       = require('./models/Thread');
 const MessageSchema      = require('./models/Message');
@@ -165,10 +167,9 @@ async function start() {
 
     setInterval(autoArchiveSweep, 24 * 60 * 60 * 1000);
 
-    // 14. Listen
-    const PORT = process.env.PORT || 5009;
-    server.listen(PORT, () => {
-        logger.info(`Messaging service v2 listening on port ${PORT}`);
+    // 14. Listen (use MSG_PORT captured at module load, not process.env.PORT which monolith overwrites)
+    server.listen(MSG_PORT, () => {
+        logger.info(`Messaging service v2 listening on port ${MSG_PORT}`);
     });
 
     return { app, server, io };
