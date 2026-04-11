@@ -279,11 +279,14 @@ io.on('connection', (socket) => {
                 const msgObj = msg.toObject();
                 msgObj.deliveredAt = new Date();
                 await Message.updateOne({ _id: msg._id }, { $set: { deliveredAt: msgObj.deliveredAt } });
-                io.to(recipientId.toString()).emit('new_message', msgObj);
+                // socket.to() excludes the emitting socket (sender)
+                socket.to(recipientId.toString()).emit('new_message', msgObj);
                 socket.emit('message_delivered', { messageId: msg._id, deliveredAt: msgObj.deliveredAt });
                 socket.emit('message_sent', msgObj);
+                // Multi-tab: notify any other sender tabs; exclude recipient (already notified above)
+                socket.to(`thread:${threadId}`).except(recipientId.toString()).emit('new_message', msgObj);
             } else {
-                io.to(recipientId.toString()).emit('new_message', msg);
+                socket.to(recipientId.toString()).emit('new_message', msg);
                 socket.emit('message_sent', msg);
                 // Notify offline recipient via bus (C8 / S24)
                 bus.emit('message.unread', {
@@ -293,10 +296,9 @@ io.on('connection', (socket) => {
                     threadId,
                     preview
                 });
+                // Multi-tab: recipient offline so no duplicate risk
+                socket.to(`thread:${threadId}`).emit('new_message', msg);
             }
-
-            // Also emit to thread room (so open thread views in other tabs see it)
-            io.to(`thread:${threadId}`).emit('new_message', msg);
 
             // Seller response time analytics (C9 / S25)
             try {

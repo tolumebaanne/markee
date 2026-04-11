@@ -603,14 +603,16 @@
     // Role-based navigation
     const isSeller = user.storeActive === true || user.role === 'admin';
     if (isSeller) {
-        document.getElementById('nav-dashboard').style.display = 'inline';
+        const _ndEl = document.getElementById('nav-dashboard');
+        if (_ndEl) _ndEl.style.display = 'inline';
         document.getElementById('link-dashboard').style.display = 'flex';
         document.getElementById('link-inventory').style.display = 'flex';
         document.getElementById('store-settings-card').style.display = 'block';
         loadStoreSettings();
     }
     if (user.role === 'admin') {
-        document.getElementById('nav-admin').style.display = 'inline';
+        const _naEl = document.getElementById('nav-admin');
+        if (_naEl) _naEl.style.display = 'inline';
         document.getElementById('link-admin').style.display = 'flex';
     }
 
