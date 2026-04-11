@@ -678,8 +678,10 @@ async function openThread(threadId) {
     if (ti) ti.classList.add('active');
 
     currentThreadId = threadId;
-    document.getElementById('header-actions').style.display = 'flex';
-    document.getElementById('chat-empty').style.display = 'none';
+    const _ha = document.getElementById('header-actions');
+    if (_ha) _ha.style.display = 'flex';
+    const _ce = document.getElementById('chat-empty');
+    if (_ce) _ce.style.display = 'none';
     enableInput(isConnected);
 
     // Join thread room for reactions/edits
@@ -696,7 +698,7 @@ async function openThread(threadId) {
     document.getElementById('search-results').classList.remove('visible');
 
     document.getElementById('chat-body').innerHTML = `
-        <div class="chat-empty">
+        <div class="chat-empty" id="chat-empty">
             <i class="fa fa-spinner fa-spin"></i>
             <div class="small" style="margin-top:0.5rem;">Loading messages...</div>
         </div>`;
@@ -743,7 +745,7 @@ async function openThread(threadId) {
 
     } catch (err) {
         document.getElementById('chat-body').innerHTML = `
-            <div class="chat-empty">
+            <div class="chat-empty" id="chat-empty">
                 <i class="fa fa-exclamation-triangle" style="color:var(--accent-red);"></i>
                 <div class="small">Failed to load messages.</div>
             </div>`;
@@ -1371,11 +1373,12 @@ async function _openOrStartThread(recipientId, contextId, contextType) {
         if (r.ok) {
             const threads = await r.json();
             const threadList = Array.isArray(threads) ? threads : (threads.threads || []);
+            // GET /threads returns participantMeta (not participants array)
             const existing = threadList.find(t =>
-                t.participants && t.participants.some(p => p.toString() === recipientId.toString())
+                (t.participantMeta || []).some(p => p.userId?.toString() === recipientId.toString())
             );
             if (existing) {
-                openThread(existing._id || existing.threadId);
+                openThread(existing.threadId || existing._id);
                 return;
             }
         }
