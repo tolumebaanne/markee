@@ -1015,7 +1015,7 @@ app.get('/my', async (req, res) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
     try {
         const notifications = await Notification.find({
-            userId: req.user.sub,
+            userId: new mongoose.Types.ObjectId(req.user.sub),
             channel: { $in: ['in_app', 'both'] }
         }).sort({ sentAt: -1 }).limit(20);
         res.json(notifications);
@@ -1027,7 +1027,7 @@ app.get('/unread-count', async (req, res) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
     try {
         const count = await Notification.countDocuments({
-            userId:  req.user.sub,
+            userId:  new mongoose.Types.ObjectId(req.user.sub),
             channel: { $in: ['in_app', 'both'] },
             read:    false
         });
@@ -1040,7 +1040,7 @@ app.patch('/read-all', async (req, res) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
     try {
         await Notification.updateMany(
-            { userId: req.user.sub, read: false },
+            { userId: new mongoose.Types.ObjectId(req.user.sub), read: false },
             { $set: { read: true } }
         );
         res.json({ ok: true });

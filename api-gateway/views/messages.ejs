@@ -432,7 +432,7 @@
 
 <script>
 // ── Auth ──────────────────────────────────────────────────────────────────────
-const token = localStorage.getItem('access_token');
+let token = localStorage.getItem('access_token');
 if (!token) { window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search)); }
 
 function parseJwt(t) {
@@ -1368,6 +1368,25 @@ async function _openOrStartThread(recipientId, contextId, contextType) {
         refImage: ''
     });
 }
+
+// ── Token refresh (JWT expires in 1h — keep socket alive for long sessions) ──
+setInterval(async () => {
+    const rt = localStorage.getItem('refresh_token');
+    if (!rt) return;
+    try {
+        const r = await fetch('/oauth/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ grant_type: 'refresh_token', refresh_token: rt, client_id: 'markee-gateway' })
+        });
+        if (!r.ok) return;
+        const data = await r.json();
+        if (!data.access_token) return;
+        localStorage.setItem('access_token', data.access_token);
+        token = data.access_token;
+        if (socket) { socket.disconnect(); connectSocket(); }
+    } catch {}
+}, 50 * 60 * 1000);
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 connectSocket();
