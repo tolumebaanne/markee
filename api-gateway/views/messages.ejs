@@ -475,7 +475,7 @@ function connectSocket() {
     if (typeof io === 'undefined') { updateConnBadge(false, 'Socket unavailable'); return; }
 
     socket = io({
-        auth: { token },
+        auth: (cb) => cb({ token: localStorage.getItem('access_token') || token }),
         transports: ['polling', 'websocket']
     });
 
