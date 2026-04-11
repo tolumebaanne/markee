@@ -34,6 +34,15 @@ module.exports = function sendMessageHandler(socket, io, services) {
                 ''
             );
 
+            // 4b. Update sender's displayName in participantMeta if missing
+            const senderMeta = thread.participantMeta?.find(m => m.userId?.toString() === userId);
+            if (senderMeta && !senderMeta.displayName && socket.user.displayName) {
+                await Thread.updateOne(
+                    { _id: thread._id, 'participantMeta.userId': userId },
+                    { $set: { 'participantMeta.$.displayName': socket.user.displayName } }
+                );
+            }
+
             // 5. Check suspended
             if (thread.admin?.suspended) {
                 socket.emit('message_error', { error: 'This conversation has been suspended by an administrator.' });

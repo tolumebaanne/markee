@@ -325,12 +325,13 @@ bus.on('order.status_updated', async (payload) => {
 // storeId → personal userId cache from the EventBus without a direct DB connection.
 bus.on('request.store_sync', async () => {
     try {
-        const stores = await Store.find({}).select('_id sellerId').lean();
+        const stores = await Store.find({}).select('_id sellerId name').lean();
         for (const s of stores) {
             if (!s.sellerId) continue;
             bus.emit('store.verified', {
                 storeId:  s._id.toString(),
-                sellerId: s.sellerId.toString()
+                sellerId: s.sellerId.toString(),
+                storeName: s.name
             });
         }
         console.log(`[SELLER] store_sync: emitted ${stores.length} store mappings`);
