@@ -272,6 +272,7 @@ app.get('/store/:storeId', (req, res) => res.render('storefront', { storeId: req
 app.get('/profile',        (req, res) => res.render('profile'));
 app.get('/orders',      (req, res) => res.render('orders'));
 app.get('/orders/:id',  (req, res) => res.render('order-detail', { orderId: req.params.id }));
+app.get('/purchases/history', (req, res) => res.render('purchases-history'));
 app.get('/admin',         (req, res) => res.render('admin'));
 app.get('/admin-login',   (req, res) => res.render('admin-login', {
     adminServiceUrl: process.env.ADMIN_SERVICE_URL || 'http://localhost:5014'

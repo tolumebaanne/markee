@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purchase History | Markee</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js"></script>
+    <script src="/js/cart.js"></script>
+    <style>
+        .ph-filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        .ph-filter-bar select,
+        .ph-filter-bar input[type="date"],
+        .ph-filter-bar input[type="text"] {
+            padding: 0.45rem 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            background: #fff;
+            color: #333;
+            min-width: 130px;
+        }
+        .ph-filter-bar input[type="text"] {
+            min-width: 200px;
+        }
+        .ph-month-heading {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #555;
+            padding: 0.5rem 0 0.4rem;
+            border-bottom: 1px solid #e5e5e5;
+            margin-bottom: 0.6rem;
+        }
+        .ph-order-row {
+            display: flex;
+            align-items: center;
+            gap: 0.9rem;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.15s;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .ph-order-row:hover {
+            background: #f7f7f7;
+        }
+        .ph-thumb-strip {
+            display: flex;
+            gap: 3px;
+            flex-shrink: 0;
+        }
+        .ph-thumb-strip img {
+            width: 32px;
+            height: 32px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid #e5e5e5;
+        }
+        .ph-thumb-placeholder {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            background: #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #aaa;
+            font-size: 0.7rem;
+        }
+        .ph-order-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .ph-order-ref {
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: #222;
+        }
+        .ph-order-sub {
+            font-size: 0.775rem;
+            color: #888;
+            margin-top: 1px;
+        }
+        .ph-order-total {
+            font-weight: 700;
+            font-size: 0.925rem;
+            color: #222;
+            white-space: nowrap;
+        }
+        .ph-receipt-btn {
+            font-size: 0.8rem;
+            padding: 0.3rem 0.75rem;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            background: #fff;
+            color: #444;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.15s;
+        }
+        .ph-receipt-btn:hover {
+            background: #f0f0f0;
+        }
+        .ph-pagination {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            justify-content: center;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid #eee;
+        }
+        .ph-pagination button {
+            padding: 0.4rem 1rem;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            background: #fff;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .ph-pagination button:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+        .ph-pagination .ph-page-info {
+            font-size: 0.85rem;
+            color: #666;
+        }
+        .ph-empty {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #aaa;
+            font-size: 1rem;
+        }
+        .ph-spinner {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #aaa;
+        }
+        /* Modal */
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        .overlay.open {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .modal-box {
+            background: #fff;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 620px;
+            max-height: 88vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+            padding: 1.5rem;
+            position: relative;
+            transform: translateY(10px);
+            transition: transform 0.2s;
+        }
+        .overlay.open .modal-box {
+            transform: translateY(0);
+        }
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.1rem;
+        }
+        .modal-header h2 {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #222;
+            margin: 0;
+        }
+        .modal-close-btn {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: #888;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+        }
+        .modal-close-btn:hover { color: #333; }
+        .modal-meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem 1.5rem;
+            margin-bottom: 1.1rem;
+            font-size: 0.875rem;
+        }
+        .modal-meta-label { color: #888; }
+        .modal-meta-value { color: #222; font-weight: 500; }
+        .receipt-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+        }
+        .receipt-table th {
+            text-align: left;
+            padding: 0.4rem 0.5rem;
+            border-bottom: 2px solid #eee;
+            color: #888;
+            font-weight: 600;
+            font-size: 0.775rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        .receipt-table td {
+            padding: 0.5rem 0.5rem;
+            border-bottom: 1px solid #f3f3f3;
+            vertical-align: middle;
+        }
+        .receipt-table .item-img {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 5px;
+            border: 1px solid #eee;
+        }
+        .receipt-table .item-img-placeholder {
+            width: 40px;
+            height: 40px;
+            background: #f0f0f0;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ccc;
+        }
+        .receipt-totals {
+            text-align: right;
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+        }
+        .receipt-totals .total-row {
+            display: flex;
+            justify-content: flex-end;
+            gap: 2rem;
+            padding: 0.2rem 0;
+        }
+        .receipt-totals .total-row.grand {
+            font-weight: 700;
+            font-size: 0.975rem;
+            border-top: 1px solid #eee;
+            padding-top: 0.4rem;
+            margin-top: 0.2rem;
+        }
+        .receipt-section {
+            margin-bottom: 0.85rem;
+        }
+        .receipt-section-label {
+            font-size: 0.775rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #aaa;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        .receipt-section-value {
+            font-size: 0.875rem;
+            color: #333;
+            white-space: pre-line;
+        }
+        .modal-footer {
+            margin-top: 1.2rem;
+            border-top: 1px solid #eee;
+            padding-top: 1rem;
+        }
+        .btn-back {
+            background: none;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 0.4rem 1rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            color: #555;
+        }
+        .btn-back:hover { background: #f5f5f5; }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.875rem;
+            color: #666;
+            text-decoration: none;
+            margin-bottom: 1.25rem;
+        }
+        .back-link:hover { color: #222; }
+        .ph-month-section { margin-bottom: 1.5rem; }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar">
+        <div class="brand-combo">
+            <a href="/"><span class="brand">Markee</span></a>
+        </div>
+        <%- include('_nav') %>
+    </nav>
+
+    <div class="container py-4 animate-fade">
+        <a href="/dashboard" class="back-link">
+            <i class="fa fa-arrow-left"></i> Back to Dashboard
+        </a>
+
+        <div class="card" style="padding: 1.5rem;">
+            <h1 style="font-size:1.25rem; font-weight:700; margin-bottom:1.25rem;">
+                <i class="fa fa-receipt" style="margin-right:0.4rem; color:#888;"></i>
+                Purchase History
+            </h1>
+
+            <!-- Filter bar -->
+            <div class="ph-filter-bar" id="filterBar">
+                <select id="filterStatus">
+                    <option value="">All Statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="paid">Paid</option>
+                    <option value="processing">Processing</option>
+                    <option value="shipped">Shipped</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+                <input type="date" id="filterFrom" title="From date">
+                <input type="date" id="filterTo" title="To date">
+                <input type="text" id="filterSearch" placeholder="Search order ID or item…">
+                <button class="ph-receipt-btn" id="clearFilters">
+                    <i class="fa fa-times" style="margin-right:0.25rem;"></i>Clear
+                </button>
+            </div>
+
+            <!-- Loading -->
+            <div id="loadingState" class="ph-spinner">
+                <i class="fa fa-spinner fa-spin fa-2x"></i>
+                <p style="margin-top:0.75rem;">Loading your orders…</p>
+            </div>
+
+            <!-- Orders list -->
+            <div id="ordersList" style="display:none;"></div>
+
+            <!-- Pagination -->
+            <div id="paginationBar" class="ph-pagination" style="display:none;">
+                <button id="prevPage"><i class="fa fa-chevron-left"></i> Prev</button>
+                <span class="ph-page-info" id="pageInfo"></span>
+                <button id="nextPage">Next <i class="fa fa-chevron-right"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Receipt Modal -->
+    <div class="overlay" id="receiptOverlay">
+        <div class="modal-box" id="receiptModal">
+            <div class="modal-header">
+                <h2 id="modalTitle">Order Receipt</h2>
+                <button class="modal-close-btn" id="modalCloseBtn" title="Close">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div id="modalBody"></div>
+            <div class="modal-footer">
+                <button class="btn-back" id="modalBackBtn">
+                    <i class="fa fa-arrow-left" style="margin-right:0.3rem;"></i>Back
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('access_token');
+        if (!token) window.location.href = '/login';
+
+        const PAGE_SIZE = 10;
+        let allOrders = [];
+        let filteredOrders = [];
+        let currentPage = 1;
+
+        // Elements
+        const loadingState  = document.getElementById('loadingState');
+        const ordersList    = document.getElementById('ordersList');
+        const paginationBar = document.getElementById('paginationBar');
+        const filterStatus  = document.getElementById('filterStatus');
+        const filterFrom    = document.getElementById('filterFrom');
+        const filterTo      = document.getElementById('filterTo');
+        const filterSearch  = document.getElementById('filterSearch');
+        const clearBtn      = document.getElementById('clearFilters');
+        const prevPageBtn   = document.getElementById('prevPage');
+        const nextPageBtn   = document.getElementById('nextPage');
+        const pageInfo      = document.getElementById('pageInfo');
+        const overlay       = document.getElementById('receiptOverlay');
+        const modalTitle    = document.getElementById('modalTitle');
+        const modalBody     = document.getElementById('modalBody');
+        const modalCloseBtn = document.getElementById('modalCloseBtn');
+        const modalBackBtn  = document.getElementById('modalBackBtn');
+
+        // ── Fetch orders ──────────────────────────────────────────────────────
+        async function fetchOrders() {
+            try {
+                const res = await fetch('/api/orders/my-orders', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!res.ok) throw new Error('Failed to load orders');
+                const data = await res.json();
+                allOrders = Array.isArray(data) ? data : (data.orders || []);
+                // Newest first
+                allOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            } catch (e) {
+                allOrders = [];
+                console.error(e);
+            } finally {
+                loadingState.style.display = 'none';
+                ordersList.style.display = '';
+                applyFilters();
+            }
+        }
+
+        // ── Filtering ─────────────────────────────────────────────────────────
+        function applyFilters() {
+            const status  = filterStatus.value.trim().toLowerCase();
+            const fromVal = filterFrom.value ? new Date(filterFrom.value) : null;
+            const toVal   = filterTo.value   ? new Date(filterTo.value + 'T23:59:59') : null;
+            const search  = filterSearch.value.trim().toLowerCase();
+
+            filteredOrders = allOrders.filter(order => {
+                if (status && order.status !== status) return false;
+                const created = new Date(order.createdAt);
+                if (fromVal && created < fromVal) return false;
+                if (toVal   && created > toVal)   return false;
+                if (search) {
+                    const idMatch    = (order._id || '').toLowerCase().includes(search);
+                    const titleMatch = (order.items || []).some(it =>
+                        (it.title || '').toLowerCase().includes(search)
+                    );
+                    if (!idMatch && !titleMatch) return false;
+                }
+                return true;
+            });
+
+            currentPage = 1;
+            renderList();
+        }
+
+        [filterStatus, filterFrom, filterTo, filterSearch].forEach(el =>
+            el.addEventListener('input', applyFilters)
+        );
+        clearBtn.addEventListener('click', () => {
+            filterStatus.value = '';
+            filterFrom.value   = '';
+            filterTo.value     = '';
+            filterSearch.value = '';
+            applyFilters();
+        });
+
+        // ── Rendering ─────────────────────────────────────────────────────────
+        function orderRef(id) {
+            return '\u2026' + (id || '').slice(-8);
+        }
+
+        function fmtDate(iso) {
+            if (!iso) return '—';
+            const d = new Date(iso);
+            return d.toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+        }
+
+        function fmtMoney(n) {
+            return '$' + (Number(n) || 0).toFixed(2);
+        }
+
+        function capitalize(s) {
+            if (!s) return '—';
+            return s.charAt(0).toUpperCase() + s.slice(1);
+        }
+
+        function groupByMonth(orders) {
+            const groups = [];
+            const map = {};
+            orders.forEach(order => {
+                const d = new Date(order.createdAt);
+                const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+                const label = d.toLocaleDateString('en-US', { month:'long', year:'numeric' });
+                if (!map[key]) {
+                    map[key] = { key, label, orders: [] };
+                    groups.push(map[key]);
+                }
+                map[key].orders.push(order);
+            });
+            return groups;
+        }
+
+        function renderList() {
+            const total  = filteredOrders.length;
+            const pages  = Math.max(1, Math.ceil(total / PAGE_SIZE));
+            currentPage  = Math.min(currentPage, pages);
+            const start  = (currentPage - 1) * PAGE_SIZE;
+            const pageOrders = filteredOrders.slice(start, start + PAGE_SIZE);
+
+            if (total === 0) {
+                ordersList.innerHTML = '<div class="ph-empty"><i class="fa fa-box-open fa-2x" style="margin-bottom:0.75rem;"></i><br>No orders found.</div>';
+                paginationBar.style.display = 'none';
+                return;
+            }
+
+            const groups = groupByMonth(pageOrders);
+            let html = '';
+            groups.forEach(group => {
+                html += `<div class="ph-month-section">
+                    <div class="ph-month-heading">${group.label} &middot; ${group.orders.length} order${group.orders.length !== 1 ? 's' : ''}</div>`;
+                group.orders.forEach(order => {
+                    const items   = order.items || [];
+                    const thumbs  = items.slice(0, 3);
+                    const ref     = orderRef(order._id);
+                    const dateStr = fmtDate(order.createdAt);
+                    const status  = (order.status || 'unknown').toLowerCase();
+                    const total   = fmtMoney(order.totalAmount);
+                    const count   = items.length;
+
+                    let thumbHtml = '';
+                    thumbs.forEach(it => {
+                        if (it.image) {
+                            thumbHtml += `<img src="${escHtml(it.image)}" alt="" class="" onerror="this.style.display='none'">`;
+                        } else {
+                            thumbHtml += `<div class="ph-thumb-placeholder"><i class="fa fa-image"></i></div>`;
+                        }
+                    });
+                    if (thumbs.length === 0) {
+                        thumbHtml = `<div class="ph-thumb-placeholder"><i class="fa fa-box"></i></div>`;
+                    }
+
+                    html += `<div class="ph-order-row" data-id="${escHtml(order._id)}" role="button" tabindex="0" aria-label="Open receipt for order ${ref}">
+                        <div class="ph-thumb-strip">${thumbHtml}</div>
+                        <div class="ph-order-info">
+                            <div class="ph-order-ref">${ref}</div>
+                            <div class="ph-order-sub">${dateStr} &middot; ${count} item${count !== 1 ? 's' : ''}</div>
+                        </div>
+                        <div class="ph-order-total">${total}</div>
+                        <span class="status-badge status-${escHtml(status)}">${capitalize(status)}</span>
+                        <button class="ph-receipt-btn receipt-btn" data-id="${escHtml(order._id)}">
+                            <i class="fa fa-file-invoice" style="margin-right:0.25rem;"></i>Receipt
+                        </button>
+                    </div>`;
+                });
+                html += '</div>';
+            });
+
+            ordersList.innerHTML = html;
+
+            // Row click
+            ordersList.querySelectorAll('.ph-order-row').forEach(row => {
+                row.addEventListener('click', e => {
+                    if (e.target.closest('.receipt-btn')) return;
+                    openModal(row.dataset.id);
+                });
+                row.addEventListener('keydown', e => {
+                    if (e.key === 'Enter' || e.key === ' ') openModal(row.dataset.id);
+                });
+            });
+            ordersList.querySelectorAll('.receipt-btn').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    openModal(btn.dataset.id);
+                });
+            });
+
+            // Pagination
+            paginationBar.style.display = pages > 1 ? 'flex' : 'none';
+            pageInfo.textContent = `Page ${currentPage} of ${pages}`;
+            prevPageBtn.disabled = currentPage <= 1;
+            nextPageBtn.disabled = currentPage >= pages;
+        }
+
+        prevPageBtn.addEventListener('click', () => { currentPage--; renderList(); window.scrollTo(0,0); });
+        nextPageBtn.addEventListener('click', () => { currentPage++; renderList(); window.scrollTo(0,0); });
+
+        // ── Modal ─────────────────────────────────────────────────────────────
+        function escHtml(str) {
+            return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function openModal(orderId) {
+            const order = allOrders.find(o => o._id === orderId);
+            if (!order) return;
+            const ref    = orderRef(order._id);
+            const status = (order.status || 'unknown').toLowerCase();
+            const items  = order.items || [];
+
+            modalTitle.textContent = 'Order Receipt — ' + ref;
+
+            let subtotal = 0;
+            items.forEach(it => { subtotal += (Number(it.price) || 0) * (Number(it.qty) || 1); });
+
+            let itemRows = '';
+            items.forEach(it => {
+                const qty   = Number(it.qty) || 1;
+                const price = Number(it.price) || 0;
+                const line  = price * qty;
+                const imgHtml = it.image
+                    ? `<img src="${escHtml(it.image)}" class="item-img" alt="" onerror="this.style.display='none'">`
+                    : `<div class="item-img-placeholder"><i class="fa fa-image"></i></div>`;
+                const titleHtml = it.productId
+                    ? `<a href="/product/${escHtml(it.productId)}" style="color:#1a73e8; text-decoration:none;">${escHtml(it.title || 'Item')}</a>`
+                    : `<span>${escHtml(it.title || 'Item')}</span>`;
+                itemRows += `<tr>
+                    <td>${imgHtml}</td>
+                    <td>${titleHtml}</td>
+                    <td style="text-align:center;">${qty}</td>
+                    <td style="text-align:right;">${fmtMoney(price)}</td>
+                    <td style="text-align:right;">${fmtMoney(line)}</td>
+                </tr>`;
+            });
+
+            const shippingHtml = order.shippingAddress
+                ? `<div class="receipt-section">
+                    <div class="receipt-section-label"><i class="fa fa-map-marker-alt" style="margin-right:0.3rem;"></i>Shipping Address</div>
+                    <div class="receipt-section-value">${escHtml(
+                        typeof order.shippingAddress === 'object'
+                            ? Object.values(order.shippingAddress).filter(Boolean).join(', ')
+                            : String(order.shippingAddress)
+                    )}</div>
+                  </div>`
+                : '';
+
+            const noteHtml = order.buyerNote
+                ? `<div class="receipt-section">
+                    <div class="receipt-section-label"><i class="fa fa-sticky-note" style="margin-right:0.3rem;"></i>Buyer Note</div>
+                    <div class="receipt-section-value">${escHtml(order.buyerNote)}</div>
+                  </div>`
+                : '';
+
+            modalBody.innerHTML = `
+                <div class="modal-meta-grid">
+                    <span class="modal-meta-label">Date</span>
+                    <span class="modal-meta-value">${fmtDate(order.createdAt)}</span>
+                    <span class="modal-meta-label">Status</span>
+                    <span class="modal-meta-value"><span class="status-badge status-${escHtml(status)}">${capitalize(status)}</span></span>
+                    <span class="modal-meta-label">Payment</span>
+                    <span class="modal-meta-value">${capitalize(order.paymentMethod)}</span>
+                    <span class="modal-meta-label">Fulfillment</span>
+                    <span class="modal-meta-value">${capitalize(order.fulfillmentType)}</span>
+                </div>
+                <table class="receipt-table">
+                    <thead>
+                        <tr>
+                            <th style="width:44px;"></th>
+                            <th>Item</th>
+                            <th style="text-align:center;">Qty</th>
+                            <th style="text-align:right;">Unit Price</th>
+                            <th style="text-align:right;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>${itemRows}</tbody>
+                </table>
+                <div class="receipt-totals">
+                    <div class="total-row">
+                        <span>Subtotal</span>
+                        <span>${fmtMoney(subtotal)}</span>
+                    </div>
+                    <div class="total-row grand">
+                        <span>Total</span>
+                        <span>${fmtMoney(order.totalAmount || subtotal)}</span>
+                    </div>
+                </div>
+                ${shippingHtml}
+                ${noteHtml}
+            `;
+
+            overlay.classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            overlay.classList.remove('open');
+            document.body.style.overflow = '';
+        }
+
+        modalCloseBtn.addEventListener('click', closeModal);
+        modalBackBtn.addEventListener('click', closeModal);
+        overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+        // ── Init ──────────────────────────────────────────────────────────────
+        fetchOrders();
+    </script>
+</body>
+</html>

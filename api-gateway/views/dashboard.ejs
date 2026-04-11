@@ -110,7 +110,8 @@
             flex: 1;
             min-width: 0;
             overflow-y: auto;
-            max-height: 68vh;
+            height: 44vh;
+            min-height: 200px;
         }
         @media (max-width: 768px) {
             .purchases-top-row { flex-direction: column; }
@@ -192,20 +193,28 @@
         /* ── Suggestions strip ──────────────────────────────────────────────── */
         .suggestions-strip {
             display: flex;
-            gap: 12px;
+            gap: 14px;
             overflow-x: auto;
             scroll-snap-type: x mandatory;
-            padding-bottom: 6px;
+            padding: 8px 4px 12px;
         }
         .suggestion-card {
-            min-width: 90px;
-            max-width: 90px;
+            min-width: 100px;
+            max-width: 100px;
             scroll-snap-align: start;
-            border-radius: 8px;
+            border-radius: 10px;
             overflow: hidden;
-            border: 1px solid var(--border-light);
+            background: var(--bg-primary, #fff);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.10);
             cursor: pointer;
             flex-shrink: 0;
+            transition: transform 0.15s, box-shadow 0.15s;
+            text-decoration: none;
+            color: inherit;
+        }
+        .suggestion-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 18px rgba(0,0,0,0.14);
         }
         .suggestion-card img {
             width: 100%;
@@ -215,7 +224,7 @@
         }
         .suggestion-label {
             font-size: 0.7rem;
-            padding: 4px 6px;
+            padding: 5px 7px 6px;
             display: block;
             white-space: nowrap;
             overflow: hidden;
@@ -916,7 +925,10 @@
                     <!-- Order History card -->
                     <div class="card purchases-col">
                         <div class="card-header" style="flex-direction:column; align-items:flex-start; gap:0.5rem;">
-                            <h4 style="margin:0"><i class="fa fa-history" style="margin-right:0.5rem; color:var(--text-muted);"></i>Order History</h4>
+                            <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                                <h4 style="margin:0"><i class="fa fa-history" style="margin-right:0.5rem; color:var(--text-muted);"></i>Order History</h4>
+                                <a href="/purchases/history" style="font-size:0.78rem; color:var(--accent-red); text-decoration:none; white-space:nowrap;">View Full History →</a>
+                            </div>
                             <div class="filter-chip-row">
                                 <button class="filter-chip active" data-range="all" onclick="filterOrderHistory(this)">All</button>
                                 <button class="filter-chip" data-range="7d" onclick="filterOrderHistory(this)">1 week</button>
@@ -937,15 +949,13 @@
                     </div>
                 </div>
 
-                <!-- Bottom row: Suggestions full width -->
-                <div class="card" style="margin-top:1rem;">
-                    <div class="card-header">
-                        <h4 style="margin:0; font-size:0.9rem; color:var(--text-muted);"><i class="fa fa-lightbulb-o" style="margin-right:0.5rem;"></i>Based on your purchases</h4>
+                <!-- Bottom row: Suggestions full width (no card feel — floating) -->
+                <div style="margin-top:1.25rem; padding:0 0.25rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; padding:0 0.25rem;">
+                        <span style="font-size:0.82rem; color:var(--text-muted); font-weight:600;"><i class="fa fa-lightbulb-o" style="margin-right:0.4rem;"></i>Based on your purchases</span>
                     </div>
-                    <div style="padding:0.75rem 1rem;">
-                        <div id="suggestions-strip" class="suggestions-strip">
-                            <p class="text-muted suggestions-empty" style="font-size:0.82rem;">Loading suggestions...</p>
-                        </div>
+                    <div id="suggestions-strip" class="suggestions-strip">
+                        <p class="text-muted suggestions-empty" style="font-size:0.82rem;">Loading suggestions...</p>
                     </div>
                 </div>
             </div>
@@ -2654,7 +2664,7 @@
     }
 
     function filterOrderHistory(btn) {
-        document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+        btn.closest('.filter-chip-row').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
         btn.classList.add('active');
         const range = btn.dataset.range;
         _historyRange = range;
@@ -2712,7 +2722,7 @@
                 if (!suggestions.length) {
                     sugStrip.innerHTML = '<p class="suggestions-empty">Shop something to see suggestions here.</p>';
                 } else {
-                    sugStrip.innerHTML = suggestions.slice(0, 10).map(item => `
+                    sugStrip.innerHTML = suggestions.slice(0, 20).map(item => `
                         <a href="/product/${item.productId}" class="suggestion-card" style="text-decoration:none; color:inherit;">
                             ${item.image
                                 ? `<img src="${item.image}" alt="${item.title || ''}" onerror="this.style.display='none'">`
