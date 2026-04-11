@@ -510,12 +510,19 @@
             // data.sellerId = storeId; resolve to seller's personal userId via store profile
             const _storeId = data.sellerId;
             window.currentProduct = data;
-            // Fetch store profile to get personal userId (store.sellerId = owner userId)
+            // Disable chat/reveal until personal userId is resolved (no storeId fallback)
+            const _chatBtn   = document.getElementById('chat-btn');
+            const _revealBtn = document.getElementById('reveal-btn');
+            if (_chatBtn)   { _chatBtn.disabled   = true; _chatBtn.style.opacity   = '0.5'; }
+            if (_revealBtn) { _revealBtn.disabled = true; _revealBtn.style.opacity = '0.5'; }
             fetch(`/api/public-seller/${_storeId}`)
                 .then(r => r.ok ? r.json() : null)
-                .then(store => { if (store?.sellerId) sellerUserId = store.sellerId; })
+                .then(store => {
+                    if (store?.sellerId) sellerUserId = store.sellerId;
+                    if (sellerUserId && _chatBtn)   { _chatBtn.disabled   = false; _chatBtn.style.opacity   = ''; }
+                    if (sellerUserId && _revealBtn) { _revealBtn.disabled = false; _revealBtn.style.opacity = ''; }
+                })
                 .catch(() => {});
-            sellerUserId = _storeId; // temp fallback until store fetch completes
 
             if (imgs.length > 1) {
                 document.getElementById('gallery-container').innerHTML = imgs.map((img, i) => `
@@ -1291,7 +1298,7 @@
             window.location.replace('/login?next=' + encodeURIComponent(location.pathname));
             return;
         }
-        const sid = sellerUserId || (window.currentProduct && window.currentProduct.sellerId) || '';
+        const sid = sellerUserId;
         if (!sid) return;
         window.location.href = `/messages?with=${sid}&re=${PRODUCT_ID}&type=product`;
     }

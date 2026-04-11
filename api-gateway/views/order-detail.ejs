@@ -1034,7 +1034,19 @@
             const firstSellerItem = order.items.find(i => i.sellerId);
             const storeId = firstSellerItem?.sellerId?.toString();
             const storeProfile = (window._sellerMap || {})[storeId];
-            otherUserId = storeProfile?.sellerId || storeId; // fallback to storeId if profile not loaded
+            if (!storeProfile?.sellerId) {
+                // sellerMap not resolved yet — abort; no storeId fallback (would create contaminated thread)
+                const btn   = document.getElementById('msg-seller-btn');
+                const label = document.getElementById('msg-seller-label');
+                if (btn) btn.disabled = true;
+                if (label) label.textContent = 'Loading seller info…';
+                setTimeout(() => {
+                    if (btn) btn.disabled = false;
+                    if (label) label.textContent = 'Message about this order';
+                }, 2000);
+                return;
+            }
+            otherUserId = storeProfile.sellerId;
         } else {
             otherUserId = order.buyerId;
         }

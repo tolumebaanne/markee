@@ -499,6 +499,22 @@ function connectSocket() {
 
     socket.on('message_sent', (msg) => { appendBubble(msg, true); scrollToBottom(); });
 
+    socket.on('messages_read', ({ threadId, readBy, readAt }) => {
+        if (threadId !== currentThreadId) return;
+        const chatBody = document.getElementById('chat-body');
+        if (!chatBody) return;
+        // Remove any existing read receipt, then pin one after the last sent bubble
+        chatBody.querySelectorAll('.read-receipt').forEach(el => el.remove());
+        const sentRows = [...chatBody.querySelectorAll('.bubble-row.sent')];
+        if (sentRows.length) {
+            const receipt = document.createElement('div');
+            receipt.className = 'read-receipt';
+            receipt.style.cssText = 'text-align:right; font-size:0.65rem; color:var(--text-muted); margin-top:-0.25rem; margin-bottom:0.35rem; padding-right:0.25rem;';
+            receipt.textContent = 'Read';
+            sentRows[sentRows.length - 1].insertAdjacentElement('afterend', receipt);
+        }
+    });
+
     socket.on('new_message', (msg) => {
         if (msg.threadId === currentThreadId) {
             appendBubble(msg, false);

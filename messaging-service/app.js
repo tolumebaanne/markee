@@ -247,10 +247,15 @@ io.on('connection', (socket) => {
                 });
             }
 
+            // Authoritative recipientId from DB participants — never trust client-provided value
+            const authRecipientId = thread.participants
+                .map(p => p.toString())
+                .find(p => p !== userId) || recipientId.toString();
+
             const msg = await Message.create({
                 threadId,
                 senderId:      userId,
-                recipientId,
+                recipientId:   authRecipientId,
                 type:          'text',
                 body:          body || '',
                 attachmentUrl: attachmentUrl,
@@ -260,19 +265,19 @@ io.on('connection', (socket) => {
             // Thread denormalization (S6/R6)
             const preview = (body || attachmentUrl || '').slice(0, 80);
             const currentRecipientUnread = Number(
-                thread.unreadCounts?.get?.(recipientId.toString()) ||
-                thread.unreadCounts?.[recipientId.toString()] || 0
+                thread.unreadCounts?.get?.(authRecipientId) ||
+                thread.unreadCounts?.[authRecipientId] || 0
             );
             await Thread.updateOne(
                 { _id: threadId },
                 {
                     $set: { lastMessage: preview, lastMessageType: 'text', lastAt: msg.createdAt },
-                    $inc: { messageCount: 1, [`unreadCounts.${recipientId}`]: 1 }
+                    $inc: { messageCount: 1, [`unreadCounts.${authRecipientId}`]: 1 }
                 }
             );
 
             // Delivery receipts (C15 / S11)
-            const recipientRoom  = io.sockets.adapter.rooms.get(recipientId.toString());
+            const recipientRoom   = io.sockets.adapter.rooms.get(authRecipientId);
             const recipientOnline = recipientRoom && recipientRoom.size > 0;
 
             if (recipientOnline) {
@@ -280,17 +285,17 @@ io.on('connection', (socket) => {
                 msgObj.deliveredAt = new Date();
                 await Message.updateOne({ _id: msg._id }, { $set: { deliveredAt: msgObj.deliveredAt } });
                 // socket.to() excludes the emitting socket (sender)
-                socket.to(recipientId.toString()).emit('new_message', msgObj);
+                socket.to(authRecipientId).emit('new_message', msgObj);
                 socket.emit('message_delivered', { messageId: msg._id, deliveredAt: msgObj.deliveredAt });
                 socket.emit('message_sent', msgObj);
                 // Multi-tab: notify any other sender tabs; exclude recipient (already notified above)
-                socket.to(`thread:${threadId}`).except(recipientId.toString()).emit('new_message', msgObj);
+                socket.to(`thread:${threadId}`).except(authRecipientId).emit('new_message', msgObj);
             } else {
-                socket.to(recipientId.toString()).emit('new_message', msg);
+                socket.to(authRecipientId).emit('new_message', msg);
                 socket.emit('message_sent', msg);
                 // Notify offline recipient via bus (C8 / S24)
                 bus.emit('message.unread', {
-                    recipientId: recipientId.toString(),
+                    recipientId: authRecipientId,
                     senderId:    userId,
                     senderName:  socket.user.displayName || '',
                     threadId,
@@ -361,6 +366,16 @@ io.on('connection', (socket) => {
             );
             const total = await getTotalUnread(userId);
             socket.emit('unread_count_update', { total });
+
+            // Notify the sender of those messages that they were read
+            const otherId = thread.participants.map(p => p.toString()).find(p => p !== userId);
+            if (otherId) {
+                io.to(otherId).emit('messages_read', {
+                    threadId: data.threadId,
+                    readBy:   userId,
+                    readAt:   new Date()
+                });
+            }
         } catch (_) { /* ignore */ }
     });
 
