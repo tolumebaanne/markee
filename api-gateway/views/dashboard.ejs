@@ -606,7 +606,7 @@
             <!-- ── Save button ── -->
             <div style="display:flex; justify-content:flex-end; gap:0.75rem; padding-bottom:1.5rem;">
                 <button class="btn btn-outline" style="width:auto;" onclick="resetOpsForm()">Reset</button>
-                <button class="btn" style="background:var(--accent-red); width:auto;" id="ops-save-btn" onclick="saveOpsSettings()">
+                <button class="btn" style="background:var(--accent-red); width:auto;" id="ops-save-btn" onclick="saveOpsSettings(event)">
                     <i class="fa fa-save" style="margin-right:0.4rem;"></i> Save Operations
                 </button>
             </div>
@@ -729,7 +729,7 @@
                             <input type="text" id="new-store-name" placeholder="e.g. My Tech Shop" style="font-size:0.82rem;" oninput="clearInlineError('activate-store-error-container')">
                         </div>
                         <div id="activate-store-error-container"></div>
-                        <button class="btn" id="start-selling-btn" style="background:var(--accent-red); font-size:0.82rem;" onclick="activateStorefront()">
+                        <button class="btn" id="start-selling-btn" style="background:var(--accent-red); font-size:0.82rem;" onclick="activateStorefront(event)">
                             <i class="fa fa-store" style="margin-right:0.4rem;"></i> Activate Storefront
                         </button>
                     </div>
@@ -1502,7 +1502,7 @@
                     <div style="color:var(--text-muted); font-size:0.72rem;">${o.status} · ${new Date(o.createdAt).toLocaleDateString()}</div>
                 </div>
                 <div style="font-weight:700; color:var(--accent-red); white-space:nowrap;">$${(total/100).toFixed(2)}</div>
-                ${o.status === 'pending' ? `<button class="btn" style="width:auto; padding:0.2rem 0.65rem; font-size:0.72rem; background:var(--accent-red); white-space:nowrap;" onclick="quickAcceptOrder('${o._id}'); renderOverviewOrders();">Accept</button>` : ''}
+                ${o.status === 'pending' ? `<button class="btn" style="width:auto; padding:0.2rem 0.65rem; font-size:0.72rem; background:var(--accent-red); white-space:nowrap;" onclick="quickAcceptOrder('${o._id}', event); renderOverviewOrders();">Accept</button>` : ''}
             </div>`;
         }).join('');
     }
@@ -1907,7 +1907,7 @@
                             <i class="fa fa-pen"></i> Edit
                         </button>
                         <button class="act-btn ${isPaused ? 'activate' : ''}" id="toggle-btn-${p._id}" title="${isPaused ? 'Activate' : 'Pause'}"
-                                onclick="toggleStatus('${p._id}', '${p.status}')">
+                                onclick="toggleStatus('${p._id}', '${p.status}', event)">
                             <i class="fa fa-${isPaused ? 'play' : 'pause'}"></i> ${isPaused ? 'Activate' : 'Pause'}
                         </button>
                         <button class="act-btn danger" title="Delete" onclick="deleteProduct('${p._id}')">
@@ -2098,7 +2098,7 @@
                     <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
                         <span class="status-badge ${statusCls}">${o.status}</span>
                         ${canAccept ? `
-                        <button class="act-btn activate" onclick="quickAcceptOrder('${o._id}')" title="Accept this order">
+                        <button class="act-btn activate" onclick="quickAcceptOrder('${o._id}', event)" title="Accept this order">
                             <i class="fa fa-check"></i> Accept
                         </button>` : ''}
                         ${canShip ? `
@@ -2136,7 +2136,7 @@
                     </div>
                     <div id="shipment-error-${o._id}"></div>
                     <button class="btn" style="background:var(--accent-red); width:auto; padding:0.5rem 1.1rem; font-size:0.8rem;"
-                            onclick="submitShipment('${o._id}')">
+                            onclick="submitShipment('${o._id}', event)">
                         <i class="fa fa-paper-plane" style="margin-right:0.4rem;"></i> Mark Shipped
                     </button>
                 </div>` : ''}
@@ -2335,7 +2335,7 @@
     }
 
     // ── Quick order actions from dashboard list ────────────────────────────────
-    async function quickAcceptOrder(orderId) {
+    async function quickAcceptOrder(orderId, evt) {
         showConfirm('Confirm this order? You are committing to fulfil it.', async () => {
             try {
                 const res = await fetch(`/api/orders/${orderId}/status`, {
@@ -2345,7 +2345,7 @@
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
-                showToast('Order accepted — now processing!', 'success');
+                showToast('Order accepted — now processing!', 'success', 3500, evt);
                 // Reload orders list
                 ordersLoaded = false;
                 loadSellerOrders();
@@ -2390,7 +2390,7 @@
         } catch (err) { showToast('Error: ' + err.message, 'error'); }
     }
 
-    async function submitShipment(orderId) {
+    async function submitShipment(orderId, evt) {
         clearInlineError(`shipment-error-${orderId}`);
         const carrier  = document.getElementById(`carrier-${orderId}`).value;
         const tracking = document.getElementById(`tracking-${orderId}`).value.trim();
@@ -2410,7 +2410,7 @@
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-            showToast('Shipment created — order marked as shipped!', 'success');
+            showToast('Shipment created — order marked as shipped!', 'success', 3500, evt);
             // Re-render orders list
             ordersLoaded = false;
             loadSellerOrders();
@@ -2573,7 +2573,7 @@
     }
 
     // ── Toggle active / paused ────────────────────────────────────────────────
-    async function toggleStatus(productId, currentStatus) {
+    async function toggleStatus(productId, currentStatus, evt) {
         const newStatus = currentStatus === 'active' ? 'paused' : 'active';
         try {
             const res = await fetch(`/api/catalog/products/${productId}`, {
@@ -2590,12 +2590,12 @@
             if (label) { label.textContent = newStatus; label.style.color = newStatus === 'active' ? '#15803d' : '#a16207'; }
             if (btn)   {
                 btn.className = `act-btn${newStatus === 'paused' ? ' activate' : ''}`;
-                btn.setAttribute('onclick', `toggleStatus('${productId}', '${newStatus}')`);
+                btn.setAttribute('onclick', `toggleStatus('${productId}', '${newStatus}', event)`);
                 btn.innerHTML = `<i class="fa fa-${newStatus === 'active' ? 'pause' : 'play'}"></i> ${newStatus === 'active' ? 'Pause' : 'Activate'}`;
             }
             // Re-apply filter so status filter stays accurate (e.g. pausing while "Active" filter is on)
             filterListings();
-            showToast(`Listing ${newStatus === 'active' ? 'activated' : 'paused'}.`, 'success');
+            showToast(`Listing ${newStatus === 'active' ? 'activated' : 'paused'}.`, 'success', 3500, evt);
         } catch (err) {
             showToast('Error: ' + err.message, 'error');
         }
@@ -2757,7 +2757,7 @@
     }
 
     // ── Register store (first-time sellers) ──────────────────────────────────
-    async function activateStorefront() {
+    async function activateStorefront(evt) {
         clearInlineError('activate-store-error-container');
         const name = (document.getElementById('new-store-name')?.value || '').trim();
         if (!name) { showInlineError('activate-store-error-container', 'Enter a store name to continue.'); return; }
@@ -2823,7 +2823,7 @@
 
             localStorage.setItem('access_token',  newToken);
             localStorage.setItem('refresh_token', tokens.refresh_token);
-            showToast('Storefront activated! Welcome to selling on Markee.', 'success');
+            showToast('Storefront activated! Welcome to selling on Markee.', 'success', 3500, evt);
             setTimeout(() => window.location.reload(), 1200);
 
         } catch (err) {
@@ -2895,8 +2895,8 @@
                 const ago = formatTimeAgo(new Date(n.sentAt));
                 const iconColor = n.priority === 'critical' ? '#b91c1c' : n.priority === 'high' ? '#ea580c' : '#6b7280';
                 return `
-                <div class="notif-item${n.read ? '' : ' unread'}" data-notif-id="${n._id}" style="display:flex; align-items:flex-start; gap:0.5rem;">
-                    <div style="flex:1; display:flex; gap:0.5rem; align-items:flex-start; cursor:pointer;" onclick="handleNotifClick('${n._id}', '${n.link || ''}')">
+                <div class="notif-item${n.read ? '' : ' unread'}" data-notif-id="${n._id}">
+                    <div style="flex:1; display:flex; gap:0.75rem; align-items:flex-start; cursor:pointer;" onclick="handleNotifClick('${n._id}', '${n.link || ''}')">
                         <div class="notif-icon"><i class="fa ${n.icon || 'fa-bell'}" style="color:${iconColor};"></i></div>
                         <div class="notif-body">
                             <div class="notif-subject">${n.subject || 'Notification'}</div>
@@ -3226,7 +3226,7 @@ function bindOpsPreview() {
     update();
 }
 
-async function saveOpsSettings() {
+async function saveOpsSettings(evt) {
     const btn = document.getElementById('ops-save-btn');
     btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
     btn.disabled = true;
@@ -3300,7 +3300,7 @@ async function saveOpsSettings() {
         });
 
         if (!res.ok) throw new Error('Failed to update operations');
-        showToast('Operations saved successfully', 'success');
+        showToast('Operations saved successfully', 'success', 3500, evt);
         
     } catch (err) {
         console.error(err);

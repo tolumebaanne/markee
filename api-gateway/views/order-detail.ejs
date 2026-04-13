@@ -432,7 +432,7 @@
                                 <div style="font-weight:600; font-size:0.875rem;"><i class="fa fa-check-circle" style="color:#15803d; margin-right:0.4rem;"></i>Accept & Confirm</div>
                                 <div class="text-muted small">Confirm you have the item and are preparing it for shipment.</div>
                             </div>
-                            <button class="btn" style="background:#15803d; width:auto; padding:0.5rem 1.1rem; font-size:0.82rem;" onclick="acceptOrder()">
+                            <button class="btn" style="background:#15803d; width:auto; padding:0.5rem 1.1rem; font-size:0.82rem;" onclick="acceptOrder(event)">
                                 <i class="fa fa-check" style="margin-right:0.4rem;"></i> Accept Order
                             </button>
                         </div>
@@ -445,7 +445,7 @@
                                 <div style="font-weight:600; font-size:0.875rem;"><i class="fa fa-handshake" style="color:#0e7490; margin-right:0.4rem;"></i>Mark as Delivered</div>
                                 <div class="text-muted small">Confirm the buyer received the item and payment was collected.</div>
                             </div>
-                            <button class="btn" style="background:#0e7490; width:auto; padding:0.5rem 1.1rem; font-size:0.82rem;" onclick="deliverOrder()">
+                            <button class="btn" style="background:#0e7490; width:auto; padding:0.5rem 1.1rem; font-size:0.82rem;" onclick="deliverOrder(event)">
                                 <i class="fa fa-handshake" style="margin-right:0.4rem;"></i> Mark Delivered
                             </button>
                         </div>
@@ -624,7 +624,7 @@
             <label>Your Review</label>
             <textarea id="review-body" placeholder="Share your experience with this product..." rows="4"></textarea>
         </div>
-        <button id="review-submit-btn" class="btn btn-red" onclick="submitReview()">Submit Review</button>
+        <button id="review-submit-btn" class="btn btn-red" onclick="submitReview(event)">Submit Review</button>
     </div>
 </div>
 
@@ -954,7 +954,7 @@
                 if (!document.getElementById('action-ready-pickup')) {
                     const btn = document.createElement('div');
                     btn.id = 'action-ready-pickup';
-                    btn.innerHTML = `<button class="btn-primary" style="width:100%;" onclick="advanceFulfillment('ready_for_pickup')">
+                    btn.innerHTML = `<button class="btn-primary" style="width:100%;" onclick="advanceFulfillment('ready_for_pickup', event)">
                         <i class="fa fa-map-marker" style="margin-right:0.4rem;"></i> Mark Ready for Pickup
                     </button>
                     <div class="text-muted small" style="margin-top:0.3rem;">Buyer will be notified that the order is ready to collect.</div>`;
@@ -967,7 +967,7 @@
                 if (!document.getElementById('action-confirm-pickup')) {
                     const btn = document.createElement('div');
                     btn.id = 'action-confirm-pickup';
-                    btn.innerHTML = `<button class="btn-primary" style="width:100%; margin-top:0.5rem;" onclick="advanceFulfillment('picked_up')">
+                    btn.innerHTML = `<button class="btn-primary" style="width:100%; margin-top:0.5rem;" onclick="advanceFulfillment('picked_up', event)">
                         <i class="fa fa-check" style="margin-right:0.4rem;"></i> Confirm Pickup
                     </button>
                     <div class="text-muted small" style="margin-top:0.3rem;">Confirm the buyer has collected the order. This releases escrow.</div>`;
@@ -983,7 +983,7 @@
             if (!document.getElementById('action-self-fulfill')) {
                 const btn = document.createElement('div');
                 btn.id = 'action-self-fulfill';
-                btn.innerHTML = `<button class="btn-primary" style="width:100%; margin-top:0.5rem;" onclick="advanceFulfillment('self_fulfilled')">
+                btn.innerHTML = `<button class="btn-primary" style="width:100%; margin-top:0.5rem;" onclick="advanceFulfillment('self_fulfilled', event)">
                     <i class="fa fa-check-square" style="margin-right:0.4rem;"></i> Mark as Fulfilled
                 </button>
                 <div class="text-muted small" style="margin-top:0.3rem;">Mark this order as fulfilled (digital delivery, service, or in-person). This releases escrow.</div>`;
@@ -1153,7 +1153,7 @@
                 html += `<div>
                     <label style="font-size:0.78rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:0.35rem;">${btnLabel}</label>
                     <textarea id="seller-note-input" rows="3" style="font-size:0.85rem; border-radius:8px; resize:vertical; width:100%;" placeholder="Visible to buyer — e.g. handling instructions, dispatch date…">${escHtml(order.sellerNote || '')}</textarea>
-                    <button onclick="submitNote()" style="margin-top:0.5rem; padding:0.45rem 1rem; border-radius:7px; background:var(--accent-red); color:white; font-size:0.82rem; font-weight:600; border:none; cursor:pointer;">
+                    <button onclick="submitNote(event)" style="margin-top:0.5rem; padding:0.45rem 1rem; border-radius:7px; background:var(--accent-red); color:white; font-size:0.82rem; font-weight:600; border:none; cursor:pointer;">
                         <i class="fa fa-save" style="margin-right:0.4rem;"></i> Save Note
                     </button>
                 </div>`;
@@ -1165,7 +1165,7 @@
         card.style.display = 'block';
     }
 
-    async function submitNote() {
+    async function submitNote(evt) {
         const input = document.getElementById('seller-note-input');
         if (!input) return;
         const note = input.value.trim();
@@ -1177,7 +1177,7 @@
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-            showToast('Note saved.', 'success');
+            showToast('Note saved.', 'success', 3500, evt);
             _order.sellerNote = note;
             renderNotes(_order);
         } catch (err) {
@@ -1458,7 +1458,7 @@
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
-            showToast('Shipment created — order marked as shipped!', 'success');
+            showToast('Shipment created — order marked as shipped!', 'success', 3500, e);
             document.getElementById('shipment-form-card').style.display = 'none';
             // Reload to reflect new status
             setTimeout(() => window.location.reload(), 800);
@@ -1470,7 +1470,7 @@
     }
 
     // ── Accept order (seller: pending → processing) ───────────────────────────
-    async function acceptOrder() {
+    async function acceptOrder(evt) {
         showConfirm('Confirm this order? You are committing to fulfil it.', async () => {
             try {
                 const res = await fetch(`/api/orders/${ORDER_ID}/status`, {
@@ -1480,14 +1480,14 @@
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
-                showToast('Order confirmed — now processing.', 'success');
+                showToast('Order confirmed — now processing.', 'success', 3500, evt);
                 setTimeout(() => window.location.reload(), 800);
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
         }, null, { confirmText: 'Confirm Order' });
     }
 
     // ── Mark delivered (seller: shipped → delivered, COD) ────────────────────
-    async function deliverOrder() {
+    async function deliverOrder(evt) {
         showConfirm('Confirm the buyer received this order and payment was collected?', async () => {
             try {
                 const res = await fetch(`/api/orders/${ORDER_ID}/deliver`, {
@@ -1497,14 +1497,14 @@
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
-                showToast('Order marked as delivered!', 'success');
+                showToast('Order marked as delivered!', 'success', 3500, evt);
                 setTimeout(() => window.location.reload(), 800);
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
         }, null, { confirmText: 'Confirm Delivery' });
     }
 
     // ── Fulfillment type transitions — pickup / self_fulfilled (S23) ─────────────
-    async function advanceFulfillment(status) {
+    async function advanceFulfillment(status, evt) {
         const labels = {
             ready_for_pickup: 'mark this order as ready for pickup',
             picked_up:        'confirm the buyer has collected this order',
@@ -1522,7 +1522,7 @@
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-                showToast('Order updated successfully.', 'success');
+                showToast('Order updated successfully.', 'success', 3500, evt);
                 setTimeout(() => window.location.reload(), 800);
             } catch (err) {
                 showToast('Error: ' + err.message, 'error');
@@ -1583,7 +1583,7 @@
         });
     }
 
-    async function submitReview() {
+    async function submitReview(evt) {
         if (!_selectedRating) { showToast('Please select a star rating.', 'error'); return; }
         const body = document.getElementById('review-body').value.trim();
         if (!body) { showToast('Please write a review.', 'error'); return; }
@@ -1611,7 +1611,7 @@
 
             _reviewed.add(_reviewProductId);
             closeReviewModal();
-            showToast('Review submitted — thank you!', 'success');
+            showToast('Review submitted — thank you!', 'success', 3500, evt);
             renderItems(_order); // Re-render items to mark as reviewed
         } catch (err) {
             showToast('Error: ' + err.message, 'error');
@@ -1762,7 +1762,7 @@
                         <i class="fa fa-clock" style="margin-right:0.4rem;"></i>
                         Dispute window closes in <strong>${hoursLeft}h ${minsLeft}m</strong>
                     </div>
-                    <button onclick="fileDispute()" style="width:100%; padding:0.55rem; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c; font-size:0.82rem; font-weight:700; cursor:pointer; margin-top:0.4rem;">
+                    <button onclick="fileDispute(event)" style="width:100%; padding:0.55rem; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c; font-size:0.82rem; font-weight:700; cursor:pointer; margin-top:0.4rem;">
                         <i class="fa fa-exclamation-circle" style="margin-right:0.4rem;"></i> File a Dispute
                     </button>`;
                 } else {
@@ -1820,7 +1820,7 @@
         } catch {}
     }
 
-    async function fileDispute() {
+    async function fileDispute(evt) {
         showConfirm('File a payment dispute for this order? Payment will be held until an admin reviews it.', async () => {
             try {
                 const res = await fetch(`/api/payments/dispute/${ORDER_ID}`, {
@@ -1829,7 +1829,7 @@
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-                showToast('Dispute filed. Admin will review shortly.', 'success');
+                showToast('Dispute filed. Admin will review shortly.', 'success', 3500, evt);
                 setTimeout(() => loadEscrowCard(_order), 500);
             } catch (err) {
                 showToast('Error: ' + err.message, 'error');

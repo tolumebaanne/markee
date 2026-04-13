@@ -1456,16 +1456,16 @@ async function runSearch() {
 }
 
 // Archive / Pin
-async function archiveThread() {
-    if (currentThreadId) await archiveThreadId(currentThreadId);
+async function archiveThread(evt) {
+    if (currentThreadId) await archiveThreadId(currentThreadId, evt);
 }
 
-async function archiveThreadId(threadId) {
+async function archiveThreadId(threadId, evt) {
     try {
         var res = await apiFetch('/api/messages/thread/' + threadId + '/archive', { method: 'POST' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         var data = await res.json();
-        showToast(data.archived ? 'Thread archived.' : 'Thread unarchived.', 'success');
+        showToast(data.archived ? 'Thread archived.' : 'Thread unarchived.', 'success', 3500, evt);
         loadThreads();
     } catch (err) {
         console.error('[MSG] archiveThreadId failed:', err.message);
@@ -1473,11 +1473,11 @@ async function archiveThreadId(threadId) {
     }
 }
 
-async function pinThread() {
-    if (currentThreadId) await pinThreadId(currentThreadId);
+async function pinThread(evt) {
+    if (currentThreadId) await pinThreadId(currentThreadId, evt);
 }
 
-async function pinThreadId(threadId) {
+async function pinThreadId(threadId, evt) {
     try {
         var res = await apiFetch('/api/messages/thread/' + threadId + '/pin', { method: 'POST' });
         if (!res.ok) {
@@ -1485,7 +1485,7 @@ async function pinThreadId(threadId) {
             throw new Error(errData.error || 'Failed');
         }
         var data = await res.json();
-        showToast(data.pinned ? 'Thread pinned.' : 'Thread unpinned.', 'success');
+        showToast(data.pinned ? 'Thread pinned.' : 'Thread unpinned.', 'success', 3500, evt);
         loadThreads();
     } catch (err) {
         console.error('[MSG] pinThreadId failed:', err.message);
@@ -1758,14 +1758,14 @@ function setupEventDelegation() {
         var archiveBtn = e.target.closest('[data-archive-thread]');
         if (archiveBtn) {
             e.stopPropagation();
-            archiveThreadId(archiveBtn.dataset.archiveThread);
+            archiveThreadId(archiveBtn.dataset.archiveThread, e);
             return;
         }
         // Pin action button
         var pinBtn = e.target.closest('[data-pin-thread]');
         if (pinBtn) {
             e.stopPropagation();
-            pinThreadId(pinBtn.dataset.pinThread);
+            pinThreadId(pinBtn.dataset.pinThread, e);
             return;
         }
         // Thread item click

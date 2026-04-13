@@ -28,12 +28,12 @@
                     <i class="fa fa-bell"></i>
                     <span class="nav-icon-badge" id="bell-badge" style="display:none;"></span>
                 </button>
-                <div id="bell-dropdown" style="display:none; position:absolute; right:0; top:calc(100% + 6px); width:320px; background:var(--bg-primary); border:1px solid var(--border-light); border-radius:10px; box-shadow:0 4px 20px rgba(0,0,0,0.12); z-index:9999;">
-                    <div style="display:flex; align-items:center; justify-content:space-between; padding:0.75rem 1rem; border-bottom:1px solid var(--border-light);">
+                <div id="bell-dropdown" class="notif-dropdown" style="display:none;">
+                    <div class="notif-panel-header">
                         <span style="font-weight:600; font-size:0.875rem;">Notifications</span>
                         <div style="display:flex; gap:0.75rem; align-items:center;">
                             <button type="button" onclick="markAllRead()" style="background:none; border:none; color:var(--accent-red); font-size:0.75rem; cursor:pointer; font-weight:600;">Mark all read</button>
-                            <button type="button" onclick="clearAllNotifications()" style="background:none; border:none; color:var(--text-muted); font-size:0.75rem; cursor:pointer; font-weight:600;">Clear all</button>
+                            <button type="button" onclick="clearAllNotifications(event)" style="background:none; border:none; color:var(--text-muted); font-size:0.75rem; cursor:pointer; font-weight:600;">Clear all</button>
                         </div>
                     </div>
                     <div id="bell-list" style="max-height:320px; overflow-y:auto;"></div>
@@ -182,15 +182,21 @@ function loadBellNotifications() {
                 list.innerHTML = '<div style="padding:1.5rem; text-align:center; color:var(--text-muted); font-size:0.8rem;">No notifications yet.</div>';
                 return;
             }
-            list.innerHTML = notifs.map(n => `
-                <div data-notif-id="${n._id}" style="padding:0.65rem 1rem; border-bottom:1px solid var(--border-light); background:${n.read ? 'transparent' : 'var(--bg-secondary)'}; display:flex; gap:0.6rem; align-items:flex-start;">
-                    <i class="fa ${n.icon || 'fa-bell'}" style="color:var(--accent-red); margin-top:2px; font-size:0.8rem; flex-shrink:0; cursor:${n.link ? 'pointer' : 'default'};" onclick="${n.link ? `window.location='${n.link}'` : ''}"></i>
-                    <div style="flex:1; min-width:0; cursor:${n.link ? 'pointer' : 'default'};" onclick="${n.link ? `window.location='${n.link}'` : ''}">
-                        <div style="font-size:0.8rem; font-weight:${n.read ? '400' : '600'};">${n.subject || n.body || '—'}</div>
-                        <div style="font-size:0.7rem; color:var(--text-muted);">${n.createdAt ? new Date(n.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : ''}</div>
+            list.innerHTML = notifs.slice(0, 8).map(n => {
+                    const iconColor = n.priority === 'high' ? 'var(--accent-red)' : 'var(--text-muted)';
+                    const timeStr = n.sentAt ? new Date(n.sentAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) :
+                                    (n.createdAt ? new Date(n.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '');
+                    return `
+                <div class="notif-item${n.read ? '' : ' unread'}" data-notif-id="${n._id}">
+                    <div class="notif-icon"><i class="fa ${n.icon || 'fa-bell'}" style="color:${iconColor};"></i></div>
+                    <div class="notif-body"${n.link ? ` onclick="window.location='${n.link}'; dismissNotification('${n._id}', null);"` : ''} style="${n.link ? 'cursor:pointer;' : ''}">
+                        <div class="notif-subject">${n.subject || n.body || '—'}</div>
+                        ${n.body && n.subject ? `<div class="notif-preview">${n.body}</div>` : ''}
+                        <div class="notif-time">${timeStr}</div>
                     </div>
-                    <button type="button" onclick="dismissNotification('${n._id}', this)" title="Dismiss" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.8rem;padding:0 0 0 0.25rem;flex-shrink:0;line-height:1;opacity:0.6;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">&times;</button>
-                </div>`).join('');
+                    <button type="button" onclick="dismissNotification('${n._id}', this)" title="Dismiss" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.8rem;padding:0.25rem;flex-shrink:0;line-height:1;opacity:0.6;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">&times;</button>
+                </div>`;
+                }).join('');
         }).catch(() => {
             list.innerHTML = '<div style="padding:1rem; text-align:center; color:var(--text-muted); font-size:0.8rem;">Failed to load.</div>';
         });
@@ -209,7 +215,7 @@ function markAllRead() {
         }).catch(() => {});
 }
 
-function clearAllNotifications() {
+function clearAllNotifications(evt) {
     const t = localStorage.getItem('access_token');
     if (!t) return;
     fetch('/api/notifications/my', { method: 'DELETE', headers: { Authorization: 'Bearer ' + t } })
@@ -221,7 +227,7 @@ function clearAllNotifications() {
             const list = document.getElementById('bell-list');
             if (list) list.innerHTML = '<div style="padding:1.5rem; text-align:center; color:var(--text-muted); font-size:0.8rem;">No notifications yet.</div>';
             _bellLoaded = true;
-            if (typeof showToast === 'function') showToast('All notifications cleared', 'success');
+            if (typeof showToast === 'function') showToast('All notifications cleared', 'success', 3500, evt);
         }).catch(() => {});
 }
 

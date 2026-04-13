@@ -594,6 +594,12 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 .toast-info    { background: var(--toast-info-bg);    color: var(--toast-info-fg);    border: 1px solid var(--toast-info-border);    }
 .toast-warning { background: var(--toast-warning-bg); color: var(--toast-warning-fg); border: 1px solid var(--toast-warning-border); border-left: 4px solid var(--toast-warning-border); }
 
+.toast-anchored {
+    position: fixed;
+    max-width: 260px;
+    width: 260px;
+}
+
 .toast-close {
     margin-left: auto;
     background: none;

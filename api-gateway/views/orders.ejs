@@ -517,7 +517,7 @@
                 </div>
                 <span class="status-badge ${statusCls}">${order.status}</span>
                 <div class="order-actions" onclick="event.stopPropagation()">
-                    ${canAccept ? `<button class="act-btn success" onclick="acceptOrder('${order._id}')"><i class="fa fa-check"></i> Accept</button>` : ''}
+                    ${canAccept ? `<button class="act-btn success" onclick="acceptOrder('${order._id}', event)"><i class="fa fa-check"></i> Accept</button>` : ''}
                     ${canCancel ? `<button class="act-btn danger" onclick="cancelOrder('${order._id}')" title="Cancel"><i class="fa fa-times"></i></button>` : ''}
                     <a href="/orders/${order._id}" class="view-btn">Details <i class="fa fa-chevron-right"></i></a>
                 </div>
@@ -541,7 +541,7 @@
     }
 
     // ── Order action helpers ──────────────────────────────────────────────────
-    async function acceptOrder(orderId) {
+    async function acceptOrder(orderId, evt) {
         showConfirm('Accept this order? You are committing to fulfil it.', async () => {
             try {
                 const res = await fetch(`/api/orders/${orderId}/status`, {
@@ -551,7 +551,7 @@
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
-                showToast('Order accepted — now processing!', 'success');
+                showToast('Order accepted — now processing!', 'success', 3500, evt);
                 loadSales();
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
         }, null, { confirmText: 'Accept Order' });

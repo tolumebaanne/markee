@@ -275,7 +275,7 @@
                 </div>
 
                 <div id="checkout-error-container"></div>
-                <button id="place-order-btn" onclick="placeOrder()"
+                <button id="place-order-btn" onclick="placeOrder(event)"
                     class="btn w-100" style="background:var(--accent-red); padding:1rem; font-size:1rem; margin-top:0.5rem;">
                     <i class="fa fa-lock" style="margin-right:0.5rem;"></i> Place Order
                 </button>
@@ -603,7 +603,7 @@ async function checkStock() {
 }
 
 // ── Place order ───────────────────────────────────────────────────────
-async function placeOrder() {
+async function placeOrder(evt) {
     clearInlineError('checkout-error-container');
     if (!validate()) { showInlineError('checkout-error-container', 'Please fill in all required fields.'); return; }
 
@@ -680,7 +680,7 @@ async function placeOrder() {
         const confirm = document.getElementById('confirm-screen');
         confirm.style.display = 'block';
         document.getElementById('confirm-order-id').textContent = `#${data._id.slice(-8).toUpperCase()}`;
-        showToast('Order placed successfully!', 'success');
+        showToast('Order placed successfully!', 'success', 3500, evt);
 
     } catch (err) {
         showInlineError('checkout-error-container', `Failed to place order: ${err.message}`);
