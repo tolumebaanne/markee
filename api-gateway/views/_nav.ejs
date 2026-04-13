@@ -31,11 +31,14 @@
                 <div id="bell-dropdown" style="display:none; position:absolute; right:0; top:calc(100% + 6px); width:320px; background:var(--bg-primary); border:1px solid var(--border-light); border-radius:10px; box-shadow:0 4px 20px rgba(0,0,0,0.12); z-index:9999;">
                     <div style="display:flex; align-items:center; justify-content:space-between; padding:0.75rem 1rem; border-bottom:1px solid var(--border-light);">
                         <span style="font-weight:600; font-size:0.875rem;">Notifications</span>
-                        <button type="button" onclick="markAllRead()" style="background:none; border:none; color:var(--accent-red); font-size:0.75rem; cursor:pointer; font-weight:600;">Mark all read</button>
+                        <div style="display:flex; gap:0.75rem; align-items:center;">
+                            <button type="button" onclick="markAllRead()" style="background:none; border:none; color:var(--accent-red); font-size:0.75rem; cursor:pointer; font-weight:600;">Mark all read</button>
+                            <button type="button" onclick="clearAllNotifications()" style="background:none; border:none; color:var(--text-muted); font-size:0.75rem; cursor:pointer; font-weight:600;">Clear all</button>
+                        </div>
                     </div>
                     <div id="bell-list" style="max-height:320px; overflow-y:auto;"></div>
                     <div style="padding:0.5rem 1rem; border-top:1px solid var(--border-light); text-align:center;">
-                        <a href="/profile#notifications" style="font-size:0.75rem; color:var(--accent-red); text-decoration:none; font-weight:600;">See all notifications</a>
+                        <a href="/notifications" style="font-size:0.75rem; color:var(--accent-red); text-decoration:none; font-weight:600;">See all notifications</a>
                     </div>
                 </div>
             </div>
@@ -203,6 +206,22 @@ function markAllRead() {
             if (b) { b.textContent = ''; b.style.display = 'none'; }
             _bellLoaded = false;
             loadBellNotifications();
+        }).catch(() => {});
+}
+
+function clearAllNotifications() {
+    const t = localStorage.getItem('access_token');
+    if (!t) return;
+    fetch('/api/notifications/my', { method: 'DELETE', headers: { Authorization: 'Bearer ' + t } })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+            if (!data?.ok) return;
+            const b = document.getElementById('bell-badge');
+            if (b) { b.textContent = ''; b.style.display = 'none'; }
+            const list = document.getElementById('bell-list');
+            if (list) list.innerHTML = '<div style="padding:1.5rem; text-align:center; color:var(--text-muted); font-size:0.8rem;">No notifications yet.</div>';
+            _bellLoaded = true;
+            if (typeof showToast === 'function') showToast('All notifications cleared', 'success');
         }).catch(() => {});
 }
 

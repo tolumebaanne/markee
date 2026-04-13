@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notifications | Markee Marketplace</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js"></script>
+    <script src="/js/cart.js"></script>
+    <style>
+        .notif-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .notif-header-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .tab-bar {
+            display: flex;
+            gap: 0.5rem;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            padding: 0.35rem;
+            margin-bottom: 2rem;
+            width: fit-content;
+        }
+
+        .tab-btn {
+            padding: 0.5rem 1.25rem;
+            border-radius: 7px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            background: transparent;
+            color: var(--text-muted);
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background: var(--accent-red);
+            color: white;
+        }
+
+        .tab-btn:hover:not(.active) {
+            background: var(--bg-secondary);
+            color: var(--text-main);
+        }
+
+        .notif-row {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            transition: box-shadow 0.2s, transform 0.2s, opacity 0.3s;
+        }
+
+        .notif-row.unread {
+            background: var(--bg-secondary);
+        }
+
+        .notif-row:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        .notif-row.fade-out {
+            opacity: 0;
+            transform: translateY(-4px);
+            pointer-events: none;
+        }
+
+        .notif-icon-wrap {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 1rem;
+            color: var(--accent-red);
+        }
+
+        .notif-row.unread .notif-icon-wrap {
+            background: var(--bg-secondary);
+        }
+
+        .notif-body {
+            flex-grow: 1;
+            min-width: 0;
+            cursor: pointer;
+        }
+
+        .notif-subject {
+            font-size: 0.9rem;
+            font-weight: 400;
+            color: var(--text-main);
+            margin-bottom: 0.2rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .notif-row.unread .notif-subject {
+            font-weight: 600;
+        }
+
+        .notif-text {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin-bottom: 0.25rem;
+        }
+
+        .notif-time {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .notif-dismiss {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0.2rem 0.4rem;
+            border-radius: 6px;
+            flex-shrink: 0;
+            line-height: 1;
+            transition: background 0.15s, color 0.15s;
+            align-self: flex-start;
+        }
+
+        .notif-dismiss:hover {
+            background: var(--bg-secondary);
+            color: var(--text-main);
+        }
+
+        /* Action buttons in header */
+        .hdr-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .hdr-btn-outline {
+            border: 1.5px solid var(--border-light);
+            background: transparent;
+            color: var(--text-main);
+        }
+
+        .hdr-btn-outline:hover {
+            background: var(--bg-secondary);
+            color: var(--text-main);
+        }
+
+        .hdr-btn-red {
+            border: 1.5px solid var(--accent-red);
+            background: var(--accent-red);
+            color: white;
+        }
+
+        .hdr-btn-red:hover {
+            background: var(--accent-red-hover, #990000);
+            border-color: var(--accent-red-hover, #990000);
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 5rem 2rem;
+        }
+
+        .empty-icon {
+            width: 72px;
+            height: 72px;
+            background: var(--bg-secondary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.25rem;
+            font-size: 1.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Load more button */
+        .load-more-wrap {
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+
+        .load-more-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.6rem 1.5rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            border: 1.5px solid var(--border-light);
+            background: var(--bg-primary);
+            color: var(--text-main);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .load-more-btn:hover {
+            background: var(--bg-secondary);
+        }
+
+        /* Skeleton loader */
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-secondary) 25%, #e9eaec 50%, var(--bg-secondary) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+            border-radius: 8px;
+        }
+
+        @keyframes shimmer { to { background-position: -200% 0; } }
+
+        .skeleton-row {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        @media (max-width: 600px) {
+            .notif-header { flex-direction: column; align-items: flex-start; }
+            .notif-header-actions { width: 100%; }
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+<!-- ============ NAVBAR ============ -->
+<nav class="navbar">
+    <div class="brand-combo">
+        <a href="/"><span class="brand">Markee</span></a>
+    </div>
+    <%- include('_nav') %>
+</nav>
+
+<!-- ============ MAIN ============ -->
+<div class="container py-4 animate-fade">
+    <div style="max-width:900px; margin:0 auto; padding:2rem 5%;">
+
+        <!-- Page header -->
+        <div class="notif-header">
+            <div>
+                <h2 style="margin-bottom:0.25rem;">Notifications</h2>
+                <p class="text-muted">Your activity feed</p>
+            </div>
+            <div class="notif-header-actions">
+                <button class="hdr-btn hdr-btn-outline" id="mark-all-btn" onclick="markAllRead()">
+                    <i class="fa fa-check-double"></i> Mark all read
+                </button>
+                <button class="hdr-btn hdr-btn-red" id="clear-all-btn" onclick="clearAll()">
+                    <i class="fa fa-trash"></i> Clear all
+                </button>
+            </div>
+        </div>
+
+        <!-- Filter tabs -->
+        <div class="tab-bar">
+            <button class="tab-btn active" id="tab-all" onclick="switchTab('all')">
+                All
+            </button>
+            <button class="tab-btn" id="tab-unread" onclick="switchTab('unread')">
+                Unread
+            </button>
+        </div>
+
+        <!-- Skeleton loaders (shown while first fetch is in progress) -->
+        <div id="notif-skeleton">
+            <% for(let i = 0; i < 5; i++) { %>
+            <div class="skeleton-row">
+                <div class="skeleton" style="width:40px; height:40px; border-radius:10px; flex-shrink:0;"></div>
+                <div style="flex-grow:1; display:flex; flex-direction:column; gap:0.45rem;">
+                    <div class="skeleton" style="height:14px; width:55%;"></div>
+                    <div class="skeleton" style="height:12px; width:80%;"></div>
+                    <div class="skeleton" style="height:10px; width:100px;"></div>
+                </div>
+            </div>
+            <% } %>
+        </div>
+
+        <!-- Notification list -->
+        <div id="notif-list" style="display:none;"></div>
+
+        <!-- Empty state (hidden until needed) -->
+        <div id="notif-empty" style="display:none;">
+            <div class="empty-state">
+                <div class="empty-icon"><i class="fa fa-bell"></i></div>
+                <h3 style="margin-bottom:0.5rem;">No notifications yet.</h3>
+                <p class="text-muted">You'll see activity here when something happens.</p>
+            </div>
+        </div>
+
+        <!-- Load more -->
+        <div class="load-more-wrap" id="load-more-wrap" style="display:none;">
+            <button class="load-more-btn" id="load-more-btn" onclick="loadMore()">
+                <i class="fa fa-chevron-down"></i> Load more
+            </button>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // ── Auth guard ────────────────────────────────────────────────────────────
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search));
+    }
+
+    function parseJwt(t) {
+        try {
+            const p = JSON.parse(atob(t.split('.')[1]));
+            if (p.exp && p.exp * 1000 < Date.now()) {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+                return null;
+            }
+            return p;
+        } catch { return null; }
+    }
+
+    const user = parseJwt(token);
+    if (!user) {
+        window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search));
+    }
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let allNotifications = [];   // master list (all pages fetched so far)
+    let currentPage      = 1;
+    let hasMore          = false;
+    let activeTab        = 'all';
+
+    // ── Format helpers ────────────────────────────────────────────────────────
+    function formatTime(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        const now = new Date();
+        const diffMs = now - d;
+        const diffMins = Math.floor(diffMs / 60000);
+        if (diffMins < 1)   return 'Just now';
+        if (diffMins < 60)  return diffMins + 'm ago';
+        const diffHrs = Math.floor(diffMins / 60);
+        if (diffHrs < 24)   return diffHrs + 'h ago';
+        const diffDays = Math.floor(diffHrs / 24);
+        if (diffDays < 7)   return diffDays + 'd ago';
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    // ── Render a single notification row ─────────────────────────────────────
+    function renderRow(n) {
+        const unreadCls  = n.read ? '' : ' unread';
+        const iconClass  = n.icon || 'fa-bell';
+        const iconCursor = n.link ? 'pointer' : 'default';
+
+        return `
+        <div class="notif-row${unreadCls}" id="notif-row-${n._id}" data-read="${n.read ? '1' : '0'}">
+            <div class="notif-icon-wrap" style="cursor:${iconCursor};"
+                 onclick="${n.link ? `navigateNotif('${n._id}','${n.link}')` : ''}">
+                <i class="fa ${iconClass}"></i>
+            </div>
+            <div class="notif-body"
+                 onclick="${n.link ? `navigateNotif('${n._id}','${n.link}')` : ''}">
+                <div class="notif-subject">${escHtml(n.subject || n.body || '—')}</div>
+                ${n.body && n.subject ? `<div class="notif-text">${escHtml(n.body)}</div>` : ''}
+                <div class="notif-time">${formatTime(n.createdAt)}</div>
+            </div>
+            <button class="notif-dismiss" title="Dismiss" onclick="dismissNotif('${n._id}')">
+                &times;
+            </button>
+        </div>`;
+    }
+
+    function escHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    // ── Derive visible list based on active tab ───────────────────────────────
+    function getVisible() {
+        if (activeTab === 'unread') {
+            return allNotifications.filter(n => !n.read);
+        }
+        return allNotifications;
+    }
+
+    // ── Render the current list into #notif-list ──────────────────────────────
+    function renderList() {
+        const list = document.getElementById('notif-list');
+        const emptyEl = document.getElementById('notif-empty');
+        const visible = getVisible();
+
+        if (!visible.length) {
+            list.innerHTML = '';
+            list.style.display = 'none';
+            emptyEl.style.display = 'block';
+        } else {
+            list.innerHTML = visible.map(renderRow).join('');
+            list.style.display = 'block';
+            emptyEl.style.display = 'none';
+        }
+    }
+
+    // ── Load page of notifications from API ───────────────────────────────────
+    async function loadPage(page) {
+        try {
+            const res = await fetch(`/api/notifications/my?page=${page}&limit=20`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.status === 401) { window.location.replace('/login'); return; }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+
+            // Support both array response and {notifications, total, page, hasMore}
+            const items = Array.isArray(data) ? data : (data.notifications || []);
+            hasMore = Array.isArray(data) ? false : (data.hasMore === true);
+
+            return items;
+        } catch (err) {
+            showToast('Failed to load notifications', 'error');
+            return null;
+        }
+    }
+
+    // ── Initial load ──────────────────────────────────────────────────────────
+    async function init() {
+        const items = await loadPage(1);
+
+        document.getElementById('notif-skeleton').style.display = 'none';
+        document.getElementById('notif-list').style.display = 'block';
+
+        if (items === null) {
+            // Error already toasted; show empty state gracefully
+            document.getElementById('notif-empty').style.display = 'block';
+            document.getElementById('notif-list').style.display = 'none';
+            return;
+        }
+
+        allNotifications = items;
+        currentPage = 1;
+        renderList();
+        updateLoadMore();
+    }
+
+    // ── Load more (pagination) ────────────────────────────────────────────────
+    async function loadMore() {
+        const btn = document.getElementById('load-more-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Loading…';
+
+        const nextPage = currentPage + 1;
+        const items = await loadPage(nextPage);
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa fa-chevron-down"></i> Load more';
+
+        if (items === null) return;
+
+        // Append new items (avoid duplicates by id)
+        const existingIds = new Set(allNotifications.map(n => n._id));
+        const fresh = items.filter(n => !existingIds.has(n._id));
+        allNotifications = allNotifications.concat(fresh);
+        currentPage = nextPage;
+        renderList();
+        updateLoadMore();
+    }
+
+    function updateLoadMore() {
+        const wrap = document.getElementById('load-more-wrap');
+        wrap.style.display = hasMore ? 'block' : 'none';
+    }
+
+    // ── Tab switching (client-side filter, no extra fetch) ────────────────────
+    function switchTab(tab) {
+        activeTab = tab;
+        document.getElementById('tab-all').classList.toggle('active', tab === 'all');
+        document.getElementById('tab-unread').classList.toggle('active', tab === 'unread');
+        renderList();
+    }
+
+    // ── Navigate to notification link + mark read ─────────────────────────────
+    async function navigateNotif(id, link) {
+        // Mark read without waiting so navigation feels instant
+        markRead(id);
+        if (link) window.location.href = link;
+    }
+
+    async function markRead(id) {
+        const row = document.getElementById('notif-row-' + id);
+        if (!row || row.dataset.read === '1') return;
+
+        try {
+            const res = await fetch(`/api/notifications/${id}/read`, {
+                method: 'PATCH',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) return;
+        } catch { return; }
+
+        // Update local state
+        const n = allNotifications.find(x => x._id === id);
+        if (n) n.read = true;
+
+        // Update DOM immediately
+        row.classList.remove('unread');
+        row.dataset.read = '1';
+        const subject = row.querySelector('.notif-subject');
+        if (subject) subject.style.fontWeight = '400';
+        const iconWrap = row.querySelector('.notif-icon-wrap');
+        if (iconWrap) iconWrap.style.background = 'var(--bg-primary)';
+
+        // If on unread tab, this row is now stale — re-render
+        if (activeTab === 'unread') renderList();
+    }
+
+    // ── Dismiss single notification ───────────────────────────────────────────
+    async function dismissNotif(id) {
+        const row = document.getElementById('notif-row-' + id);
+        if (row) {
+            row.classList.add('fade-out');
+        }
+
+        try {
+            const res = await fetch(`/api/notifications/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) {
+                if (row) row.classList.remove('fade-out');
+                showToast('Could not dismiss notification', 'error');
+                return;
+            }
+        } catch {
+            if (row) row.classList.remove('fade-out');
+            showToast('Could not dismiss notification', 'error');
+            return;
+        }
+
+        // Remove from local array
+        allNotifications = allNotifications.filter(n => n._id !== id);
+
+        // Wait for fade animation then re-render
+        setTimeout(() => renderList(), 300);
+    }
+
+    // ── Mark all read ─────────────────────────────────────────────────────────
+    async function markAllRead() {
+        const btn = document.getElementById('mark-all-btn');
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/notifications/read-all', {
+                method: 'PATCH',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        } catch (err) {
+            showToast('Failed to mark all read', 'error');
+            btn.disabled = false;
+            return;
+        }
+
+        // Update all local items
+        allNotifications.forEach(n => { n.read = true; });
+
+        // Update DOM — remove unread styling from every visible row
+        document.querySelectorAll('.notif-row.unread').forEach(row => {
+            row.classList.remove('unread');
+            row.dataset.read = '1';
+            const subject = row.querySelector('.notif-subject');
+            if (subject) subject.style.fontWeight = '400';
+            const iconWrap = row.querySelector('.notif-icon-wrap');
+            if (iconWrap) iconWrap.style.background = 'var(--bg-primary)';
+        });
+
+        // If on unread tab the list is now empty — re-render to show empty state
+        if (activeTab === 'unread') renderList();
+
+        showToast('All marked as read', 'success');
+        btn.disabled = false;
+    }
+
+    // ── Clear all notifications ───────────────────────────────────────────────
+    async function clearAll() {
+        if (!confirm('Clear all notifications? This cannot be undone.')) return;
+
+        const btn = document.getElementById('clear-all-btn');
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/notifications/my', {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        } catch (err) {
+            showToast('Failed to clear notifications', 'error');
+            btn.disabled = false;
+            return;
+        }
+
+        allNotifications = [];
+        hasMore = false;
+        renderList();
+        updateLoadMore();
+
+        showToast('All notifications cleared', 'success');
+        btn.disabled = false;
+    }
+
+    // ── Boot ──────────────────────────────────────────────────────────────────
+    init();
+</script>
+</body>
+</html>

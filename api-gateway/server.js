@@ -264,7 +264,8 @@ app.post('/register', express.urlencoded({ extended: true }), async (req, res) =
 });
 app.get('/dashboard',   (req, res) => res.render('dashboard'));
 app.get('/inventory',   (req, res) => res.render('inventory'));
-app.get('/messages',    (_req, res) => res.render('messages', {}));
+app.get('/messages',       (_req, res) => res.render('messages', {}));
+app.get('/notifications',  (_req, res) => res.render('notifications'));
 app.get('/checkout',    (req, res) => res.render('checkout'));
 app.get('/cart',        (req, res) => res.render('cart'));
 app.get('/product/:id',    (req, res) => res.render('product',    { productId: req.params.id }));

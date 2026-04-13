@@ -1508,15 +1508,22 @@ app.get('/notifications/:userId', async (req, res) => {
 
 // ── In-app notification routes ────────────────────────────────────────────────
 
-// GET /my — last 20 in-app notifications for the authenticated user
+// GET /my — paginated in-app notifications for the authenticated user
 app.get('/my', async (req, res) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
     try {
-        const notifications = await Notification.find({
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
+        const skip = (page - 1) * limit;
+        const query = {
             userId: new mongoose.Types.ObjectId(req.user.sub),
             channel: { $in: ['in_app', 'both'] }
-        }).sort({ sentAt: -1 }).limit(20);
-        res.json(notifications);
+        };
+        const [notifications, total] = await Promise.all([
+            Notification.find(query).sort({ sentAt: -1 }).skip(skip).limit(limit),
+            Notification.countDocuments(query)
+        ]);
+        res.json({ notifications, total, page, hasMore: skip + notifications.length < total });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
@@ -1554,6 +1561,18 @@ app.patch('/:id/read', async (req, res) => {
             { $set: { read: true } }
         );
         res.json({ ok: true });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// DELETE /my — user bulk-clears all their in-app notifications
+app.delete('/my', async (req, res) => {
+    if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
+    try {
+        const result = await Notification.deleteMany({
+            userId: new mongoose.Types.ObjectId(req.user.sub),
+            channel: { $in: ['in_app', 'both'] }
+        });
+        res.json({ ok: true, deleted: result.deletedCount });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 

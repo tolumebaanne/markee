@@ -349,9 +349,12 @@
         <div>
             <!-- Notifications Card -->
             <div class="profile-card" id="notifications" style="margin-bottom:1.5rem;">
-                <div class="profile-card-header">
-                    <i class="fa fa-bell" style="color:var(--accent-red);"></i>
-                    <h4>Recent Alerts</h4>
+                <div class="profile-card-header" style="justify-content:space-between;">
+                    <div style="display:flex; align-items:center; gap:0.6rem;">
+                        <i class="fa fa-bell" style="color:var(--accent-red);"></i>
+                        <h4>Recent Alerts</h4>
+                    </div>
+                    <a href="/notifications" style="font-size:0.75rem; color:var(--accent-red); font-weight:600; text-decoration:none;">See all</a>
                 </div>
                 <div class="profile-card-body" id="notifications-list" style="padding:0;">
                     <p class="text-muted" style="padding:1.25rem; font-size:0.875rem;">Loading alerts...</p>
@@ -624,11 +627,12 @@
 
     async function loadNotifications() {
         try {
-            const res = await fetch('/api/notifications/my', {
+            const res = await fetch('/api/notifications/my?limit=5', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!res.ok) throw new Error();
-            const notifications = await res.json();
+            const data = await res.json();
+            const notifications = Array.isArray(data) ? data : (data.notifications || []);
             const list = document.getElementById('notifications-list');
 
             if (!notifications || notifications.length === 0) {
@@ -654,6 +658,7 @@
                     <button type="button" onclick="dismissProfileNotification('${n._id}', this)" title="Dismiss" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;padding:0;flex-shrink:0;opacity:0.5;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">&times;</button>
                 </div>`;
             }).join('');
+            list.innerHTML += '<a href="/notifications" style="display:block; padding:0.75rem 1.25rem; font-size:0.8rem; color:var(--accent-red); font-weight:600; text-decoration:none; text-align:center; border-top:1px solid var(--border-light);">View all notifications</a>';
         } catch (e) {
             document.getElementById('notifications-list').innerHTML = '<p class="text-muted" style="padding:1.25rem; font-size:0.875rem;">Could not load alerts.</p>';
         }
