@@ -91,7 +91,7 @@ h1, h2, h3 { font-weight: 700; color: var(--text-main); margin-bottom: 1rem; let
 .form-group { margin-bottom: 1.25rem; text-align: left; position: relative;}
 label { display: block; margin-bottom: 0.5rem; font-size: 0.85rem; font-weight: 600; color: var(--text-main); }
 input, select, textarea { width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border-light); border-radius: 8px; font-family: inherit; font-size: 0.95rem; outline: none; transition: border-color 0.2s; background: var(--bg-primary); color: var(--text-main);}
-input[type="checkbox"], input[type="radio"] { width: auto; flex-shrink: 0; padding: 0; border: revert; background: revert; border-radius: revert; }
+input[type="checkbox"], input[type="radio"] { width: auto; flex-shrink: 0; padding: 0; background: transparent; border: none; border-radius: 0; box-shadow: none; }
 input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 .password-toggle { position: absolute; right: 1rem; top: 2.15rem; cursor: pointer; color: var(--text-muted); font-size: 0.85rem; user-select: none; font-weight: 500;}
 .password-toggle:hover { color: var(--accent-red); }
