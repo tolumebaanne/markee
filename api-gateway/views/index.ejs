@@ -388,10 +388,11 @@ async function submitSignIn(e) {
         localStorage.setItem('access_token', data.access_token);
         localStorage.setItem('refresh_token', data.refresh_token);
         if (window.MarkeeCart) MarkeeCart.migrateGuestCart();
+        const pendingAction = _pendingAction;
         closeSignInModal();
         try { updateAuthState(); } catch (_) {}
         showToast(`Welcome back!`, 'success');
-        if (_pendingAction) _pendingAction();
+        if (pendingAction) pendingAction();
     } catch (err) {
         showToast('Connection error. Please try again.', 'error');
         btn.disabled = false;
