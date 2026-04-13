@@ -542,15 +542,15 @@
                     </label>
                     <div id="ops-sale-fields" style="display:none;">
                         <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:0.75rem;">
-                            <div><label class="ops-label">Headline</label><input type="text" id="ops-sale-headline" class="ops-input" placeholder="e.g. Summer Clearance"></div>
-                            <div><label class="ops-label">Subtext</label><input type="text" id="ops-sale-subtext" class="ops-input" placeholder="e.g. Up to 40% off selected items"></div>
-                            <div><label class="ops-label">CTA Label</label><input type="text" id="ops-sale-cta-label" class="ops-input" placeholder="e.g. Shop Now"></div>
-                            <div><label class="ops-label">Discount %</label><input type="number" id="ops-sale-pct" min="0" max="100" class="ops-input" placeholder="%"></div>
-                            <div><label class="ops-label">Sale starts</label><input type="datetime-local" id="ops-sale-starts" class="ops-input"></div>
-                            <div><label class="ops-label">Sale ends</label><input type="datetime-local" id="ops-sale-ends" class="ops-input"></div>
+                            <div><label class="ops-label" for="ops-sale-headline">Headline</label><input type="text" id="ops-sale-headline" class="ops-input" placeholder="e.g. Summer Clearance"></div>
+                            <div><label class="ops-label" for="ops-sale-subtext">Subtext</label><input type="text" id="ops-sale-subtext" class="ops-input" placeholder="e.g. Up to 40% off selected items"></div>
+                            <div><label class="ops-label" for="ops-sale-cta-label">CTA Label</label><input type="text" id="ops-sale-cta-label" class="ops-input" placeholder="e.g. Shop Now"></div>
+                            <div><label class="ops-label" for="ops-sale-pct">Discount %</label><input type="number" id="ops-sale-pct" min="0" max="100" class="ops-input" placeholder="%"></div>
+                            <div><label class="ops-label" for="ops-sale-starts">Sale starts</label><input type="datetime-local" id="ops-sale-starts" class="ops-input"></div>
+                            <div><label class="ops-label" for="ops-sale-ends">Sale ends</label><input type="datetime-local" id="ops-sale-ends" class="ops-input"></div>
                         </div>
                         <div style="margin-bottom:0.75rem;">
-                            <label class="ops-label">Banner image URL</label>
+                            <label class="ops-label" for="ops-sale-image">Banner image URL</label>
                             <input type="url" id="ops-sale-image" class="ops-input" placeholder="https://... (optional)">
                         </div>
                         <!-- Preview -->
@@ -572,9 +572,9 @@
                     <h3 style="margin:0; font-size:1rem;">Storefront Banner</h3>
                 </div>
                 <div style="padding:1.25rem;">
-                    <label class="ops-label">Banner image URL</label>
+                    <label class="ops-label" for="ops-banner-url">Banner image URL</label>
                     <input type="url" id="ops-banner-url" class="ops-input" placeholder="https://...">
-                    <label class="ops-label" style="margin-top:0.75rem;">Alt text</label>
+                    <label class="ops-label" for="ops-banner-alt" style="margin-top:0.75rem;">Alt text</label>
                     <input type="text" id="ops-banner-alt" class="ops-input" placeholder="Describe the image for accessibility">
                     <div id="ops-banner-preview" style="margin-top:0.75rem; display:none;">
                         <img id="ops-banner-img" src="" alt="" style="width:100%; border-radius:6px; max-height:160px; object-fit:cover;">
@@ -718,7 +718,7 @@
                         <div style="font-weight:700; margin-bottom:0.35rem; font-size:0.95rem;">Start Selling</div>
                         <div class="text-muted small" style="margin-bottom:1rem;">Turn your account into a seller storefront. No fees to start.</div>
                         <div class="form-group" style="text-align:left; margin-bottom:0.75rem;">
-                            <label style="font-size:0.78rem; font-weight:600;">Store Name</label>
+                            <label for="new-store-name" style="font-size:0.78rem; font-weight:600;">Store Name</label>
                             <input type="text" id="new-store-name" placeholder="e.g. My Tech Shop" style="font-size:0.82rem;">
                         </div>
                         <button class="btn" id="start-selling-btn" style="background:var(--accent-red); font-size:0.82rem;" onclick="activateStorefront()">
@@ -1057,13 +1057,13 @@
             <input type="hidden" id="edit-id" value="">
 
             <div class="form-group mb-3">
-                <label>Title <span style="color:var(--accent-red)">*</span></label>
+                <label for="f-title">Title <span style="color:var(--accent-red)">*</span></label>
                 <input type="text" id="f-title" placeholder="e.g. iPhone 15 Pro Max" required>
             </div>
 
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;" class="mb-3">
                 <div class="form-group" style="margin:0;">
-                    <label>Category <span style="color:var(--accent-red)">*</span></label>
+                    <label for="f-category">Category <span style="color:var(--accent-red)">*</span></label>
                     <select id="f-category" required>
                         <option value="Electronics">Electronics</option>
                         <option value="Vehicles">Vehicles</option>
@@ -1078,13 +1078,13 @@
                     </select>
                 </div>
                 <div class="form-group" style="margin:0;">
-                    <label>Price (USD) <span style="color:var(--accent-red)">*</span></label>
+                    <label for="f-price">Price (USD) <span style="color:var(--accent-red)">*</span></label>
                     <input type="number" id="f-price" placeholder="49.99" step="0.01" min="0.01" required>
                 </div>
             </div>
 
             <div class="form-group mb-3">
-                <label>Photos <span style="font-weight:400; color:var(--text-muted);">(up to 4)</span></label>
+                <label for="f-images">Photos <span style="font-weight:400; color:var(--text-muted);">(up to 4)</span></label>
                 <div class="upload-drop-zone" id="drop-zone" onclick="document.getElementById('f-images').click()"
                      ondragover="event.preventDefault(); this.classList.add('drag-over')"
                      ondragleave="this.classList.remove('drag-over')"
@@ -1098,7 +1098,7 @@
             </div>
 
             <div class="form-group mb-4">
-                <label>Description</label>
+                <label for="f-description">Description</label>
                 <textarea id="f-description" placeholder="Briefly describe what you're selling..." rows="3"></textarea>
             </div>
 
@@ -2102,7 +2102,7 @@
                 <div class="ship-form-inline" id="ship-form-${o._id}">
                     <div class="ship-form-row">
                         <div class="form-group" style="margin:0;">
-                            <label style="font-size:0.78rem;">Carrier</label>
+                            <label for="carrier-${o._id}" style="font-size:0.78rem;">Carrier</label>
                             <select id="carrier-${o._id}">
                                 <option value="UPS">UPS</option>
                                 <option value="FedEx">FedEx</option>
@@ -2112,12 +2112,12 @@
                             </select>
                         </div>
                         <div class="form-group" style="margin:0;">
-                            <label style="font-size:0.78rem;">Tracking #</label>
+                            <label for="tracking-${o._id}" style="font-size:0.78rem;">Tracking #</label>
                             <input type="text" id="tracking-${o._id}" placeholder="Tracking number">
                         </div>
                     </div>
                     <div class="form-group" style="margin-bottom:0.75rem;">
-                        <label style="font-size:0.78rem;">Est. Delivery</label>
+                        <label for="delivery-${o._id}" style="font-size:0.78rem;">Est. Delivery</label>
                         <input type="date" id="delivery-${o._id}" min="${new Date().toISOString().split('T')[0]}">
                     </div>
                     <button class="btn" style="background:var(--accent-red); width:auto; padding:0.5rem 1.1rem; font-size:0.8rem;"

@@ -26,27 +26,27 @@
 
         <!-- Guest state -->
         <div id="auth-links" style="display:flex; gap:0.5rem; align-items:center;">
-            <button class="nav-pill nav-pill-outline" onclick="openSignInModal()">Sign In</button>
-            <button class="nav-pill nav-pill-red" onclick="navigateSell()">
+            <button type="button" class="nav-pill nav-pill-outline" onclick="openSignInModal()">Sign In</button>
+            <button type="button" class="nav-pill nav-pill-red" onclick="navigateSell()">
                 <i class="fa fa-tag" style="margin-right:0.4rem;"></i> Sell
             </button>
         </div>
 
         <!-- Logged-in state -->
         <div id="user-links" style="display:none; align-items:center; gap:0.35rem;">
-            <button class="nav-icon-btn" id="nav-msg-btn" title="Messages" onclick="window.location='/messages'">
+            <button type="button" class="nav-icon-btn" id="nav-msg-btn" title="Messages" onclick="window.location='/messages'">
                 <i class="fa fa-comments"></i>
                 <span class="nav-icon-badge" id="msg-nav-badge" style="display:none;"></span>
             </button>
             <div style="position:relative;">
-                <button class="nav-icon-btn" id="nav-bell-btn" title="Notifications" onclick="toggleBellDropdown()">
+                <button type="button" class="nav-icon-btn" id="nav-bell-btn" title="Notifications" onclick="toggleBellDropdown()">
                     <i class="fa fa-bell"></i>
                     <span class="nav-icon-badge" id="bell-badge" style="display:none;"></span>
                 </button>
                 <div id="bell-dropdown" style="display:none; position:absolute; right:0; top:calc(100% + 6px); width:320px; background:var(--bg-primary); border:1px solid var(--border-light); border-radius:10px; box-shadow:0 4px 20px rgba(0,0,0,0.12); z-index:9999;">
                     <div style="display:flex; align-items:center; justify-content:space-between; padding:0.75rem 1rem; border-bottom:1px solid var(--border-light);">
                         <span style="font-weight:600; font-size:0.875rem;">Notifications</span>
-                        <button onclick="markAllRead()" style="background:none; border:none; color:var(--accent-red); font-size:0.75rem; cursor:pointer; font-weight:600;">Mark all read</button>
+                        <button type="button" onclick="markAllRead()" style="background:none; border:none; color:var(--accent-red); font-size:0.75rem; cursor:pointer; font-weight:600;">Mark all read</button>
                     </div>
                     <div id="bell-list" style="max-height:320px; overflow-y:auto;"></div>
                     <div style="padding:0.5rem 1rem; border-top:1px solid var(--border-light); text-align:center;">
@@ -54,11 +54,11 @@
                     </div>
                 </div>
             </div>
-            <button class="nav-pill nav-pill-red" style="margin-left:0.15rem;" onclick="navigateSell()">
+            <button type="button" class="nav-pill nav-pill-red" style="margin-left:0.15rem;" onclick="navigateSell()">
                 <i class="fa fa-tag" style="margin-right:0.4rem;"></i> Sell
             </button>
             <div style="position:relative; margin-left:0.15rem;">
-                <button class="nav-avatar-btn" id="nav-avatar-btn" onclick="toggleUserDropdown()" aria-label="Account menu" aria-expanded="false">
+                <button type="button" class="nav-avatar-btn" id="nav-avatar-btn" onclick="toggleUserDropdown()" aria-label="Account menu" aria-expanded="false">
                     <i class="fa fa-user-circle"></i>
                 </button>
                 <div class="nav-dropdown" id="user-dropdown" style="display:none;">
@@ -75,7 +75,7 @@
                     <a href="/orders" class="nav-dropdown-item">
                         <i class="fa fa-shopping-bag"></i> My Orders
                     </a>
-                    <button class="nav-dropdown-item logout" onclick="handleLogout()">
+                    <button type="button" class="nav-dropdown-item logout" onclick="handleLogout()">
                         <i class="fa fa-sign-out-alt"></i> Log Out
                     </button>
                 </div>
@@ -324,7 +324,7 @@ function markAllRead() {
 
 function navigateSell() {
     const t = localStorage.getItem('access_token');
-    if (!t) { openSignInModal(); return; }
+    if (!t) { openSignInModal(() => { window.location.href = '/dashboard'; }); return; }
     window.location.href = '/dashboard';
 }
 
