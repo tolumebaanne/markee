@@ -7,7 +7,7 @@
 
         <%# Guest state %>
         <div id="auth-links" style="display:flex; gap:0.5rem; align-items:center;">
-            <button type="button" class="nav-pill nav-pill-outline" onclick="window.location='/login'">Sign In</button>
+            <button type="button" class="nav-pill nav-pill-outline" onclick="openSignInModal()">Sign In</button>
             <button type="button" class="nav-pill nav-pill-red" onclick="navigateSell()">
                 <i class="fa fa-tag" style="margin-right:0.4rem;"></i> Sell
             </button>
@@ -207,8 +207,8 @@ function markAllRead() {
 
 function navigateSell() {
     const t = localStorage.getItem('access_token');
-    if (!t) { window.location = '/login'; return; }
-    window.location = '/dashboard';
+    if (!t) { openSignInModal(function(){ window.location.href = '/dashboard'; }, 'Sign in to start selling'); return; }
+    window.location.href = '/dashboard';
 }
 
 function handleLogout() {
@@ -222,4 +222,107 @@ window.formatCurrency = function(amountCents, currency) {
     currency = currency || 'CAD';
     return (amountCents / 100).toLocaleString('en-CA', { style: 'currency', currency: currency });
 };
+
+// ===== Sign In Modal (shared across all pages) =====
+var _pendingAction = null;
+
+function openSignInModal(pendingAction, subtitle) {
+    _pendingAction = pendingAction || null;
+    var sub = document.getElementById('signin-modal-subtitle');
+    if (sub) sub.textContent = subtitle || 'Sign in to continue';
+    var modal = document.getElementById('signin-modal');
+    if (modal) modal.classList.add('modal-open');
+    setTimeout(function(){ var el = document.getElementById('modal-email'); if (el) el.focus(); }, 200);
+}
+
+function closeSignInModal() {
+    var modal = document.getElementById('signin-modal');
+    if (modal) modal.classList.remove('modal-open');
+    var form = document.getElementById('signin-form');
+    if (form) form.reset();
+    var btn = document.getElementById('modal-submit-btn');
+    if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
+    var sub = document.getElementById('signin-modal-subtitle');
+    if (sub) sub.textContent = 'Sign in to continue';
+    _pendingAction = null;
+}
+
+function _handleSignInModalOutsideClick(e) {
+    if (e.target === document.getElementById('signin-modal')) {
+        closeSignInModal();
+    }
+}
+
+async function submitSignIn(e) {
+    e.preventDefault();
+    var btn = document.getElementById('modal-submit-btn');
+    var email = document.getElementById('modal-email').value;
+    var password = document.getElementById('modal-password').value;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i>Signing in...';
+
+    try {
+        var res = await fetch('/oauth/quick-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email, password: password })
+        });
+        var data = await res.json();
+        if (!res.ok) {
+            if (typeof showToast === 'function') showToast(data.error || 'Invalid credentials', 'error');
+            btn.disabled = false;
+            btn.textContent = 'Sign In';
+            return;
+        }
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('refresh_token', data.refresh_token);
+        if (window.MarkeeCart) MarkeeCart.migrateGuestCart();
+        var pendingAction = _pendingAction;
+        closeSignInModal();
+        // Re-init nav state
+        try {
+            document.getElementById('auth-links').style.display = 'none';
+            document.getElementById('user-links').style.display = 'flex';
+            var u = JSON.parse(atob(data.access_token.split('.')[1]));
+            var dn = document.getElementById('nav-display-name');
+            if (dn) dn.textContent = u.displayName || u.email?.split('@')[0] || 'Account';
+            var dr = document.getElementById('nav-display-role');
+            if (dr) dr.textContent = u.role || 'buyer';
+        } catch (_) {}
+        if (typeof showToast === 'function') showToast('Welcome back!', 'success');
+        if (pendingAction) pendingAction();
+    } catch (err) {
+        if (typeof showToast === 'function') showToast('Connection error. Please try again.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
+    }
+}
 </script>
+
+<%# ── Sign-in modal (rendered on every page via _nav.ejs) ── %>
+<div class="modal-overlay" id="signin-modal" onclick="_handleSignInModalOutsideClick(event)">
+    <div class="modal-box">
+        <button class="modal-close-btn" onclick="closeSignInModal()" title="Close">&times;</button>
+        <div style="text-align:center; margin-bottom:1.5rem;">
+            <span class="brand" style="font-size:1.5rem;">Markee</span>
+            <p id="signin-modal-subtitle" style="color:var(--text-muted); margin-top:0.5rem; font-size:0.9rem;">Sign in to continue</p>
+        </div>
+        <form id="signin-form" onsubmit="submitSignIn(event)">
+            <div class="form-group mb-3">
+                <label>Email address</label>
+                <input type="email" id="modal-email" placeholder="you@example.com" required autocomplete="email">
+            </div>
+            <div class="form-group mb-4">
+                <label>Password</label>
+                <input type="password" id="modal-password" placeholder="••••••••" required autocomplete="current-password">
+            </div>
+            <button type="submit" id="modal-submit-btn" class="btn w-100" style="background:var(--accent-red);">
+                Sign In
+            </button>
+        </form>
+        <p class="text-muted small text-center" style="margin-top:1rem;">
+            Don't have an account? <a href="/register" style="color:var(--accent-red);font-weight:600;">Register</a>
+        </p>
+    </div>
+</div>
