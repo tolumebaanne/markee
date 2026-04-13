@@ -965,7 +965,12 @@
                 <div class="card">
                     <div class="card-header flex-between">
                         <h4 style="margin:0" id="listings-heading">My Listings</h4>
-                        <a href="/inventory" style="font-size:0.8rem; color:var(--accent-red);">Full Inventory →</a>
+                        <div style="display:flex; gap:0.6rem; align-items:center;">
+                            <button type="button" class="btn btn-red" style="padding:0.3rem 0.75rem; font-size:0.8rem; width:auto;" onclick="openNewListingModal()">
+                                <i class="fa fa-plus" style="margin-right:0.3rem;"></i> New Listing
+                            </button>
+                            <a href="/inventory" style="font-size:0.8rem; color:var(--accent-red);">Full Inventory →</a>
+                        </div>
                     </div>
                     <!-- Search + filter bar -->
                     <div style="padding:0.75rem 1rem; border-bottom:1px solid var(--border-light); display:flex; gap:0.6rem; align-items:center;">
@@ -1250,6 +1255,7 @@
     function navSell() {
         if (userData && userData.storeActive) {
             switchTab('listings');
+            openNewListingModal();
         } else {
             switchTab('overview');
             setTimeout(() => {
