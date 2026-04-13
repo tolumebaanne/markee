@@ -1164,18 +1164,13 @@
             </div>
 
             <div class="form-group mb-3">
-                <label style="font-size:0.85rem; font-weight:600;">Fulfillment Options <span class="text-muted" style="font-weight:400; font-size:0.8rem;">(leave unchecked to use your store defaults)</span></label>
-                <div style="display:flex; flex-direction:column; gap:0.35rem; margin-top:0.4rem;" id="listing-fo-wrap">
-                    <label class="check-label sm">
-                        <input type="checkbox" id="listing-fo-shipping" value="shipping"> <i class="fa fa-truck"></i> Courier Delivery
-                    </label>
-                    <label class="check-label sm">
-                        <input type="checkbox" id="listing-fo-pickup" value="pickup"> <i class="fa fa-map-marker-alt"></i> Local Pickup
-                    </label>
-                    <label class="check-label sm">
-                        <input type="checkbox" id="listing-fo-self-fulfilled" value="self_fulfilled"> <i class="fa fa-box-open"></i> Seller Fulfillment
-                    </label>
-                </div>
+                <label for="listing-fo-select">Fulfillment Options <span class="text-muted" style="font-weight:400; font-size:0.8rem;">(leave as default to inherit store settings)</span></label>
+                <select id="listing-fo-select">
+                    <option value="">Use store defaults</option>
+                    <option value="shipping">Courier Delivery</option>
+                    <option value="pickup">Local Pickup</option>
+                    <option value="self_fulfilled">Seller Fulfillment</option>
+                </select>
             </div>
 
             <div class="form-group mb-4">
@@ -2613,9 +2608,8 @@
         document.getElementById('listing-form').reset();
         const fastFeeEl = document.getElementById('listing-fast-fee');
         if (fastFeeEl) fastFeeEl.value = '';
-        ['listing-fo-shipping','listing-fo-pickup','listing-fo-self-fulfilled'].forEach(id => {
-            const el = document.getElementById(id); if (el) el.checked = false;
-        });
+        const foSelect = document.getElementById('listing-fo-select');
+        if (foSelect) foSelect.value = '';
         renderPreview();
         document.getElementById('submit-btn').textContent = 'Post Listing';
         document.getElementById('modal-backdrop').style.display = 'flex';
@@ -2636,9 +2630,8 @@
         if (fastFeeEl) fastFeeEl.value = p.fastDeliveryFee ? (p.fastDeliveryFee / 100).toFixed(2) : '';
         // Fulfillment options
         const productFO = p.fulfillmentOptions || [];
-        if (document.getElementById('listing-fo-shipping'))       document.getElementById('listing-fo-shipping').checked = productFO.includes('shipping');
-        if (document.getElementById('listing-fo-pickup'))         document.getElementById('listing-fo-pickup').checked = productFO.includes('pickup');
-        if (document.getElementById('listing-fo-self-fulfilled')) document.getElementById('listing-fo-self-fulfilled').checked = productFO.includes('self_fulfilled');
+        const foSelectEl = document.getElementById('listing-fo-select');
+        if (foSelectEl) foSelectEl.value = productFO.length ? productFO[0] : '';
         renderPreview();
         document.getElementById('submit-btn').textContent = 'Save Changes';
         document.getElementById('modal-backdrop').style.display = 'flex';
@@ -2667,14 +2660,8 @@
         const fastDeliveryFee = fastFeeInput?.value ? Math.round(parseFloat(fastFeeInput.value) * 100) : 0;
 
         // Per-product fulfillment options (empty array = inherit from store)
-        const foShipping      = document.getElementById('listing-fo-shipping')?.checked;
-        const foPickup        = document.getElementById('listing-fo-pickup')?.checked;
-        const foSelfFulfilled = document.getElementById('listing-fo-self-fulfilled')?.checked;
-        const fulfillmentOptions = [
-            foShipping      ? 'shipping'       : null,
-            foPickup        ? 'pickup'         : null,
-            foSelfFulfilled ? 'self_fulfilled' : null
-        ].filter(Boolean);
+        const foVal = document.getElementById('listing-fo-select')?.value;
+        const fulfillmentOptions = foVal ? [foVal] : [];
 
         const product = {
             title:              document.getElementById('f-title').value.trim(),
