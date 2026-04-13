@@ -275,10 +275,19 @@ function navigateSell() {
     window.location.href = '/dashboard?sell=1';
 }
 
-function handleLogout() {
+async function handleLogout() {
+    const rt = localStorage.getItem('refresh_token');
+    try {
+        if (rt) await fetch('/oauth/revoke', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: rt })
+        });
+        await fetch('/oauth/logout', { method: 'POST' });
+    } catch {}
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
-    window.location.href = '/login';
+    window.location.replace('/login');
 }
 
 function formatTimeAgo(date) {

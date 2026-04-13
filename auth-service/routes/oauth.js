@@ -350,4 +350,9 @@ router.post('/revoke', async (req, res) => {
   res.json({ success: true });
 });
 
+// Destroy the OAuth session so the next /authorize doesn't auto-login
+router.post('/logout', (req, res) => {
+  req.session.destroy(() => res.json({ success: true }));
+});
+
 module.exports = router;

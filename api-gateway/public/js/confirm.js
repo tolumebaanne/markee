@@ -1,6 +1,6 @@
 /**
  * Markee Styled Confirmation Dialog
- * Usage: showConfirm('Are you sure?', () => { /* onConfirm */ })
+ * Usage: showConfirm('Are you sure?', onConfirmFn)
  * Optional: showConfirm('Are you sure?', onConfirm, onCancel, { confirmText: 'Delete', cancelText: 'Cancel', type: 'danger' })
  */
 (function() {
