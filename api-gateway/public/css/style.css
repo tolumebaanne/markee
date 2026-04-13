@@ -455,10 +455,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 .nav-pill-outline:hover { background: var(--bg-secondary); color: var(--text-main); }
 
 .nav-pill-red {
-    background: var(--accent-red);
+    background: #22c55e;
     color: white;
 }
-.nav-pill-red:hover { background: var(--accent-red-hover); color: white; }
+.nav-pill-red:hover { background: #16a34a; color: white; }
 
 /* ── Nav icon buttons (messages, bell) ──────────────────────────────────── */
 .nav-icon-btn {
