@@ -62,6 +62,9 @@
         .radio-option:last-child { margin-bottom: 0; }
         .radio-option.selected { border-color: var(--accent-red); background: #fff5f5; }
         .radio-option i { flex-shrink: 0; color: var(--text-muted); }
+        .radio-option input, .delivery-option input, .payment-option input, .same-billing-row input {
+            width: auto; flex-shrink: 0; padding: 0; border: none; background: transparent; border-radius: 0; box-shadow: none;
+        }
 
         /* Payment method options */
         .payment-option {
