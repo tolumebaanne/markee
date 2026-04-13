@@ -518,7 +518,10 @@
             fetch(`/api/public-seller/${_storeId}`)
                 .then(r => r.ok ? r.json() : null)
                 .then(store => {
-                    if (store?.sellerId) sellerUserId = store.sellerId;
+                    if (store?.sellerId) {
+                        sellerUserId = store.sellerId;
+                        loadStoreName(store.sellerId);
+                    }
                     if (sellerUserId && _chatBtn)   { _chatBtn.disabled   = false; _chatBtn.style.opacity   = ''; }
                     if (sellerUserId && _revealBtn) { _revealBtn.disabled = false; _revealBtn.style.opacity = ''; }
                 })
@@ -549,8 +552,7 @@
                 document.getElementById('oos-banner').before(fomo);
             }
 
-            // Load store name
-            if (data.sellerId) loadStoreName(data.sellerId);
+            // Store name is loaded in the seller fetch callback above (with correct personal userId)
 
             // Check watchlist state
             updateWatchlistIcon();
@@ -1070,16 +1072,8 @@
             setTimeout(() => window.location.href = '/login', 1500);
             return;
         }
-        const p = window.currentProduct;
-        const ctx = {
-            recipientId: sellerUserId,
-            recipientName: window._sellerStoreName || 'Seller',
-            contextType: 'product',
-            refId:       window.PRODUCT_ID,
-            refTitle:    p?.title || 'Product',
-            refImage:    (p?.images && p.images[0]) || ''
-        };
-        window.location.href = `/messages?ctx=${encodeURIComponent(JSON.stringify(ctx))}`;
+        if (!sellerUserId) return;
+        window.location.href = `/messages?with=${sellerUserId}&re=${PRODUCT_ID}&type=product`;
     }
 
     // ── Review modal ──────────────────────────────────────────────────────────
