@@ -24,7 +24,7 @@ jobs:
       - name: Restart monolith via PM2
         run: |
           cd ~/markee
-          pm2 restart markee-monolith || pm2 start ecosystem.config.js --only markee-monolith
+          pm2 restart markee-monolith --update-env || pm2 start start-monolith.js --name markee-monolith
 
       - name: Verify gateway is up
         run: |
