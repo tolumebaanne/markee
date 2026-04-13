@@ -207,8 +207,8 @@ function markAllRead() {
 
 function navigateSell() {
     const t = localStorage.getItem('access_token');
-    if (!t) { openSignInModal(function(){ window.location.href = '/dashboard'; }, 'Sign in to start selling'); return; }
-    window.location.href = '/dashboard';
+    if (!t) { openSignInModal(function(){ window.location.href = '/dashboard?sell=1'; }, 'Sign in to start selling'); return; }
+    window.location.href = '/dashboard?sell=1';
 }
 
 function handleLogout() {

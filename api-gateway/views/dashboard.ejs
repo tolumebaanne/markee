@@ -2972,6 +2972,11 @@
             ordersLoaded = true;
         }
 
+        // If Sell button navigated here, activate the appropriate sell flow
+        if (new URLSearchParams(location.search).get('sell') === '1') {
+            navSell();
+        }
+
         if (window.MarkeeCart) MarkeeCart.updateAllCartBadges();
 
         // Messages badge — poll once now, then every 2 minutes
