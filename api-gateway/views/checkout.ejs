@@ -48,10 +48,29 @@
             margin-bottom: 0.6rem;
         }
         .delivery-option.selected { border-color: var(--accent-red); background: #fff5f5; }
-        .delivery-option input[type="radio"] { width: auto; flex-shrink: 0; }
         .delivery-option .d-label { font-weight: 600; font-size: 0.9rem; }
         .delivery-option .d-detail { font-size: 0.8rem; color: var(--text-muted); }
         .delivery-option .d-price { margin-left: auto; font-weight: 700; white-space: nowrap; }
+
+        /* Fulfillment options */
+        .radio-option {
+            display: flex; align-items: center; gap: 0.75rem;
+            border: 1.5px solid var(--border-light); border-radius: 8px;
+            padding: 0.85rem 1rem; cursor: pointer; transition: border-color 0.15s, background 0.15s;
+            margin-bottom: 0.5rem; font-weight: 500; font-size: 0.85rem;
+        }
+        .radio-option:last-child { margin-bottom: 0; }
+        .radio-option.selected { border-color: var(--accent-red); background: #fff5f5; }
+        .radio-option i { flex-shrink: 0; color: var(--text-muted); }
+
+        /* Payment method options */
+        .payment-option {
+            display: flex; align-items: center; gap: 0.5rem; cursor: pointer;
+            flex: 1; border: 1.5px solid var(--border-light); border-radius: 8px;
+            padding: 0.75rem; font-weight: 600; font-size: 0.9rem;
+            transition: border-color 0.15s, background 0.15s;
+        }
+        .payment-option.selected { border-color: var(--accent-red); background: #fff5f5; }
 
         /* Same-as billing toggle */
         .same-billing-row {
@@ -59,7 +78,6 @@
             padding: 0.75rem; background: var(--bg-secondary); border-radius: 8px;
             margin-bottom: 1rem; cursor: pointer;
         }
-        .same-billing-row input[type="checkbox"] { width: auto; }
     </style>
 </head>
 <body class="bg-light">
@@ -137,7 +155,7 @@
 
                     <div class="form-group">
                         <label>Fulfillment Method</label>
-                        <div id="fulfillment-type-section" style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:0.5rem;">
+                        <div id="fulfillment-type-section" style="margin-top:0.5rem;">
                             <!-- populated by renderFulfillmentOptions() -->
                         </div>
                     </div>
@@ -244,11 +262,11 @@
                     </div>
 
                     <div id="payment-type-row" style="display:flex; gap:0.75rem; margin-bottom:1rem;">
-                        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;flex:1;border:1.5px solid var(--border-light);border-radius:8px;padding:0.75rem;font-weight:600;">
-                            <input type="radio" name="payment" value="card" checked style="width:auto;" onchange="togglePaymentMethod()"> Credit / Debit Card
+                        <label class="payment-option selected">
+                            <input type="radio" name="payment" value="card" checked onchange="togglePaymentMethod()"> Credit / Debit Card
                         </label>
-                        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;flex:1;border:1.5px solid var(--border-light);border-radius:8px;padding:0.75rem;font-weight:600;">
-                            <input type="radio" name="payment" value="cod" style="width:auto;" onchange="togglePaymentMethod()"> Cash on Delivery
+                        <label class="payment-option">
+                            <input type="radio" name="payment" value="cod" onchange="togglePaymentMethod()"> Cash on Delivery
                         </label>
                     </div>
 
@@ -440,8 +458,8 @@ function renderFulfillmentOptions() {
     };
     section.innerHTML = availableFulfillmentOptions.map((opt, idx) => {
         const cfg = labels[opt] || { label: opt, icon: 'fa-box', detail: '' };
-        return `<label class="radio-option" style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;padding:0.5rem 0.75rem;border:1px solid var(--border-light);border-radius:8px;font-weight:500;font-size:0.85rem;flex:1;">
-            <input type="radio" name="fulfillmentType" value="${opt}" ${idx === 0 ? 'checked' : ''} onchange="onFulfillmentChange()">
+        return `<label class="radio-option" onclick="this.querySelector('input').checked=true;onFulfillmentChange()">
+            <input type="radio" name="fulfillmentType" value="${opt}" ${idx === 0 ? 'checked' : ''}>
             <i class="fa ${cfg.icon}"></i>
             <span>${cfg.label}<span style="display:block;font-size:0.75rem;font-weight:400;color:var(--text-muted);">${cfg.detail}</span></span>
         </label>`;
@@ -451,6 +469,11 @@ function renderFulfillmentOptions() {
 
 function onFulfillmentChange() {
     const ft = document.querySelector('input[name="fulfillmentType"]:checked')?.value || 'shipping';
+
+    // Highlight the selected option
+    document.querySelectorAll('.radio-option').forEach(l => {
+        l.classList.toggle('selected', l.querySelector('input')?.value === ft);
+    });
 
     const addrSection  = document.getElementById('shipping-address-section');
     const pickupCard   = document.getElementById('pickup-location-card');
@@ -548,7 +571,11 @@ function updateFastDeliveryLabel() {
 
 // ── Payment toggle ────────────────────────────────────────────────────
 function togglePaymentMethod() {
-    const isCod = document.querySelector('input[name="payment"]:checked').value === 'cod';
+    const val = document.querySelector('input[name="payment"]:checked').value;
+    document.querySelectorAll('.payment-option').forEach(l => {
+        l.classList.toggle('selected', l.querySelector('input')?.value === val);
+    });
+    const isCod = val === 'cod';
     document.getElementById('card-fields').style.display = isCod ? 'none' : 'block';
     document.getElementById('cod-note').style.display    = isCod ? 'block' : 'none';
 }

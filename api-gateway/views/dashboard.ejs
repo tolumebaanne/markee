@@ -290,6 +290,8 @@
             color: var(--accent-red);
         }
         .compress-note { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.3rem; }
+        .check-label { display: flex; align-items: center; gap: 0.6rem; cursor: pointer; font-size: 0.85rem; }
+        .check-label.sm { gap: 0.5rem; font-size: 0.83rem; }
     </style>
 </head>
 <body class="bg-light">
@@ -558,17 +560,17 @@
                         <label style="font-weight:700; margin-bottom:0.5rem; display:block;">Fulfillment Options</label>
                         <p class="text-muted small" style="margin-bottom:0.75rem;">Choose which fulfillment methods you offer. Buyers only see enabled options at checkout.</p>
                         <div style="display:flex; flex-direction:column; gap:0.5rem;" id="fulfillment-options-toggles">
-                            <label style="display:flex; align-items:center; gap:0.6rem; cursor:pointer;">
+                            <label class="check-label">
                                 <input type="checkbox" id="fo-shipping" value="shipping" onchange="syncFulfillmentOptions()">
                                 <i class="fa fa-truck" style="width:16px;"></i> <span style="font-weight:600;">Courier Delivery</span>
                                 <span class="text-muted small" style="margin-left:0.25rem;">— ship via UPS, FedEx, USPS, DHL</span>
                             </label>
-                            <label style="display:flex; align-items:center; gap:0.6rem; cursor:pointer;">
+                            <label class="check-label">
                                 <input type="checkbox" id="fo-pickup" value="pickup" onchange="syncFulfillmentOptions()">
                                 <i class="fa fa-map-marker-alt" style="width:16px;"></i> <span style="font-weight:600;">Local Pickup</span>
                                 <span class="text-muted small" style="margin-left:0.25rem;">— buyer collects from your location</span>
                             </label>
-                            <label style="display:flex; align-items:center; gap:0.6rem; cursor:pointer;">
+                            <label class="check-label">
                                 <input type="checkbox" id="fo-self-fulfilled" value="self_fulfilled" onchange="syncFulfillmentOptions()">
                                 <i class="fa fa-box-open" style="width:16px;"></i> <span style="font-weight:600;">Seller Fulfillment</span>
                                 <span class="text-muted small" style="margin-left:0.25rem;">— digital delivery, in-person, or custom arrangement</span>
@@ -1163,14 +1165,14 @@
             <div class="form-group mb-3">
                 <label style="font-size:0.85rem; font-weight:600;">Fulfillment Options <span class="text-muted" style="font-weight:400; font-size:0.8rem;">(leave unchecked to use your store defaults)</span></label>
                 <div style="display:flex; flex-direction:column; gap:0.35rem; margin-top:0.4rem;" id="listing-fo-wrap">
-                    <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.83rem; cursor:pointer;">
-                        <input type="checkbox" id="listing-fo-shipping" value="shipping"> <i class="fa fa-truck" style="width:14px;"></i> Courier Delivery
+                    <label class="check-label sm">
+                        <input type="checkbox" id="listing-fo-shipping" value="shipping"> <i class="fa fa-truck"></i> Courier Delivery
                     </label>
-                    <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.83rem; cursor:pointer;">
-                        <input type="checkbox" id="listing-fo-pickup" value="pickup"> <i class="fa fa-map-marker-alt" style="width:14px;"></i> Local Pickup
+                    <label class="check-label sm">
+                        <input type="checkbox" id="listing-fo-pickup" value="pickup"> <i class="fa fa-map-marker-alt"></i> Local Pickup
                     </label>
-                    <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.83rem; cursor:pointer;">
-                        <input type="checkbox" id="listing-fo-self-fulfilled" value="self_fulfilled"> <i class="fa fa-box-open" style="width:14px;"></i> Seller Fulfillment
+                    <label class="check-label sm">
+                        <input type="checkbox" id="listing-fo-self-fulfilled" value="self_fulfilled"> <i class="fa fa-box-open"></i> Seller Fulfillment
                     </label>
                 </div>
             </div>
