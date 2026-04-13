@@ -131,6 +131,11 @@ const PREF_KEY_MAP = {
     'SELLER_REPLIED_BUYER':       'reviewApproved',
     'REVIEW_NUDGE':               'orderConfirmation',
     'REVIEW_FLAGGED_ADMIN':       'stockAlerts',
+    'SHIPMENT_DELAYED':           'shipmentUpdates',
+    'SHIPMENT_CANCELLED':         'shipmentUpdates',
+    'SHIPMENT_ESCALATED':         'shipmentUpdates',
+    'CONFIRM_RECEIPT_NUDGE':      'shipmentUpdates',
+    'DISPUTE_RESOLVED':           'shipmentUpdates',
 };
 
 async function isNotifAllowed(type, userId) {
@@ -427,7 +432,8 @@ bus.on('order.ready_for_pickup', async (payload) => {
         `buyer-${payload.buyerId}@markee.local`,
         `Your Order #${shortId} Is Ready for Pickup`,
         `Good news! The seller has marked your order #${shortId} as ready for collection. Head over to pick it up at your convenience.`,
-        payload
+        payload,
+        { userId: payload.buyerId, link: `/orders/${payload.orderId}`, icon: 'fa-store', priority: 'high', title: 'Your Order Is Ready for Pickup', body: `Order #${shortId} is ready to collect.` }
     );
 });
 
@@ -1184,19 +1190,31 @@ bus.on('shipment.auto_cancelled', async (payload) => {
     } catch (err) { console.error('[NOTIFY] shipment.auto_cancelled handler error:', err.message); }
 });
 
-// shipment.late → seller: shipment has passed expected delivery date
+// shipment.late → seller: shipment has passed expected delivery date + buyer: delayed shipment notice
 bus.on('shipment.late', async (payload) => {
     try {
-        if (!payload.sellerId) return;
         const shortId = payload.orderId?.toString().slice(-8).toUpperCase() || '';
-        await sendNotification(
-            'SHIPMENT_LATE',
-            `seller-${payload.sellerId}@markee.local`,
-            `Shipment Overdue — Order #${shortId}`,
-            `The shipment for order #${shortId} has passed its expected delivery date. Consider contacting the buyer and updating the tracking information.`,
-            payload,
-            { userId: payload.sellerId, link: `/orders/${payload.orderId}`, icon: 'fa-exclamation-triangle', priority: 'high' }
-        );
+        const daysText = payload.daysLate ? ` (${payload.daysLate} day${payload.daysLate !== 1 ? 's' : ''} late)` : '';
+        if (payload.sellerId) {
+            await sendNotification(
+                'SHIPMENT_LATE',
+                `seller-${payload.sellerId}@markee.local`,
+                `Shipment Overdue — Order #${shortId}`,
+                `The shipment for order #${shortId} has passed its expected delivery date${daysText}. Consider contacting the buyer and updating the tracking information.`,
+                payload,
+                { userId: payload.sellerId, link: `/orders/${payload.orderId}`, icon: 'fa-exclamation-triangle', priority: 'high' }
+            );
+        }
+        if (payload.buyerId) {
+            await sendNotification(
+                'SHIPMENT_DELAYED',
+                `buyer-${payload.buyerId}@markee.local`,
+                `Shipment Running Late`,
+                `Your order #${shortId} is running behind schedule${daysText}. We'll keep you updated.`,
+                payload,
+                { userId: payload.buyerId, link: `/orders/${payload.orderId}`, icon: 'fa-clock', priority: 'high' }
+            );
+        }
     } catch (err) { console.error('[NOTIFY] shipment.late handler error:', err.message); }
 });
 
@@ -1486,6 +1504,103 @@ bus.on('user.unbanned', async (payload) => {
             { userId, link: `/`, icon: 'fa-user-check', priority: 'high' }
         );
     } catch (err) { console.error('[NOTIFY] user.unbanned handler error:', err.message); }
+});
+
+// ── Missing shipping event handlers ──────────────────────────────────────────
+
+// shipment.cancelled → buyer + seller: shipment was explicitly cancelled
+bus.on('shipment.cancelled', async (payload) => {
+    try {
+        const shortId = payload.orderId?.toString().slice(-8).toUpperCase() || '—';
+        if (payload.buyerId) {
+            await sendNotification(
+                'SHIPMENT_CANCELLED',
+                `buyer-${payload.buyerId}@markee.local`,
+                `Shipment Cancelled`,
+                `The shipment for order #${shortId} was cancelled. Contact the seller or Markee support if you need assistance.`,
+                payload,
+                { userId: payload.buyerId, link: `/orders/${payload.orderId}`, icon: 'fa-times-circle', priority: 'high' }
+            );
+        }
+        if (payload.sellerId) {
+            await sendNotification(
+                'SHIPMENT_CANCELLED',
+                `seller-${payload.sellerId}@markee.local`,
+                `Shipment Cancelled`,
+                `Shipment for order #${shortId} has been cancelled.`,
+                payload,
+                { userId: payload.sellerId, link: `/orders/${payload.orderId}`, icon: 'fa-times-circle', priority: 'normal' }
+            );
+        }
+    } catch (err) { console.error('[NOTIFY] shipment.cancelled handler error:', err.message); }
+});
+
+// shipment.escalated → seller (critical): delayed fulfilment escalation
+bus.on('shipment.escalated', async (payload) => {
+    try {
+        if (!payload.sellerId) return;
+        const shortId  = payload.orderId?.toString().slice(-8).toUpperCase() || '—';
+        const tier     = payload.tier || 1;
+        const deadline = payload.sellerResponseDeadline
+            ? ` Respond by ${new Date(payload.sellerResponseDeadline).toLocaleDateString()}.`
+            : '';
+        await sendNotification(
+            'SHIPMENT_ESCALATED',
+            `seller-${payload.sellerId}@markee.local`,
+            `Action Required — Tier ${tier} Escalation`,
+            `Order #${shortId} has been escalated to Tier ${tier} due to delayed fulfillment.${deadline} Please respond to avoid further action.`,
+            payload,
+            { userId: payload.sellerId, link: `/orders/${payload.orderId}`, icon: 'fa-exclamation-triangle', priority: 'critical' }
+        );
+    } catch (err) { console.error('[NOTIFY] shipment.escalated handler error:', err.message); }
+});
+
+// shipment.confirmation_nudge → buyer: please confirm receipt to release payment
+bus.on('shipment.confirmation_nudge', async (payload) => {
+    try {
+        if (!payload.buyerId) return;
+        const shortId = payload.orderId?.toString().slice(-8).toUpperCase() || '—';
+        await sendNotification(
+            'CONFIRM_RECEIPT_NUDGE',
+            `buyer-${payload.buyerId}@markee.local`,
+            `Please Confirm Receipt`,
+            `Your order #${shortId} was delivered. Please confirm receipt to release payment to the seller.`,
+            payload,
+            { userId: payload.buyerId, link: `/orders/${payload.orderId}`, icon: 'fa-check-circle', priority: 'high' }
+        );
+    } catch (err) { console.error('[NOTIFY] shipment.confirmation_nudge handler error:', err.message); }
+});
+
+// shipment.dispute_resolved → buyer + seller: admin decision on shipment dispute
+bus.on('shipment.dispute_resolved', async (payload) => {
+    try {
+        const shortId = payload.orderId?.toString().slice(-8).toUpperCase() || '—';
+        const decisionText = {
+            buyer_correct:  'resolved in your favour',
+            seller_correct: 'resolved in the seller\'s favour',
+            split:          'resolved with a partial refund'
+        }[payload.decision] || 'resolved';
+        if (payload.buyerId) {
+            await sendNotification(
+                'DISPUTE_RESOLVED',
+                `buyer-${payload.buyerId}@markee.local`,
+                `Dispute Resolved`,
+                `Your order #${shortId} dispute has been ${decisionText}. ${payload.adminNote || ''}`,
+                payload,
+                { userId: payload.buyerId, link: `/orders/${payload.orderId}`, icon: 'fa-gavel', priority: 'high' }
+            );
+        }
+        if (payload.sellerId) {
+            await sendNotification(
+                'DISPUTE_RESOLVED',
+                `seller-${payload.sellerId}@markee.local`,
+                `Dispute Resolved`,
+                `Order #${shortId} dispute has been ${decisionText}. ${payload.adminNote || ''}`,
+                payload,
+                { userId: payload.sellerId, link: `/orders/${payload.orderId}`, icon: 'fa-gavel', priority: 'high' }
+            );
+        }
+    } catch (err) { console.error('[NOTIFY] shipment.dispute_resolved handler error:', err.message); }
 });
 
 // ── Routes ───────────────────────────────────────────────────────────────────

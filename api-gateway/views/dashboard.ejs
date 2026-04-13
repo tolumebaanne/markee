@@ -346,6 +346,9 @@
             <div class="dash-nav-item" id="nav-insights" onclick="switchTab('insights')">
                 <i class="fa fa-funnel-dollar" style="width:16px;"></i> Conversion Funnel
             </div>
+            <div class="dash-nav-item" id="nav-fulfillment" onclick="switchTab('fulfillment')">
+                <i class="fa fa-shipping-fast" style="width:16px;"></i> Fulfillment
+            </div>
         </div>
 
         <!-- Store card (seller only) -->
@@ -540,6 +543,65 @@
                 </div>
                 <div style="padding:1rem 1.25rem;" id="ops-needs-reply-list">
                     <p class="text-muted small">Loading...</p>
+                </div>
+            </div>
+
+            <!-- ── Fulfillment Options ── -->
+            <div class="card" style="margin-bottom:1.25rem; cursor:default;">
+                <div class="card-header" style="display:flex; align-items:center;">
+                    <i class="fa fa-shipping-fast" style="color:var(--accent-red); margin-right:0.5rem;"></i>
+                    <h3 style="margin:0; font-size:1rem;">Fulfillment Options</h3>
+                </div>
+                <div style="padding:1.25rem;">
+                    <!-- Fulfillment Options -->
+                    <div class="form-group mt-4">
+                        <label style="font-weight:700; margin-bottom:0.5rem; display:block;">Fulfillment Options</label>
+                        <p class="text-muted small" style="margin-bottom:0.75rem;">Choose which fulfillment methods you offer. Buyers only see enabled options at checkout.</p>
+                        <div style="display:flex; flex-direction:column; gap:0.5rem;" id="fulfillment-options-toggles">
+                            <label style="display:flex; align-items:center; gap:0.6rem; cursor:pointer;">
+                                <input type="checkbox" id="fo-shipping" value="shipping" onchange="syncFulfillmentOptions()">
+                                <i class="fa fa-truck" style="width:16px;"></i> <span style="font-weight:600;">Courier Delivery</span>
+                                <span class="text-muted small" style="margin-left:0.25rem;">— ship via UPS, FedEx, USPS, DHL</span>
+                            </label>
+                            <label style="display:flex; align-items:center; gap:0.6rem; cursor:pointer;">
+                                <input type="checkbox" id="fo-pickup" value="pickup" onchange="syncFulfillmentOptions()">
+                                <i class="fa fa-map-marker-alt" style="width:16px;"></i> <span style="font-weight:600;">Local Pickup</span>
+                                <span class="text-muted small" style="margin-left:0.25rem;">— buyer collects from your location</span>
+                            </label>
+                            <label style="display:flex; align-items:center; gap:0.6rem; cursor:pointer;">
+                                <input type="checkbox" id="fo-self-fulfilled" value="self_fulfilled" onchange="syncFulfillmentOptions()">
+                                <i class="fa fa-box-open" style="width:16px;"></i> <span style="font-weight:600;">Seller Fulfillment</span>
+                                <span class="text-muted small" style="margin-left:0.25rem;">— digital delivery, in-person, or custom arrangement</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Pickup Locations (shown when pickup is enabled) -->
+                    <div id="pickup-locations-section" style="display:none; margin-top:1rem;">
+                        <label style="font-weight:700; margin-bottom:0.5rem; display:block;"><i class="fa fa-map-marker-alt" style="margin-right:0.4rem; color:var(--accent-red);"></i> Pickup Locations</label>
+                        <div id="pickup-locations-list" style="margin-bottom:0.75rem;"></div>
+                        <button type="button" class="btn btn-outline" style="font-size:0.8rem; padding:0.4rem 0.9rem; width:auto;" onclick="toggleAddPickupForm()">
+                            <i class="fa fa-plus" style="margin-right:0.3rem;"></i> Add Location
+                        </button>
+                        <div id="add-pickup-form" style="display:none; margin-top:0.75rem; padding:0.85rem; border:1px solid var(--border-light); border-radius:8px; background:var(--bg-secondary);">
+                            <div class="form-group mb-2"><label style="font-size:0.8rem;">Label (e.g. "Main Store")</label><input type="text" id="pkl-label" placeholder="Main Store"></div>
+                            <div class="form-group mb-2"><label style="font-size:0.8rem;">Street Address</label><input type="text" id="pkl-address" placeholder="123 Queen St W"></div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-bottom:0.5rem;">
+                                <div class="form-group mb-0"><label style="font-size:0.8rem;">City</label><input type="text" id="pkl-city" placeholder="Toronto"></div>
+                                <div class="form-group mb-0"><label style="font-size:0.8rem;">Province</label><input type="text" id="pkl-province" placeholder="ON"></div>
+                            </div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-bottom:0.5rem;">
+                                <div class="form-group mb-0"><label style="font-size:0.8rem;">Postal Code</label><input type="text" id="pkl-postal" placeholder="M5V 2T6"></div>
+                                <div class="form-group mb-0"><label style="font-size:0.8rem;">Country</label><input type="text" id="pkl-country" value="Canada"></div>
+                            </div>
+                            <div class="form-group mb-2"><label style="font-size:0.8rem;">Hours</label><input type="text" id="pkl-hours" placeholder="Mon-Sat 9am–6pm"></div>
+                            <div class="form-group mb-2"><label style="font-size:0.8rem;">Instructions (optional)</label><input type="text" id="pkl-instructions" placeholder="Ring buzzer #204"></div>
+                            <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+                                <button type="button" class="btn" style="background:var(--accent-red); padding:0.4rem 0.9rem; font-size:0.8rem; width:auto;" onclick="addPickupLocation()">Save Location</button>
+                                <button type="button" class="btn btn-outline" style="font-size:0.8rem; padding:0.4rem 0.9rem; width:auto;" onclick="toggleAddPickupForm()">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -995,6 +1057,45 @@
                     </div>
                 </div>
             </div>
+
+            <!-- ============ FULFILLMENT TAB ============ -->
+            <div id="panel-fulfillment" style="display:none;">
+                <h3 style="margin-bottom:1.5rem;">Fulfillment Centre</h3>
+
+                <!-- Stats row -->
+                <div id="fulfillment-stats-row" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+                    <div class="card p-3" style="text-align:center;">
+                        <div style="font-size:1.5rem; font-weight:800;" id="fstat-total">—</div>
+                        <div class="text-muted small">Total Shipments</div>
+                    </div>
+                    <div class="card p-3" style="text-align:center;">
+                        <div style="font-size:1.5rem; font-weight:800; color:#16a34a;" id="fstat-delivered">—</div>
+                        <div class="text-muted small">Delivered</div>
+                    </div>
+                    <div class="card p-3" style="text-align:center;">
+                        <div style="font-size:1.5rem; font-weight:800; color:#f59e0b;" id="fstat-intransit">—</div>
+                        <div class="text-muted small">In Transit</div>
+                    </div>
+                    <div class="card p-3" style="text-align:center;">
+                        <div style="font-size:1.5rem; font-weight:800;" id="fstat-ontime">—</div>
+                        <div class="text-muted small">On-Time Rate</div>
+                    </div>
+                </div>
+
+                <!-- Queue: orders needing action -->
+                <div class="card p-4 mb-3">
+                    <h5 style="margin-bottom:1rem;"><i class="fa fa-clock" style="margin-right:0.4rem; color:var(--accent-red);"></i> Needs Action</h5>
+                    <div id="fulfillment-queue" class="text-muted small">Loading...</div>
+                </div>
+
+                <!-- Recent Shipments -->
+                <div class="card p-4">
+                    <h5 style="margin-bottom:1rem;"><i class="fa fa-history" style="margin-right:0.4rem;"></i> Recent Shipments</h5>
+                    <div id="fulfillment-recent" class="text-muted small">Loading...</div>
+                    <div id="fulfillment-recent-pagination" style="margin-top:0.75rem; display:flex; justify-content:center; gap:0.5rem;"></div>
+                </div>
+            </div>
+
         </div>
     </main>
 </div>
@@ -1048,6 +1149,30 @@
                 <input type="file" id="f-images" accept="image/*" multiple style="display:none" onchange="handleFileSelect(this.files)">
                 <p class="compress-note"><i class="fa fa-compress-alt" style="margin-right:0.3rem;"></i>Images are automatically compressed to ~50 KB before upload.</p>
                 <div class="img-preview-row" id="img-preview-row"></div>
+            </div>
+
+            <div class="form-group mb-3">
+                <label style="font-size:0.85rem; font-weight:600;">Fast Delivery Fee <span class="text-muted" style="font-weight:400; font-size:0.8rem;">(optional — charged when buyer selects fast delivery)</span></label>
+                <div style="position:relative; display:flex; align-items:center;">
+                    <span style="position:absolute; left:0.75rem; color:var(--text-muted); font-weight:600;">$</span>
+                    <input type="number" id="listing-fast-fee" min="0" step="0.01" placeholder="0.00" style="padding-left:1.75rem;">
+                </div>
+                <p class="text-muted small" style="margin:0.25rem 0 0;">Leave blank or 0 to use the platform default ($9.99).</p>
+            </div>
+
+            <div class="form-group mb-3">
+                <label style="font-size:0.85rem; font-weight:600;">Fulfillment Options <span class="text-muted" style="font-weight:400; font-size:0.8rem;">(leave unchecked to use your store defaults)</span></label>
+                <div style="display:flex; flex-direction:column; gap:0.35rem; margin-top:0.4rem;" id="listing-fo-wrap">
+                    <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.83rem; cursor:pointer;">
+                        <input type="checkbox" id="listing-fo-shipping" value="shipping"> <i class="fa fa-truck" style="width:14px;"></i> Courier Delivery
+                    </label>
+                    <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.83rem; cursor:pointer;">
+                        <input type="checkbox" id="listing-fo-pickup" value="pickup"> <i class="fa fa-map-marker-alt" style="width:14px;"></i> Local Pickup
+                    </label>
+                    <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.83rem; cursor:pointer;">
+                        <input type="checkbox" id="listing-fo-self-fulfilled" value="self_fulfilled"> <i class="fa fa-box-open" style="width:14px;"></i> Seller Fulfillment
+                    </label>
+                </div>
             </div>
 
             <div class="form-group mb-4">
@@ -1217,7 +1342,7 @@
     let ordersLoaded = false, purchasesLoaded = false, analyticsLoaded = false;
 
     function switchTab(tab) {
-        const allTabs = ['overview','listings','orders','purchases','watchlist','insights','analytics','operations'];
+        const allTabs = ['overview','listings','orders','purchases','watchlist','insights','analytics','operations','fulfillment'];
         allTabs.forEach(t => {
             const navEl   = document.getElementById(`nav-${t}`);
             const panelEl = document.getElementById(`panel-${t}`);
@@ -1233,6 +1358,7 @@
         if (tab === 'operations') { if (isSeller || isAdmin) loadOpsPanel(); }
         if (tab === 'watchlist') renderWatchlist();
         if (tab === 'overview' && typeof renderOverviewPanel === 'function') renderOverviewPanel();
+        if (tab === 'fulfillment') loadFulfillmentCentre();
     }
 
     function showWatchlist() { switchTab('watchlist'); }
@@ -1984,6 +2110,7 @@
         list.innerHTML = orders.map(o => {
             const myItems   = (o.items || []).filter(i => i.sellerId?.toString() === userData.storeId?.toString());
             const canShip   = ['paid','processing'].includes(o.status);
+            const shipMode  = o.fulfillmentType || 'shipping';
             const statusCls = ['pending','paid','processing','shipped','delivered','cancelled'].includes(o.status)
                 ? `status-${o.status}` : 'status-pending';
             const shortId   = '…' + o._id.slice(-8);
@@ -2020,7 +2147,7 @@
                         </button>` : ''}
                         ${canShip ? `
                         <button class="act-btn" onclick="toggleShipForm('${o._id}')" title="Create shipment">
-                            <i class="fa fa-truck"></i> Ship
+                            <i class="fa fa-truck"></i> ${shipMode === 'pickup' ? 'Pickup' : shipMode === 'self_fulfilled' ? 'Fulfil' : 'Ship'}
                         </button>` : ''}
                         ${canCancel ? `
                         <button class="act-btn danger" onclick="quickCancelOrder('${o._id}')" title="Cancel order">
@@ -2030,7 +2157,8 @@
                     </div>
                 </div>
                 ${canShip ? `
-                <div class="ship-form-inline" id="ship-form-${o._id}">
+                <div class="ship-form-inline" id="ship-form-${o._id}" style="display:none;">
+                    ${shipMode === 'shipping' ? `
                     <div class="ship-form-row">
                         <div class="form-group" style="margin:0;">
                             <label for="carrier-${o._id}" style="font-size:0.78rem;">Carrier</label>
@@ -2053,9 +2181,29 @@
                     </div>
                     <div id="shipment-error-${o._id}"></div>
                     <button class="btn" style="background:var(--accent-red); width:auto; padding:0.5rem 1.1rem; font-size:0.8rem;"
-                            onclick="submitShipment('${o._id}', event)">
+                            onclick="submitShipment('${o._id}', '${shipMode}', event)">
                         <i class="fa fa-paper-plane" style="margin-right:0.4rem;"></i> Mark Shipped
                     </button>
+                    ` : shipMode === 'pickup' ? `
+                    <p class="text-muted small" style="margin-bottom:0.6rem;"><i class="fa fa-map-marker-alt" style="margin-right:0.3rem;"></i> Pickup order — mark ready when buyer can collect.</p>
+                    <div id="shipment-error-${o._id}"></div>
+                    <button class="btn" style="background:#0d9488; width:auto; padding:0.5rem 1.1rem; font-size:0.8rem;"
+                            onclick="submitShipment('${o._id}', '${shipMode}', event)">
+                        <i class="fa fa-store" style="margin-right:0.4rem;"></i> Mark Ready for Pickup
+                    </button>
+                    ` : `
+                    <p class="text-muted small" style="margin-bottom:0.6rem;"><i class="fa fa-box-open" style="margin-right:0.3rem;"></i> Upload proof of fulfillment, then mark as fulfilled.</p>
+                    <div class="form-group" style="margin-bottom:0.5rem;">
+                        <label style="font-size:0.78rem;">Proof of Fulfillment (required)</label>
+                        <input type="file" id="proof-${o._id}" accept="image/*" style="font-size:0.78rem;">
+                        <p id="proof-preview-${o._id}" class="text-muted small" style="margin:0.2rem 0 0;"></p>
+                    </div>
+                    <div id="shipment-error-${o._id}"></div>
+                    <button class="btn" style="background:#7c3aed; width:auto; padding:0.5rem 1.1rem; font-size:0.8rem;"
+                            onclick="submitShipment('${o._id}', '${shipMode}', event)">
+                        <i class="fa fa-check-circle" style="margin-right:0.4rem;"></i> Mark Fulfilled
+                    </button>
+                    `}
                 </div>` : ''}
             </div>`;
         }).join('');
@@ -2307,32 +2455,74 @@
         } catch (err) { showToast('Error: ' + err.message, 'error'); }
     }
 
-    async function submitShipment(orderId, evt) {
+    async function submitShipment(orderId, shipMode, evt) {
         clearInlineError(`shipment-error-${orderId}`);
-        const carrier  = document.getElementById(`carrier-${orderId}`).value;
-        const tracking = document.getElementById(`tracking-${orderId}`).value.trim();
-        const delivery = document.getElementById(`delivery-${orderId}`).value;
 
-        if (!tracking) { showInlineError(`shipment-error-${orderId}`, 'Enter a tracking number.'); return; }
-        if (!delivery) { showInlineError(`shipment-error-${orderId}`, 'Enter estimated delivery date.'); return; }
+        if (shipMode === 'shipping') {
+            const carrier  = document.getElementById(`carrier-${orderId}`)?.value;
+            const tracking = document.getElementById(`tracking-${orderId}`)?.value.trim();
+            const delivery = document.getElementById(`delivery-${orderId}`)?.value;
+            if (!tracking) { showInlineError(`shipment-error-${orderId}`, 'Enter a tracking number.'); return; }
+            if (!delivery) { showInlineError(`shipment-error-${orderId}`, 'Enter estimated delivery date.'); return; }
+            try {
+                const res = await fetch('/api/shipping', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ orderId, carrier, trackingNumber: tracking, estimatedDelivery: delivery, sellerId: userData.storeId, fulfillmentType: 'shipping' })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                showToast('Shipment created — order marked as shipped!', 'success', 3500, evt);
+                ordersLoaded = false; loadSellerOrders();
+            } catch (err) { showInlineError(`shipment-error-${orderId}`, 'Error: ' + err.message); }
 
-        try {
-            const res = await fetch('/api/shipping', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ orderId, carrier, trackingNumber: tracking, estimatedDelivery: delivery, sellerId: userData.storeId })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-            showToast('Shipment created — order marked as shipped!', 'success', 3500, evt);
-            // Re-render orders list
-            ordersLoaded = false;
-            loadSellerOrders();
-        } catch (err) {
-            showInlineError(`shipment-error-${orderId}`, 'Error: ' + err.message);
+        } else if (shipMode === 'pickup') {
+            try {
+                const res = await fetch('/api/shipping', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ orderId, sellerId: userData.storeId, fulfillmentType: 'pickup', estimatedDelivery: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0] })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                await fetch(`/api/orders/${orderId}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ status: 'ready_for_pickup' })
+                });
+                showToast('Order marked ready for pickup — buyer notified!', 'success', 3500, evt);
+                ordersLoaded = false; loadSellerOrders();
+            } catch (err) { showInlineError(`shipment-error-${orderId}`, 'Error: ' + err.message); }
+
+        } else {
+            // self_fulfilled — upload proof first, then mark fulfilled
+            const fileInput = document.getElementById(`proof-${orderId}`);
+            if (!fileInput?.files?.[0]) { showInlineError(`shipment-error-${orderId}`, 'Upload proof of fulfillment before marking as fulfilled.'); return; }
+            try {
+                const shipRes = await fetch('/api/shipping', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ orderId, sellerId: userData.storeId, fulfillmentType: 'self_fulfilled' })
+                });
+                const shipData = await shipRes.json();
+                if (!shipRes.ok) throw new Error(shipData.error || `HTTP ${shipRes.status}`);
+                const fd = new FormData();
+                fd.append('proof', fileInput.files[0]);
+                fd.append('shipmentId', shipData._id);
+                const proofRes = await fetch('/api/shipping/upload-proof', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: fd
+                });
+                if (!proofRes.ok) throw new Error('Proof upload failed');
+                await fetch(`/api/orders/${orderId}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ status: 'self_fulfilled' })
+                });
+                showToast('Order marked as fulfilled!', 'success', 3500, evt);
+                ordersLoaded = false; loadSellerOrders();
+            } catch (err) { showInlineError(`shipment-error-${orderId}`, 'Error: ' + err.message); }
         }
     }
 
@@ -2418,6 +2608,11 @@
         document.getElementById('edit-id').value = '';
         document.getElementById('modal-title').textContent = 'New Listing';
         document.getElementById('listing-form').reset();
+        const fastFeeEl = document.getElementById('listing-fast-fee');
+        if (fastFeeEl) fastFeeEl.value = '';
+        ['listing-fo-shipping','listing-fo-pickup','listing-fo-self-fulfilled'].forEach(id => {
+            const el = document.getElementById(id); if (el) el.checked = false;
+        });
         renderPreview();
         document.getElementById('submit-btn').textContent = 'Post Listing';
         document.getElementById('modal-backdrop').style.display = 'flex';
@@ -2433,6 +2628,14 @@
         document.getElementById('f-category').value = p.category || 'Electronics';
         document.getElementById('f-price').value = p.price ? (p.price / 100).toFixed(2) : '';
         document.getElementById('f-description').value = p.description || '';
+        // Fast delivery fee (cents → dollars)
+        const fastFeeEl = document.getElementById('listing-fast-fee');
+        if (fastFeeEl) fastFeeEl.value = p.fastDeliveryFee ? (p.fastDeliveryFee / 100).toFixed(2) : '';
+        // Fulfillment options
+        const productFO = p.fulfillmentOptions || [];
+        if (document.getElementById('listing-fo-shipping'))       document.getElementById('listing-fo-shipping').checked = productFO.includes('shipping');
+        if (document.getElementById('listing-fo-pickup'))         document.getElementById('listing-fo-pickup').checked = productFO.includes('pickup');
+        if (document.getElementById('listing-fo-self-fulfilled')) document.getElementById('listing-fo-self-fulfilled').checked = productFO.includes('self_fulfilled');
         renderPreview();
         document.getElementById('submit-btn').textContent = 'Save Changes';
         document.getElementById('modal-backdrop').style.display = 'flex';
@@ -2456,12 +2659,28 @@
         btn.disabled = true;
         btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Saving...';
 
+        // Fast delivery fee (convert dollars to cents; 0 if blank)
+        const fastFeeInput = document.getElementById('listing-fast-fee');
+        const fastDeliveryFee = fastFeeInput?.value ? Math.round(parseFloat(fastFeeInput.value) * 100) : 0;
+
+        // Per-product fulfillment options (empty array = inherit from store)
+        const foShipping      = document.getElementById('listing-fo-shipping')?.checked;
+        const foPickup        = document.getElementById('listing-fo-pickup')?.checked;
+        const foSelfFulfilled = document.getElementById('listing-fo-self-fulfilled')?.checked;
+        const fulfillmentOptions = [
+            foShipping      ? 'shipping'       : null,
+            foPickup        ? 'pickup'         : null,
+            foSelfFulfilled ? 'self_fulfilled' : null
+        ].filter(Boolean);
+
         const product = {
-            title:       document.getElementById('f-title').value.trim(),
-            category:    document.getElementById('f-category').value,
-            price:       Math.round(parseFloat(document.getElementById('f-price').value) * 100),
-            images:      _pendingImages,
-            description: document.getElementById('f-description').value.trim(),
+            title:              document.getElementById('f-title').value.trim(),
+            category:           document.getElementById('f-category').value,
+            price:              Math.round(parseFloat(document.getElementById('f-price').value) * 100),
+            images:             _pendingImages,
+            description:        document.getElementById('f-description').value.trim(),
+            fastDeliveryFee,
+            fulfillmentOptions,
         };
         if (!editId) product.status = 'active';
 
@@ -2870,6 +3089,14 @@ async function loadOpsPanel() {
         bindOpsPreview();
         opsDiscountToggle();
 
+        // Populate fulfillment options checkboxes
+        const fo = data.fulfillmentOptions || ['shipping'];
+        if (document.getElementById('fo-shipping'))      document.getElementById('fo-shipping').checked = fo.includes('shipping');
+        if (document.getElementById('fo-pickup'))        document.getElementById('fo-pickup').checked = fo.includes('pickup');
+        if (document.getElementById('fo-self-fulfilled')) document.getElementById('fo-self-fulfilled').checked = fo.includes('self_fulfilled');
+        syncFulfillmentOptions();
+        renderPickupLocationsList();
+
         // Reviews needing reply
         loadOpsNeedsReply();
 
@@ -3084,7 +3311,12 @@ async function saveOpsSettings(evt) {
             banner: {
                 imageUrl: mainBan,
                 altText:  mainBanAlt
-            }
+            },
+            fulfillmentOptions: ['shipping','pickup','self_fulfilled'].filter(v => {
+                const id = v === 'self_fulfilled' ? 'fo-self-fulfilled' : `fo-${v}`;
+                return document.getElementById(id)?.checked;
+            }),
+            pickupLocations: (typeof currentStoreOps !== 'undefined' && currentStoreOps?.pickupLocations) ? currentStoreOps.pickupLocations : []
         };
 
         const res = await fetch('/api/seller/' + userData.storeId, {
@@ -3107,6 +3339,148 @@ async function saveOpsSettings(evt) {
 
 function resetOpsForm() {
     loadOpsPanel();
+}
+
+// ── Fulfillment Options (Phase 3a) ────────────────────────────────────────────
+function syncFulfillmentOptions() {
+    const opts = ['shipping','pickup','self_fulfilled'].filter(v => {
+        const el = document.getElementById(`fo-${v === 'self_fulfilled' ? 'self-fulfilled' : v}`);
+        return el && el.checked;
+    });
+    const pickupSection = document.getElementById('pickup-locations-section');
+    if (pickupSection) pickupSection.style.display = opts.includes('pickup') ? 'block' : 'none';
+}
+
+function toggleAddPickupForm() {
+    const f = document.getElementById('add-pickup-form');
+    if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+function renderPickupLocationsList() {
+    const list = document.getElementById('pickup-locations-list');
+    if (!list || !currentStoreOps?.pickupLocations) {
+        if (list) list.innerHTML = '<p class="text-muted small">No pickup locations added yet.</p>';
+        return;
+    }
+    if (!currentStoreOps.pickupLocations.length) {
+        list.innerHTML = '<p class="text-muted small">No pickup locations added yet.</p>';
+        return;
+    }
+    list.innerHTML = currentStoreOps.pickupLocations.map((loc, idx) => `
+        <div style="display:flex; align-items:center; gap:0.6rem; padding:0.6rem 0.75rem; border:1px solid var(--border-light); border-radius:8px; margin-bottom:0.4rem; background:var(--bg-main);">
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:600; font-size:0.85rem;">${loc.label}</div>
+                <div style="font-size:0.78rem; color:var(--text-muted);">${[loc.address, loc.city, loc.province].filter(Boolean).join(', ')}</div>
+                ${loc.hours ? `<div style="font-size:0.75rem; color:var(--text-muted);">${loc.hours}</div>` : ''}
+            </div>
+            <button class="act-btn danger" onclick="removePickupLocation(${idx})" title="Remove"><i class="fa fa-trash"></i></button>
+        </div>
+    `).join('');
+}
+
+async function addPickupLocation() {
+    const label   = document.getElementById('pkl-label')?.value.trim();
+    const address = document.getElementById('pkl-address')?.value.trim();
+    if (!label || !address) { showToast('Label and address are required.', 'warning'); return; }
+    const loc = {
+        label, address,
+        city:        document.getElementById('pkl-city')?.value.trim()    || '',
+        province:    document.getElementById('pkl-province')?.value.trim() || '',
+        postalCode:  document.getElementById('pkl-postal')?.value.trim()   || '',
+        country:     document.getElementById('pkl-country')?.value.trim()  || 'Canada',
+        hours:       document.getElementById('pkl-hours')?.value.trim()    || '',
+        instructions:document.getElementById('pkl-instructions')?.value.trim() || '',
+        active: true
+    };
+    if (!currentStoreOps) currentStoreOps = {};
+    if (!currentStoreOps.pickupLocations) currentStoreOps.pickupLocations = [];
+    currentStoreOps.pickupLocations.push(loc);
+    renderPickupLocationsList();
+    ['pkl-label','pkl-address','pkl-city','pkl-province','pkl-postal','pkl-hours','pkl-instructions'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+    });
+    const cc = document.getElementById('pkl-country');
+    if (cc) cc.value = 'Canada';
+    toggleAddPickupForm();
+    showToast('Location added — save store settings to apply.', 'info');
+}
+
+function removePickupLocation(idx) {
+    if (!currentStoreOps?.pickupLocations) return;
+    currentStoreOps.pickupLocations.splice(idx, 1);
+    renderPickupLocationsList();
+}
+
+// ── Fulfillment Centre (Phase 3d) ─────────────────────────────────────────────
+async function loadFulfillmentCentre() {
+    if (!token) return;
+    try {
+        const [statsRes, shipmentsRes, ordersRes] = await Promise.all([
+            fetch('/api/shipping/seller/stats', { headers: { Authorization: `Bearer ${token}` } }),
+            fetch('/api/shipping/seller?limit=10', { headers: { Authorization: `Bearer ${token}` } }),
+            fetch('/api/orders/seller?limit=50', { headers: { Authorization: `Bearer ${token}` } })
+        ]);
+
+        // Stats
+        if (statsRes.ok) {
+            const stats = await statsRes.json();
+            document.getElementById('fstat-total').textContent     = stats.totalShipments ?? '—';
+            document.getElementById('fstat-delivered').textContent  = stats.delivered ?? '—';
+            document.getElementById('fstat-intransit').textContent  = stats.inTransit ?? '—';
+            document.getElementById('fstat-ontime').textContent     = stats.onTimeRate != null ? (stats.onTimeRate * 100).toFixed(0) + '%' : '—';
+        }
+
+        // Queue — orders needing fulfillment action
+        if (ordersRes.ok) {
+            const ordData = await ordersRes.json();
+            const orders  = Array.isArray(ordData) ? ordData : (ordData.orders || []);
+            const queued  = orders.filter(o => {
+                if (o.fulfillmentType === 'shipping'       && ['paid','processing'].includes(o.status)) return true;
+                if (o.fulfillmentType === 'pickup'         && ['paid','processing'].includes(o.status)) return true;
+                if (o.fulfillmentType === 'self_fulfilled' && o.status === 'processing')                return true;
+                return false;
+            });
+            const qEl = document.getElementById('fulfillment-queue');
+            if (!queued.length) {
+                qEl.innerHTML = '<p class="text-muted small" style="margin:0;">No orders awaiting fulfillment action.</p>';
+            } else {
+                const modeLabel = { shipping: 'Courier', pickup: 'Pickup', self_fulfilled: 'Self Fulfil' };
+                const modeColor = { shipping: 'var(--accent-red)', pickup: '#0d9488', self_fulfilled: '#7c3aed' };
+                qEl.innerHTML = queued.map(o => `
+                    <div style="display:flex; align-items:center; gap:0.75rem; padding:0.65rem 0; border-bottom:1px solid var(--border-light);">
+                        <span style="font-size:0.75rem; font-weight:700; color:${modeColor[o.fulfillmentType] || '#888'}; white-space:nowrap; min-width:70px;">${modeLabel[o.fulfillmentType] || o.fulfillmentType}</span>
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-weight:600; font-size:0.82rem;">Order …${o._id.slice(-8)}</div>
+                            <div style="font-size:0.75rem; color:var(--text-muted);">${o.status}</div>
+                        </div>
+                        <a href="/orders/${o._id}" class="act-btn" style="font-size:0.72rem; text-decoration:none;">Manage →</a>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Recent Shipments
+        if (shipmentsRes.ok) {
+            const shData    = await shipmentsRes.json();
+            const shipments = Array.isArray(shData) ? shData : (shData.shipments || []);
+            const rEl = document.getElementById('fulfillment-recent');
+            if (!shipments.length) {
+                rEl.innerHTML = '<p class="text-muted small" style="margin:0;">No shipments yet.</p>';
+            } else {
+                const statusColor = { created:'#6b7280', in_transit:'#f59e0b', out_for_delivery:'#3b82f6', delivered:'#16a34a', preparing:'#f59e0b', ready_for_pickup:'#3b82f6', picked_up:'#16a34a', cancelled:'#ef4444' };
+                rEl.innerHTML = shipments.map(s => `
+                    <div style="display:flex; align-items:center; gap:0.75rem; padding:0.65rem 0; border-bottom:1px solid var(--border-light);">
+                        <span class="status-badge" style="font-size:0.7rem; background:${statusColor[s.status] || '#888'}22; color:${statusColor[s.status] || '#888'}; border:1px solid ${statusColor[s.status] || '#888'}44;">${s.status.replace(/_/g,' ')}</span>
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-weight:600; font-size:0.82rem;">Order …${s.orderId?.toString().slice(-8)}</div>
+                            <div style="font-size:0.75rem; color:var(--text-muted);">${s.carrier || s.fulfillmentType} ${s.trackingNumber ? '· ' + s.trackingNumber : ''}</div>
+                        </div>
+                        <a href="/orders/${s.orderId}" class="act-btn" style="font-size:0.72rem; text-decoration:none;">View →</a>
+                    </div>
+                `).join('');
+            }
+        }
+    } catch (err) { console.error('[FULFILLMENT CENTRE]', err.message); }
 }
 </script>
 <div class="float-action-tray" id="float-action-tray"></div>

@@ -9,6 +9,10 @@
     <button class="sub-tab active" onclick="switchSubTab('shp','all',this)">All Shipments</button>
     <button class="sub-tab" onclick="switchSubTab('shp','unshipped',this);loadUnshipped()">Unshipped Orders</button>
     <button class="sub-tab" onclick="switchSubTab('shp','stuck',this);loadStuck()">Stuck In Transit</button>
+    <button class="sub-tab" onclick="switchSubTab('shp','escalated',this);loadEscalatedShipments()">
+      <i class="fa fa-exclamation-triangle" style="margin-right:0.3rem; color:#ef4444;"></i> Escalated
+      <span id="escalated-count-badge" style="background:#ef4444; color:white; border-radius:9999px; font-size:0.65rem; padding:0.1rem 0.4rem; margin-left:0.3rem; display:none;"></span>
+    </button>
   </div>
 
   <!-- All Shipments -->
@@ -44,6 +48,13 @@
           <tbody id="shp-unshipped-body"></tbody>
         </table>
       </div>
+    </div>
+  </div>
+
+  <!-- Escalated Shipments -->
+  <div class="sub-panel" id="shp-escalated" style="display:none">
+    <div id="escalated-list">
+      <p class="text-muted small">Loading escalated shipments...</p>
     </div>
   </div>
 
@@ -242,4 +253,139 @@
       toast('Error: ' + err.message, 'error');
     }
   }
+
+  async function loadEscalatedShipments() {
+    try {
+      const data = await adminApi('GET', '/proxy/shipping/admin/escalated?limit=50');
+      const shipments = Array.isArray(data) ? data : (data.shipments || []);
+
+      const badge = document.getElementById('escalated-count-badge');
+      if (badge) {
+        badge.textContent = shipments.length;
+        badge.style.display = shipments.length > 0 ? 'inline' : 'none';
+      }
+
+      const list = document.getElementById('escalated-list');
+      if (!shipments.length) {
+        list.innerHTML = '<p class="text-muted small">No escalated shipments.</p>';
+        return;
+      }
+
+      const tierColor = { 1: '#f59e0b', 2: '#ef4444', 3: '#7f1d1d' };
+      list.innerHTML = shipments.map(s => {
+        const color = tierColor[s.escalationTier] || '#ef4444';
+        const deadline = s.sellerResponseDeadline
+          ? new Date(s.sellerResponseDeadline).toLocaleDateString()
+          : '—';
+        const proofHtml = s.deliveryProof?.url
+          ? `<img src="${s.deliveryProof.url}" style="width:80px;height:60px;object-fit:cover;border-radius:4px;border:1px solid var(--border-light);cursor:pointer;" onclick="window.open('${s.deliveryProof.url}','_blank')" title="View proof">`
+          : '<span class="text-muted small">No proof</span>';
+        return `
+          <div style="border:2px solid ${color}44; border-radius:8px; padding:1rem; margin-bottom:0.75rem; background:${color}08;">
+            <div style="display:flex; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
+              <div style="flex:1; min-width:200px;">
+                <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem;">
+                  <span style="background:${color}; color:white; border-radius:4px; font-size:0.7rem; font-weight:700; padding:0.15rem 0.5rem;">Tier ${s.escalationTier}</span>
+                  <span class="text-muted small">${s.status.replace(/_/g,' ')}</span>
+                </div>
+                <div style="font-size:0.85rem; font-weight:600;">Shipment <span style="font-family:monospace;">${s._id?.toString().slice(-8)}</span></div>
+                <div style="font-size:0.78rem; color:var(--text-muted);">Order: ${s.orderId?.toString().slice(-8)}</div>
+                <div style="font-size:0.78rem; color:var(--text-muted);">Deadline: ${deadline}</div>
+                ${s.sellerNotes ? `<div style="font-size:0.78rem; margin-top:0.3rem; font-style:italic;">"${s.sellerNotes}"</div>` : ''}
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0.4rem;">
+                ${proofHtml}
+                <div style="display:flex; gap:0.4rem; flex-wrap:wrap; justify-content:flex-end;">
+                  <button class="btn btn-xs btn-danger" onclick="openDisputeModal('${s._id}')">
+                    <i class="fa fa-gavel"></i> Resolve
+                  </button>
+                  <button class="btn btn-xs btn-warn" onclick="forceShipmentStatus('${s._id}')">
+                    <i class="fa fa-bolt"></i> Force Status
+                  </button>
+                </div>
+                <a href="/orders/${s.orderId}" class="btn btn-xs btn-ghost" style="text-decoration:none;">View Order →</a>
+              </div>
+            </div>
+            ${s.timeline?.length ? `
+            <details style="margin-top:0.6rem;">
+              <summary style="font-size:0.78rem; cursor:pointer; color:var(--text-muted);">Timeline (${s.timeline.length} entries)</summary>
+              <div style="margin-top:0.4rem; max-height:120px; overflow-y:auto; font-size:0.75rem; border-top:1px solid var(--border-light); padding-top:0.4rem;">
+                ${s.timeline.map(t => `<div style="margin-bottom:0.2rem;"><span style="color:var(--text-muted);">${new Date(t.timestamp).toLocaleDateString()}</span> — <strong>${t.status}</strong>${t.note ? ': ' + t.note : ''}</div>`).join('')}
+              </div>
+            </details>` : ''}
+          </div>
+        `;
+      }).join('');
+    } catch (err) {
+      document.getElementById('escalated-list').innerHTML = `<p class="text-muted small">Error loading escalated shipments: ${err.message}</p>`;
+    }
+  }
+
+  function openDisputeModal(shipmentId) {
+    document.getElementById('dispute-shipment-id').value = shipmentId;
+    document.querySelectorAll('input[name="dispute-decision"]').forEach(r => r.checked = false);
+    document.getElementById('dispute-admin-note').value = '';
+    document.getElementById('dispute-refund').value = '';
+    document.getElementById('refund-amount-row').style.display = 'none';
+    document.getElementById('dispute-modal-error').innerHTML = '';
+    document.getElementById('dispute-modal-overlay').style.display = 'flex';
+    document.querySelectorAll('input[name="dispute-decision"]').forEach(r => {
+      r.addEventListener('change', () => {
+        document.getElementById('refund-amount-row').style.display = r.value === 'split' ? 'block' : 'none';
+      });
+    });
+  }
+
+  function closeDisputeModal() {
+    document.getElementById('dispute-modal-overlay').style.display = 'none';
+  }
+
+  async function submitDisputeResolution() {
+    const shipmentId = document.getElementById('dispute-shipment-id').value;
+    const decision   = document.querySelector('input[name="dispute-decision"]:checked')?.value;
+    const adminNote  = document.getElementById('dispute-admin-note').value.trim();
+    const refundAmt  = document.getElementById('dispute-refund').value;
+    const errEl      = document.getElementById('dispute-modal-error');
+    if (!decision) { errEl.innerHTML = '<p class="text-muted small" style="color:#ef4444;">Select a decision.</p>'; return; }
+    if (!adminNote) { errEl.innerHTML = '<p class="text-muted small" style="color:#ef4444;">Admin note is required.</p>'; return; }
+    try {
+      const body = { decision, adminNote };
+      if (decision === 'split' && refundAmt) body.refundAmount = parseFloat(refundAmt);
+      const data = await adminApi('POST', `/proxy/shipping/admin/${shipmentId}/resolve-dispute`, body);
+      closeDisputeModal();
+      toast('Dispute resolved successfully.', 'success');
+      loadEscalatedShipments();
+    } catch (err) {
+      errEl.innerHTML = `<p class="text-muted small" style="color:#ef4444;">Error: ${err.message}</p>`;
+    }
+  }
 </script>
+
+<!-- Dispute Resolution Modal -->
+<div id="dispute-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:var(--bg-main); border-radius:12px; padding:1.5rem; width:min(480px, 95vw); max-height:90vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,0.25);">
+    <h4 style="margin:0 0 1rem;">Resolve Dispute</h4>
+    <input type="hidden" id="dispute-shipment-id">
+    <div class="form-group" style="margin-bottom:1rem;">
+      <label style="font-weight:600; margin-bottom:0.5rem; display:block;">Decision</label>
+      <div style="display:flex; flex-direction:column; gap:0.4rem;">
+        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;"><input type="radio" name="dispute-decision" value="buyer_correct"> Buyer Correct — refund buyer</label>
+        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;"><input type="radio" name="dispute-decision" value="seller_correct"> Seller Correct — release to seller</label>
+        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;"><input type="radio" name="dispute-decision" value="split"> Split — partial refund</label>
+      </div>
+    </div>
+    <div class="form-group" id="refund-amount-row" style="display:none; margin-bottom:1rem;">
+      <label style="font-weight:600;">Refund Amount ($)</label>
+      <input type="number" id="dispute-refund" placeholder="0.00" min="0" step="0.01">
+    </div>
+    <div class="form-group" style="margin-bottom:1rem;">
+      <label style="font-weight:600;">Admin Note (required)</label>
+      <textarea id="dispute-admin-note" rows="3" placeholder="Describe the resolution rationale..."></textarea>
+    </div>
+    <div id="dispute-modal-error"></div>
+    <div style="display:flex; gap:0.6rem; justify-content:flex-end; margin-top:1rem;">
+      <button class="btn btn-ghost" onclick="closeDisputeModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="submitDisputeResolution()">Submit Resolution</button>
+    </div>
+  </div>
+</div>

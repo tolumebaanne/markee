@@ -135,21 +135,10 @@
                         <span class="step-badge">2</span> Shipping Address
                     </div>
 
-                    <div class="form-group" id="fulfillment-type-section">
+                    <div class="form-group">
                         <label>Fulfillment Method</label>
-                        <div style="display:flex; gap:0.75rem; flex-wrap:nowrap; margin-top:0.5rem;">
-                            <label class="radio-option" style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; padding:0.5rem 0.75rem; border:1px solid var(--border-light); border-radius:8px; font-weight:500; font-size:0.85rem; white-space:nowrap; flex:1;">
-                                <input type="radio" name="fulfillmentType" value="shipping" checked>
-                                <i class="fa fa-truck"></i> Courier
-                            </label>
-                            <label class="radio-option" style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; padding:0.5rem 0.75rem; border:1px solid var(--border-light); border-radius:8px; font-weight:500; font-size:0.85rem; white-space:nowrap; flex:1;">
-                                <input type="radio" name="fulfillmentType" value="pickup">
-                                <i class="fa fa-map-marker-alt"></i> Local Pickup
-                            </label>
-                            <label class="radio-option" style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; padding:0.5rem 0.75rem; border:1px solid var(--border-light); border-radius:8px; font-weight:500; font-size:0.85rem; white-space:nowrap; flex:1;">
-                                <input type="radio" name="fulfillmentType" value="self_fulfilled">
-                                <i class="fa fa-download"></i> Self Fulfil
-                            </label>
+                        <div id="fulfillment-type-section" style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:0.5rem;">
+                            <!-- populated by renderFulfillmentOptions() -->
                         </div>
                     </div>
 
@@ -193,10 +182,26 @@
                     </p>
 
                     </div><!-- end #shipping-address-section -->
+
+                    <!-- Pickup location card (shown when pickup selected) -->
+                    <div id="pickup-location-card" style="display:none; margin-top:0.75rem;">
+                        <div style="border:1.5px solid var(--border-light); border-radius:8px; padding:0.85rem 1rem; background:var(--bg-secondary);">
+                            <p style="font-weight:600; font-size:0.9rem; margin:0 0 0.35rem;"><i class="fa fa-map-marker-alt" style="color:var(--accent-red); margin-right:0.4rem;"></i> Pickup Location</p>
+                            <p id="pickup-address-text" style="font-size:0.85rem; margin:0 0 0.2rem;"></p>
+                            <p id="pickup-hours-text" style="font-size:0.8rem; color:var(--text-muted); margin:0 0 0.2rem;"></p>
+                            <p id="pickup-instructions-text" style="font-size:0.8rem; color:var(--text-muted); margin:0;"></p>
+                        </div>
+                    </div>
+                    <!-- Self-fulfil note (shown when self_fulfilled selected) -->
+                    <div id="self-fulfill-note" style="display:none; margin-top:0.75rem;">
+                        <div style="border:1.5px solid #bfdbfe; border-radius:8px; padding:0.85rem 1rem; background:#eff6ff;">
+                            <p style="font-size:0.85rem; color:#1e40af; margin:0;"><i class="fa fa-info-circle" style="margin-right:0.4rem;"></i> The seller will coordinate fulfillment directly with you — this covers digital delivery, in-person services, and seller-arranged shipping.</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Step 3: Delivery Speed -->
-                <div class="card p-4 mb-3">
+                <div class="card p-4 mb-3" id="delivery-step-card">
                     <div class="section-heading">
                         <span class="step-badge">3</span> Delivery Speed
                     </div>
@@ -347,6 +352,8 @@ function getUser() {
 let checkoutItems = [];
 let savedAddresses = [];   // from User Service
 let selectedDelivery = 'standard';
+let sellerStoreData = [];  // store data for all sellers in cart
+let availableFulfillmentOptions = ['shipping'];  // computed from intersection
 
 // ── Saved addresses ───────────────────────────────────────────────────
 async function loadSavedAddresses() {
@@ -402,6 +409,94 @@ function clearAddressChips(type, clearFields = true) {
             if (el) el.value = f === 'country' ? 'Canada' : '';
         });
     }
+}
+
+// ── Fulfillment options ───────────────────────────────────────────────
+async function loadFulfillmentOptions() {
+    const sellerIds = [...new Set(checkoutItems.map(i => i.sellerId).filter(Boolean))];
+    if (!sellerIds.length) return;
+    const results = await Promise.allSettled(
+        sellerIds.map(id => fetch(`/api/public-seller/${id}`).then(r => r.ok ? r.json() : null))
+    );
+    sellerStoreData = results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean);
+
+    // Intersect fulfillmentOptions across all sellers
+    const allOptions = sellerStoreData.map(s => (s.fulfillmentOptions && s.fulfillmentOptions.length) ? s.fulfillmentOptions : ['shipping']);
+    availableFulfillmentOptions = allOptions.length
+        ? allOptions.reduce((a, b) => a.filter(x => b.includes(x)))
+        : ['shipping'];
+    if (!availableFulfillmentOptions.length) availableFulfillmentOptions = ['shipping'];
+
+    renderFulfillmentOptions();
+}
+
+function renderFulfillmentOptions() {
+    const section = document.getElementById('fulfillment-type-section');
+    if (!section) return;
+    const labels = {
+        shipping:       { label: 'Courier Delivery',   icon: 'fa-truck',          detail: 'Shipped to your address' },
+        pickup:         { label: 'Local Pickup',        icon: 'fa-map-marker-alt', detail: 'Pick up from seller location' },
+        self_fulfilled: { label: 'Seller Fulfillment', icon: 'fa-box-open',       detail: 'Digital delivery or in-person — seller will coordinate' }
+    };
+    section.innerHTML = availableFulfillmentOptions.map((opt, idx) => {
+        const cfg = labels[opt] || { label: opt, icon: 'fa-box', detail: '' };
+        return `<label class="radio-option" style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;padding:0.5rem 0.75rem;border:1px solid var(--border-light);border-radius:8px;font-weight:500;font-size:0.85rem;flex:1;">
+            <input type="radio" name="fulfillmentType" value="${opt}" ${idx === 0 ? 'checked' : ''} onchange="onFulfillmentChange()">
+            <i class="fa ${cfg.icon}"></i>
+            <span>${cfg.label}<span style="display:block;font-size:0.75rem;font-weight:400;color:var(--text-muted);">${cfg.detail}</span></span>
+        </label>`;
+    }).join('');
+    onFulfillmentChange();
+}
+
+function onFulfillmentChange() {
+    const ft = document.querySelector('input[name="fulfillmentType"]:checked')?.value || 'shipping';
+
+    const addrSection  = document.getElementById('shipping-address-section');
+    const pickupCard   = document.getElementById('pickup-location-card');
+    const selfNote     = document.getElementById('self-fulfill-note');
+    const deliveryCard = document.getElementById('delivery-step-card');
+
+    if (ft === 'shipping') {
+        if (addrSection) addrSection.style.display = 'block';
+        if (pickupCard)  pickupCard.style.display  = 'none';
+        if (selfNote)    selfNote.style.display    = 'none';
+        if (deliveryCard) deliveryCard.style.display = 'block';
+    } else if (ft === 'pickup') {
+        if (addrSection) addrSection.style.display = 'none';
+        if (pickupCard)  pickupCard.style.display  = 'block';
+        if (selfNote)    selfNote.style.display    = 'none';
+        if (deliveryCard) deliveryCard.style.display = 'none';
+        renderPickupLocation();
+        selectedDelivery = 'standard';
+        updateTotals();
+    } else if (ft === 'self_fulfilled') {
+        if (addrSection) addrSection.style.display = 'none';
+        if (pickupCard)  pickupCard.style.display  = 'none';
+        if (selfNote)    selfNote.style.display    = 'block';
+        if (deliveryCard) deliveryCard.style.display = 'none';
+        selectedDelivery = 'standard';
+        updateTotals();
+    }
+}
+
+function renderPickupLocation() {
+    const store = sellerStoreData[0]; // single seller in most cases
+    const locations = (store?.pickupLocations || []).filter(l => l.active !== false);
+    const addrEl    = document.getElementById('pickup-address-text');
+    const hoursEl   = document.getElementById('pickup-hours-text');
+    const instrEl   = document.getElementById('pickup-instructions-text');
+    if (!locations.length) {
+        if (addrEl) addrEl.textContent = 'Pickup address will be provided by the seller.';
+        if (hoursEl) hoursEl.textContent = '';
+        if (instrEl) instrEl.textContent = '';
+        return;
+    }
+    const loc = locations[0];
+    const addr = [loc.address, loc.city, loc.province, loc.postalCode, loc.country].filter(Boolean).join(', ');
+    if (addrEl) addrEl.textContent = addr;
+    if (hoursEl) hoursEl.textContent = loc.hours ? `Hours: ${loc.hours}` : '';
+    if (instrEl) instrEl.textContent = loc.instructions || '';
 }
 
 // ── Shipping address toggle ───────────────────────────────────────────
@@ -481,6 +576,7 @@ function loadCheckoutItems() {
                 }];
                 renderSummary();
                 updateFastDeliveryLabel();
+                loadFulfillmentOptions();
             })
             .catch(() => showToast('Failed to load product details.', 'error'));
     } else {
@@ -499,6 +595,7 @@ function loadCheckoutItems() {
         }
         renderSummary();
         updateFastDeliveryLabel();
+        loadFulfillmentOptions();
     }
 }
 
@@ -567,8 +664,9 @@ function validate() {
         else el.classList.remove('error-field');
     });
 
+    const ft = document.querySelector('input[name="fulfillmentType"]:checked')?.value || 'shipping';
     const sameAsBilling = document.getElementById('same-as-billing').checked;
-    if (!sameAsBilling) {
+    if (ft === 'shipping' && !sameAsBilling) {
         const shippingFields = ['ship-street','ship-city','ship-zip','ship-country'];
         shippingFields.forEach(id => {
             const el = document.getElementById(id);
@@ -702,14 +800,6 @@ window.addEventListener('DOMContentLoaded', () => {
     loadCheckoutItems();
     loadSavedAddresses();
 
-    // Fulfillment type toggle — hide/show shipping address section
-    document.querySelectorAll('input[name="fulfillmentType"]').forEach(radio => {
-        radio.addEventListener('change', (e) => {
-            const needsAddress = e.target.value === 'shipping';
-            const addrSection = document.getElementById('shipping-address-section');
-            if (addrSection) addrSection.style.display = needsAddress ? 'block' : 'none';
-        });
-    });
 });
 </script>
 

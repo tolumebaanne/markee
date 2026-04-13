@@ -49,6 +49,12 @@ const ProductSchema = new mongoose.Schema({
     avgRating:       { type: Number, default: 0 },
     // Fast delivery fee in cents — set by the seller. 0 = not offered.
     fastDeliveryFee: { type: Number, default: 0, min: 0 },
+    // Per-product fulfillment override. Empty array = inherit from seller store settings.
+    fulfillmentOptions: {
+        type:    [String],
+        enum:    ['shipping', 'pickup', 'self_fulfilled'],
+        default: []
+    },
     smartMetrics: {
         viewCount:       { type: Number, default: 0 },
         activeCartCount: { type: Number, default: 0 },

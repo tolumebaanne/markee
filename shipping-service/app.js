@@ -43,16 +43,16 @@ const CARRIER_TRACKING_URLS = {
 
 function getStatusArray(fulfillmentType) {
     switch (fulfillmentType) {
-        case 'self_fulfill': return SELF_FULFILL_STATUSES;
+        case 'self_fulfilled': return SELF_FULFILL_STATUSES;
         case 'pickup':       return PICKUP_STATUSES;
         default:             return CARRIER_STATUSES;
     }
 }
 
 const EST_DELIVERY_BOUNDS = {
-    carrier:      { minDays: 1, maxDays: 14 },
-    self_fulfill: { minDays: 0, maxDays: 7 },
-    pickup:       { minDays: 0, maxDays: 7 }
+    shipping:      { minDays: 1, maxDays: 14 },
+    self_fulfilled: { minDays: 0, maxDays: 7 },
+    pickup:         { minDays: 0, maxDays: 7 }
 };
 
 // ── Schemas (S1) ─────────────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ const ShipmentSchema = new mongoose.Schema({
     buyerId:           { type: mongoose.Schema.Types.ObjectId },
     carrier:           String,
     trackingNumber:    String,
-    fulfillmentType:   { type: String, enum: ['carrier', 'self_fulfill', 'pickup'], default: 'carrier' },
+    fulfillmentType:   { type: String, enum: ['shipping', 'self_fulfilled', 'pickup'], default: 'shipping' },
     status:            { type: String, enum: ALL_STATUSES, default: 'created' },
     timeline:          { type: [TimelineEntrySchema], default: [] },
     items:             { type: [ShipmentItemSchema],  default: [] },
@@ -152,13 +152,13 @@ app.post('/', async (req, res) => {
         return errorResponse(res, 403, 'storeId claim mismatch');
     }
     try {
-        const fulfillmentType = req.body.fulfillmentType || 'carrier';
-        if (!['carrier', 'self_fulfill', 'pickup'].includes(fulfillmentType)) {
-            return errorResponse(res, 400, 'Invalid fulfillmentType. Must be carrier, self_fulfill, or pickup');
+        const fulfillmentType = req.body.fulfillmentType || 'shipping';
+        if (!['shipping', 'self_fulfilled', 'pickup'].includes(fulfillmentType)) {
+            return errorResponse(res, 400, 'Invalid fulfillmentType. Must be shipping, self_fulfilled, or pickup');
         }
 
         // Validate per mode
-        if (fulfillmentType === 'carrier' && !req.body.trackingNumber) {
+        if (fulfillmentType === 'shipping' && !req.body.trackingNumber) {
             return errorResponse(res, 400, 'trackingNumber is required for carrier fulfillment');
         }
         if (fulfillmentType === 'pickup' && !req.body.estimatedDelivery) {
@@ -178,11 +178,11 @@ app.post('/', async (req, res) => {
         const timelineEntries = [{ status: 'created', timestamp: new Date() }];
 
         // Auto-advance carrier shipments to in_transit on creation
-        if (fulfillmentType === 'carrier' && req.body.trackingNumber) {
+        if (fulfillmentType === 'shipping' && req.body.trackingNumber) {
             timelineEntries.push({ status: 'in_transit', timestamp: new Date() });
         }
 
-        const initialStatus = fulfillmentType === 'carrier' && req.body.trackingNumber
+        const initialStatus = fulfillmentType === 'shipping' && req.body.trackingNumber
             ? 'in_transit'
             : 'created';
 
@@ -508,8 +508,8 @@ app.patch('/:id/status', async (req, res) => {
             return errorResponse(res, 400, `Cannot go backwards from '${shipment.status}' to '${status}'`);
         }
 
-        // Proof guard: self_fulfill and pickup require proof before final status
-        const finalStatuses = { self_fulfill: 'delivered', pickup: 'picked_up' };
+        // Proof guard: self_fulfilled and pickup require proof before final status
+        const finalStatuses = { self_fulfilled: 'delivered', pickup: 'picked_up' };
         const requiresProof = finalStatuses[shipment.fulfillmentType];
         if (requiresProof && status === requiresProof && !shipment.deliveryProof?.url) {
             return errorResponse(res, 400, `Delivery proof is required before marking as '${status}'. Upload proof first via POST /upload-proof`);
@@ -713,7 +713,7 @@ setInterval(async () => {
 
         // Auto-confirm carrier shipments delivered >48h ago with no buyer confirmation
         const carrierAutoConfirm = await Shipment.find({
-            fulfillmentType: 'carrier',
+            fulfillmentType: 'shipping',
             status: 'delivered',
             deliveredAt: { $lt: cutoff },
             buyerConfirmedAt: null
@@ -733,9 +733,9 @@ setInterval(async () => {
             console.log(`[SHIPPING] Auto-confirmed carrier shipment ${shipment._id}`);
         }
 
-        // Nudge self_fulfill/pickup buyers who haven't confirmed after 48h
+        // Nudge self_fulfilled/pickup buyers who haven't confirmed after 48h
         const needsNudge = await Shipment.find({
-            fulfillmentType: { $in: ['self_fulfill', 'pickup'] },
+            fulfillmentType: { $in: ['self_fulfilled', 'pickup'] },
             status: { $in: ['delivered', 'picked_up'] },
             deliveredAt: { $lt: cutoff },
             buyerConfirmedAt: null
@@ -974,6 +974,46 @@ app.post('/admin/:id/note', async (req, res) => {
         );
         if (!shipment) return errorResponse(res, 404, 'Shipment not found');
         res.json({ shipmentId: shipment._id, adminNotes: shipment.adminNotes });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// POST /admin/:id/resolve-dispute — Admin resolves escalated dispute (Phase 5)
+app.post('/admin/:id/resolve-dispute', async (req, res) => {
+    if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    const { decision, adminNote, refundAmount } = req.body;
+    if (!['buyer_correct', 'seller_correct', 'split'].includes(decision)) {
+        return errorResponse(res, 400, 'decision must be buyer_correct, seller_correct, or split');
+    }
+    if (!adminNote || typeof adminNote !== 'string' || !adminNote.trim()) {
+        return errorResponse(res, 400, 'adminNote is required');
+    }
+    try {
+        const shipment = await Shipment.findById(req.params.id);
+        if (!shipment) return errorResponse(res, 404, 'Shipment not found');
+
+        const timestamp = new Date();
+        shipment.timeline.push({
+            status: shipment.status,
+            note: `Admin resolution (${decision}): ${adminNote.trim()}`,
+            timestamp
+        });
+        shipment.escalationTier = 0;
+        shipment.sellerResponseDeadline = null;
+        shipment.updatedAt = timestamp;
+        await shipment.save();
+
+        bus.emit('shipment.dispute_resolved', {
+            orderId:      shipment.orderId,
+            sellerId:     shipment.sellerId,
+            buyerId:      shipment.buyerId    || null,
+            shipmentId:   shipment._id,
+            decision,
+            adminNote:    adminNote.trim(),
+            refundAmount: refundAmount        || null
+        });
+
+        console.log(`[SHIPPING] Admin resolved dispute on shipment ${shipment._id} — decision: ${decision}`);
+        res.json({ resolved: true, shipmentId: shipment._id, decision });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 

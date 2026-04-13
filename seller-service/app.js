@@ -102,6 +102,18 @@ const StoreSchema = new mongoose.Schema({
         default: ['shipping']
     },
 
+    pickupLocations: [{
+        label:        { type: String, required: true },
+        address:      { type: String, required: true },
+        city:         { type: String, default: '' },
+        province:     { type: String, default: '' },
+        postalCode:   { type: String, default: '' },
+        country:      { type: String, default: 'Canada' },
+        hours:        { type: String, default: '' },
+        instructions: { type: String, default: '' },
+        active:       { type: Boolean, default: true }
+    }],
+
     // S4/R-S4 — Verification badge
     verified:    { type: Boolean, default: false },
 
@@ -506,6 +518,7 @@ app.get('/by-seller/:id', async (req, res) => {
             fulfillmentOptions: store.fulfillmentOptions || ['shipping'],  // R-S3
             minCodBuyerScore:   store.minCodBuyerScore  || 0,             // R-S3
             publicStats:        store.publicStats || {},                    // C-S4
+            pickupLocations:    store.pickupLocations   || [],
             // S29 — expose vacation info to buyers
             vacationMode: store.vacationMode?.active
                 ? { active: true, message: store.vacationMode.message || '', resumesAt: store.vacationMode.resumesAt }
