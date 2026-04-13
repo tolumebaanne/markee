@@ -624,7 +624,7 @@
 
     async function loadNotifications() {
         try {
-            const res = await fetch(`/api/notifications/${user.sub}`, {
+            const res = await fetch('/api/notifications/my', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!res.ok) throw new Error();
@@ -637,31 +637,41 @@
             }
 
             list.innerHTML = notifications.map(n => {
-                const isPriceDrop = n.type === 'PRICE_DROP_ALERT';
-                const dateStr = new Date(n.sentAt || new Date()).toLocaleDateString();
-                const icon = isPriceDrop ? '<i class="fa fa-arrow-down" style="color:#15803d; background:#f0fdf4; padding:0.4rem; border-radius:50%;"></i>' 
-                                         : '<i class="fa fa-info" style="color:#1d4ed8; background:#eff6ff; padding:0.4rem 0.6rem; border-radius:50%;"></i>';
-                
-                let linkTarget = '#';
-                if (isPriceDrop && n.eventData && n.eventData.productId) {
-                    linkTarget = `/product/${n.eventData.productId}?ref=notification_price_drop`;
-                }
+                const dateStr = new Date(n.sentAt || new Date()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                const iconClass = n.icon || (n.type === 'PRICE_DROP_ALERT' ? 'fa-arrow-down' : 'fa-bell');
+                const linkTarget = n.link || '#';
+                const unreadStyle = n.read ? '' : 'background:var(--bg-secondary);';
+                const fontWeight  = n.read ? '400' : '600';
 
                 return `
-                <a href="${linkTarget}" style="text-decoration:none; color:inherit; display:block; border-bottom:1px solid var(--border-light); padding:1rem 1.25rem; transition:background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-                    <div style="display:flex; gap:0.75rem; align-items:flex-start;">
-                        ${icon}
-                        <div>
-                            <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.2rem;">${n.subject || 'Alert'}</div>
-                            <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.4;">${ (n.body || '').replace(/\n/g, '<br>') }</div>
-                            <div style="font-size:0.7rem; color:#9ca3af; margin-top:0.4rem;">${dateStr}</div>
-                        </div>
+                <div data-notif-id="${n._id}" style="display:flex; gap:0.75rem; align-items:flex-start; border-bottom:1px solid var(--border-light); padding:1rem 1.25rem; ${unreadStyle}transition:background 0.2s;">
+                    <i class="fa ${iconClass}" style="color:var(--accent-red); margin-top:3px; font-size:0.85rem; flex-shrink:0; cursor:${linkTarget !== '#' ? 'pointer' : 'default'};" onclick="${linkTarget !== '#' ? `window.location='${linkTarget}'` : ''}"></i>
+                    <div style="flex:1; min-width:0; cursor:${linkTarget !== '#' ? 'pointer' : 'default'};" onclick="${linkTarget !== '#' ? `window.location='${linkTarget}'` : ''}">
+                        <div style="font-weight:${fontWeight}; font-size:0.85rem; margin-bottom:0.2rem;">${n.subject || 'Alert'}</div>
+                        <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.4;">${(n.body || '').replace(/\n/g, '<br>')}</div>
+                        <div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.4rem;">${dateStr}</div>
                     </div>
-                </a>`;
+                    <button type="button" onclick="dismissProfileNotification('${n._id}', this)" title="Dismiss" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;padding:0;flex-shrink:0;opacity:0.5;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">&times;</button>
+                </div>`;
             }).join('');
         } catch (e) {
             document.getElementById('notifications-list').innerHTML = '<p class="text-muted" style="padding:1.25rem; font-size:0.875rem;">Could not load alerts.</p>';
         }
+    }
+
+    function dismissProfileNotification(id, btn) {
+        if (!token || !id) return;
+        fetch('/api/notifications/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (!data?.ok) return;
+                const row = document.querySelector('[data-notif-id="' + id + '"]');
+                if (row) row.remove();
+                const list = document.getElementById('notifications-list');
+                if (list && !list.querySelector('[data-notif-id]')) {
+                    list.innerHTML = '<p class="text-muted" style="padding:1.25rem; font-size:0.875rem;">No recent alerts.</p>';
+                }
+            }).catch(() => {});
     }
 
     async function loadStoreSettings() {

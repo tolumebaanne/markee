@@ -18,7 +18,7 @@
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
 
-        const icons = { success: 'fa-check-circle', error: 'fa-times-circle', info: 'fa-info-circle' };
+        const icons = { success: 'fa-check-circle', error: 'fa-times-circle', info: 'fa-info-circle', warning: 'fa-exclamation-triangle' };
         toast.innerHTML = `
             <i class="fa ${icons[type] || 'fa-info-circle'}"></i>
             <span>${message}</span>

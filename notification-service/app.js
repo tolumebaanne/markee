@@ -31,8 +31,11 @@ const NotificationSchema = new mongoose.Schema({
     read:       { type: Boolean, default: false },
     link:       String,   // e.g. /orders/:id
     icon:       String,   // e.g. fa-box, fa-tag, fa-comments
-    priority:   { type: String, enum: ['low', 'medium', 'high', 'critical'], default: 'medium' }
+    priority:   { type: String, enum: ['low', 'medium', 'high', 'critical'], default: 'medium' },
+    status:     { type: String, enum: ['sent', 'pending', 'failed'], default: 'sent' }
 });
+// TTL index: automatically remove notifications after 30 days
+NotificationSchema.index({ sentAt: 1 }, { expireAfterSeconds: 2592000 });
 const Notification = db.model('Notification', NotificationSchema);
 
 // ── Mailer setup ─────────────────────────────────────────────────────────────
@@ -203,6 +206,13 @@ bus.on('shipment.delivered', async (payload) => {
             payload,
             { userId: payload.buyerId, link: `/orders/${payload.orderId}`, icon: 'fa-check-circle' }
         );
+        // Cascade: mark prior shipment-in-progress notifications as read for this buyer+order
+        if (payload.buyerId && payload.orderId) {
+            Notification.updateMany(
+                { userId: new mongoose.Types.ObjectId(payload.buyerId.toString()), type: { $in: ['SHIPMENT_CREATED', 'SHIPMENT_OUT_FOR_DELIVERY'] }, read: false, 'eventData.orderId': payload.orderId },
+                { $set: { read: true } }
+            ).catch(() => {});
+        }
     }
     if (await isNotifAllowed('DELIVERED_SELLER', payload.sellerId)) {
         const sellerEmail = payload.sellerEmail || `seller-${payload.sellerId}@markee.local`;
@@ -214,6 +224,13 @@ bus.on('shipment.delivered', async (payload) => {
             payload,
             { userId: payload.sellerId, link: `/orders/${payload.orderId}`, icon: 'fa-money-bill-wave' }
         );
+        // Cascade: mark prior order-received / accepted notifications as read for this seller+order
+        if (payload.sellerId && payload.orderId) {
+            Notification.updateMany(
+                { userId: new mongoose.Types.ObjectId(payload.sellerId.toString()), type: { $in: ['PAYMENT_CAPTURED', 'ORDER_ACCEPTED', 'SHIPMENT_OVERDUE'] }, read: false, 'eventData.orderId': payload.orderId },
+                { $set: { read: true } }
+            ).catch(() => {});
+        }
     }
 });
 
@@ -284,8 +301,35 @@ bus.on('order.status_updated', async (payload) => {
                 buyerEmail,
                 `Your Order #${shortId} Has Been Cancelled`,
                 `Unfortunately, your order #${shortId} has been cancelled.\n\nIf you were charged, a refund will be processed automatically.\n\nLog in to view the details: /orders/${orderId}`,
-                payload
+                payload,
+                { userId: buyerId, link: `/orders/${orderId}`, icon: 'fa-times-circle', priority: 'high' }
             );
+        }
+        // Cascade: mark prior open notifications for this buyer as read
+        if (buyerId && orderId) {
+            Notification.updateMany(
+                { userId: new mongoose.Types.ObjectId(buyerId.toString()), type: { $in: ['ORDER_PLACED', 'ORDER_ACCEPTED', 'SHIPMENT_CREATED', 'SHIPMENT_OUT_FOR_DELIVERY'] }, read: false, 'eventData.orderId': orderId },
+                { $set: { read: true } }
+            ).catch(() => {});
+        }
+        // Seller: notify for each seller in the order
+        const cancelledSellerIds = Array.isArray(payload.sellerIds) ? payload.sellerIds : (payload.sellerId ? [payload.sellerId] : []);
+        for (const sid of cancelledSellerIds) {
+            await sendNotification(
+                'ORDER_CANCELLED_SELLER',
+                `seller-${sid}@markee.local`,
+                `Order #${shortId} Has Been Cancelled`,
+                `Order #${shortId} has been cancelled by the buyer or admin. No further action is required.`,
+                payload,
+                { userId: sid, link: `/orders/${orderId}`, icon: 'fa-times-circle', priority: 'medium' }
+            );
+            // Cascade: mark seller's prior order notifications as read
+            if (sid && orderId) {
+                Notification.updateMany(
+                    { userId: new mongoose.Types.ObjectId(sid.toString()), type: { $in: ['PAYMENT_CAPTURED', 'ORDER_ACCEPTED', 'SHIPMENT_OVERDUE'] }, read: false, 'eventData.orderId': orderId },
+                    { $set: { read: true } }
+                ).catch(() => {});
+            }
         }
     }
 
@@ -298,7 +342,8 @@ bus.on('order.status_updated', async (payload) => {
                 buyerEmail,
                 `Order #${shortId} Accepted — Preparing to Ship`,
                 `Good news! The seller has accepted your order #${shortId} and is preparing it for shipment.\n\nYou will receive another notification when it ships.`,
-                payload
+                payload,
+                { userId: buyerId, link: `/orders/${orderId}`, icon: 'fa-check', priority: 'medium' }
             );
         }
     }
@@ -310,11 +355,12 @@ bus.on('shipment.out_for_delivery', async (payload) => {
     if (!payload.buyerId) return;
     const buyerEmail = `buyer-${payload.buyerId}@markee.local`;
     await sendNotification(
-        'SHIPMENT_CREATED',
+        'SHIPMENT_OUT_FOR_DELIVERY',
         buyerEmail,
         `Your Package Is Out for Delivery Today`,
         `Your package is out for delivery today! ${payload.trackingNumber ? `Tracking: ${payload.trackingNumber}${payload.carrier ? ` via ${payload.carrier}` : ''}.` : ''} Keep an eye out.`,
-        payload
+        payload,
+        { userId: payload.buyerId, link: `/orders/${payload.orderId}`, icon: 'fa-truck', priority: 'high' }
     );
 });
 
@@ -323,11 +369,12 @@ bus.on('shipment.overdue', async (payload) => {
     if (!payload.sellerId) return;
     const sellerEmail = `seller-${payload.sellerId}@markee.local`;
     await sendNotification(
-        'STOCK_LOW',  // reuse seller operational flag
+        'SHIPMENT_OVERDUE',
         sellerEmail,
         `Reminder: Unshipped Order Awaiting Action`,
         `Your shipment for order ${payload.orderId?.toString().slice(-8).toUpperCase() || payload.orderId} has been in 'created' state for over 48 hours. Buyers are waiting — please update the shipment status or contact the buyer. /dashboard`,
-        payload
+        payload,
+        { userId: payload.sellerId, link: `/orders/${payload.orderId}`, icon: 'fa-clock', priority: 'high' }
     );
 });
 
@@ -341,8 +388,16 @@ bus.on('shipment.buyer_confirmed', async (payload) => {
             `buyer-${buyerId}@markee.local`,
             `Delivery Confirmed — Order #${shortId}`,
             `You have confirmed receipt of order #${shortId}. You can now leave a review. /orders/${orderId}`,
-            payload
+            payload,
+            { userId: buyerId, link: `/orders/${orderId}`, icon: 'fa-check-circle', priority: 'medium' }
         );
+        // Cascade: mark prior shipment notifications as read for this buyer
+        if (orderId) {
+            Notification.updateMany(
+                { userId: new mongoose.Types.ObjectId(buyerId.toString()), type: { $in: ['SHIPMENT_CREATED', 'SHIPMENT_OUT_FOR_DELIVERY', 'ORDER_ACCEPTED'] }, read: false, 'eventData.orderId': orderId },
+                { $set: { read: true } }
+            ).catch(() => {});
+        }
     }
     if (sellerId) {
         await sendNotification(
@@ -350,8 +405,16 @@ bus.on('shipment.buyer_confirmed', async (payload) => {
             `seller-${sellerId}@markee.local`,
             `Buyer Confirmed Receipt — Order #${shortId}`,
             `The buyer has confirmed receipt of order #${shortId}. Your payout has been released from escrow.`,
-            payload
+            payload,
+            { userId: sellerId, link: `/orders/${orderId}`, icon: 'fa-money-bill-wave', priority: 'medium' }
         );
+        // Cascade: mark prior payout-pending notifications as read for this seller
+        if (orderId) {
+            Notification.updateMany(
+                { userId: new mongoose.Types.ObjectId(sellerId.toString()), type: { $in: ['PAYMENT_CAPTURED', 'ORDER_ACCEPTED', 'SHIPMENT_OVERDUE'] }, read: false, 'eventData.orderId': orderId },
+                { $set: { read: true } }
+            ).catch(() => {});
+        }
     }
 });
 
@@ -378,8 +441,15 @@ bus.on('order.picked_up', async (payload) => {
             `buyer-${buyerId}@markee.local`,
             `Pickup Confirmed — Order #${shortId}`,
             `Your pickup for order #${shortId} has been confirmed. Enjoy your purchase! You can now leave a review. /orders/${orderId}`,
-            payload
+            payload,
+            { userId: buyerId, link: `/orders/${orderId}`, icon: 'fa-check-circle', priority: 'medium' }
         );
+        if (orderId) {
+            Notification.updateMany(
+                { userId: new mongoose.Types.ObjectId(buyerId.toString()), type: { $in: ['ORDER_PLACED', 'ORDER_ACCEPTED', 'SHIPMENT_CREATED'] }, read: false, 'eventData.orderId': orderId },
+                { $set: { read: true } }
+            ).catch(() => {});
+        }
     }
     if (sellerId) {
         await sendNotification(
@@ -387,8 +457,15 @@ bus.on('order.picked_up', async (payload) => {
             `seller-${sellerId}@markee.local`,
             `Pickup Confirmed — Order #${shortId}`,
             `Order #${shortId} has been picked up. Your payout has been released from escrow.`,
-            payload
+            payload,
+            { userId: sellerId, link: `/orders/${orderId}`, icon: 'fa-money-bill-wave', priority: 'medium' }
         );
+        if (orderId) {
+            Notification.updateMany(
+                { userId: new mongoose.Types.ObjectId(sellerId.toString()), type: { $in: ['PAYMENT_CAPTURED', 'ORDER_ACCEPTED'] }, read: false, 'eventData.orderId': orderId },
+                { $set: { read: true } }
+            ).catch(() => {});
+        }
     }
 });
 
@@ -402,8 +479,15 @@ bus.on('order.self_fulfilled', async (payload) => {
             `buyer-${buyerId}@markee.local`,
             `Order #${shortId} Fulfilled`,
             `The seller has marked your order #${shortId} as fulfilled. You can now leave a review. /orders/${orderId}`,
-            payload
+            payload,
+            { userId: buyerId, link: `/orders/${orderId}`, icon: 'fa-check-circle', priority: 'medium' }
         );
+        if (orderId) {
+            Notification.updateMany(
+                { userId: new mongoose.Types.ObjectId(buyerId.toString()), type: { $in: ['ORDER_PLACED', 'ORDER_ACCEPTED', 'SHIPMENT_CREATED'] }, read: false, 'eventData.orderId': orderId },
+                { $set: { read: true } }
+            ).catch(() => {});
+        }
     }
     if (sellerId) {
         await sendNotification(
@@ -411,8 +495,15 @@ bus.on('order.self_fulfilled', async (payload) => {
             `seller-${sellerId}@markee.local`,
             `Order #${shortId} Marked as Fulfilled`,
             `Order #${shortId} has been marked fulfilled. Your payout has been released from escrow.`,
-            payload
+            payload,
+            { userId: sellerId, link: `/orders/${orderId}`, icon: 'fa-money-bill-wave', priority: 'medium' }
         );
+        if (orderId) {
+            Notification.updateMany(
+                { userId: new mongoose.Types.ObjectId(sellerId.toString()), type: { $in: ['PAYMENT_CAPTURED', 'ORDER_ACCEPTED'] }, read: false, 'eventData.orderId': orderId },
+                { $set: { read: true } }
+            ).catch(() => {});
+        }
     }
 });
 
@@ -711,6 +802,13 @@ bus.on('payment.auto_released', async (payload) => {
             payload,
             { userId: sellerId, link: `/orders/${orderId}`, icon: 'fa-money-bill-wave', priority: 'medium' }
         );
+        // Cascade: mark prior payout-pending notifications as read for this seller+order
+        if (sellerId && orderId) {
+            Notification.updateMany(
+                { userId: new mongoose.Types.ObjectId(sellerId.toString()), type: { $in: ['PAYMENT_CAPTURED', 'ORDER_ACCEPTED'] }, read: false, 'eventData.orderId': orderId },
+                { $set: { read: true } }
+            ).catch(() => {});
+        }
     }
 });
 
@@ -720,7 +818,7 @@ bus.on('payment.disputed', async (payload) => {
     const shortId = orderId?.toString().slice(-8).toUpperCase() || '';
     if (buyerId) {
         await sendNotification(
-            'ORDER_ACCEPTED',
+            'PAYMENT_DISPUTED',
             `buyer-${buyerId}@markee.local`,
             `Dispute Filed — Order #${shortId}`,
             `Your dispute for order #${shortId} has been received. An admin will review and respond. Payment is currently on hold.`,
@@ -737,7 +835,7 @@ bus.on('payment.disputed', async (payload) => {
                 const sid = payout.sellerId?.toString();
                 if (!sid) continue;
                 await sendNotification(
-                    'STOCK_LOW',
+                    'PAYMENT_DISPUTED',
                     `seller-${sid}@markee.local`,
                     `Payment Dispute Filed — Order #${shortId}`,
                     `A buyer has filed a payment dispute for order #${shortId}. Payment is on hold pending admin review. We'll notify you of the resolution.`,
@@ -813,6 +911,13 @@ bus.on('payment.released', async (payload) => {
             payload,
             { userId: sellerId, link: `/orders/${orderId}`, icon: 'fa-unlock', priority: 'high' }
         );
+        // Cascade: mark prior payout-pending notifications as read for this seller+order
+        if (sellerId && orderId) {
+            Notification.updateMany(
+                { userId: new mongoose.Types.ObjectId(sellerId.toString()), type: { $in: ['PAYMENT_CAPTURED', 'ORDER_ACCEPTED'] }, read: false, 'eventData.orderId': orderId },
+                { $set: { read: true } }
+            ).catch(() => {});
+        }
     }
 });
 
@@ -831,11 +936,12 @@ bus.on('payment.cod_expired', async (payload) => {
     }
     for (const sellerId of (sellerIds || [])) {
         await sendNotification(
-            'STOCK_LOW',
+            'ORDER_CANCELLED_SELLER',
             `seller-${sellerId}@markee.local`,
             `COD Order #${shortId} Expired`,
             `COD order #${shortId} was not marked as collected within 7 days and has been automatically cancelled.`,
-            payload
+            payload,
+            { userId: sellerId, link: `/orders/${orderId}`, icon: 'fa-clock', priority: 'medium' }
         );
     }
 });
@@ -964,14 +1070,15 @@ bus.on('store.verified', async (payload) => {
 // S32/S29 — Seller: vacation mode activated confirmation
 bus.on('store.vacation_started', async (payload) => {
     try {
+        if (!payload.sellerId) return;
         const resume = payload.resumesAt ? ` Scheduled return: ${new Date(payload.resumesAt).toLocaleDateString()}.` : '';
         await sendNotification(
             'STORE_VACATION_STARTED',
-            `seller-@markee.local`,
+            `seller-${payload.sellerId}@markee.local`,
             'Vacation mode is now active',
             `Your store "${payload.storeName || 'your store'}" is now in vacation mode. New orders are blocked until you return.${resume}`,
             payload,
-            { link: `/dashboard`, icon: 'fa-plane', priority: 'medium' }
+            { userId: payload.sellerId, link: `/dashboard`, icon: 'fa-plane', priority: 'medium' }
         );
     } catch (err) { console.error('[NOTIFY] store.vacation_started handler error:', err.message); }
 });
@@ -990,6 +1097,107 @@ bus.on('order.modified', async (payload) => {
             );
         }
     } catch (err) { console.error('[NOTIFY] order.modified handler error:', err.message); }
+});
+
+// ── Missing critical listeners ────────────────────────────────────────────────
+
+// seller.reviewed → seller: someone left a rating/review on their store/product
+bus.on('seller.reviewed', async (payload) => {
+    try {
+        if (!payload.sellerId) return;
+        await sendNotification(
+            'SELLER_REVIEW_RECEIVED',
+            `seller-${payload.sellerId}@markee.local`,
+            `New ${payload.rating ? payload.rating + '★ ' : ''}Review on Your Store`,
+            `A buyer left you a ${payload.rating ? payload.rating + '-star ' : ''}review.${payload.comment ? ` "${payload.comment.slice(0, 80)}${payload.comment.length > 80 ? '…' : ''}"` : ''} Log in to read it and reply.\n\nView: /dashboard`,
+            payload,
+            { userId: payload.sellerId, link: `/dashboard`, icon: 'fa-star', priority: 'medium' }
+        );
+    } catch (err) { console.error('[NOTIFY] seller.reviewed handler error:', err.message); }
+});
+
+// order.cancelled (standalone event) → seller: buyer or admin explicitly cancelled their order
+bus.on('order.cancelled', async (payload) => {
+    try {
+        const { orderId, buyerId, sellerIds, sellerId, reason } = payload;
+        const shortId = orderId?.toString().slice(-8).toUpperCase() || '';
+        // Buyer notification
+        if (buyerId) {
+            await sendNotification(
+                'ORDER_CANCELLED_BUYER',
+                `buyer-${buyerId}@markee.local`,
+                `Order #${shortId} Has Been Cancelled`,
+                `Your order #${shortId} has been cancelled.${reason ? ` Reason: ${reason}` : ''} If you were charged, a refund will be processed automatically.`,
+                payload,
+                { userId: buyerId, link: `/orders/${orderId}`, icon: 'fa-times-circle', priority: 'high' }
+            );
+            // Cascade
+            Notification.updateMany(
+                { userId: new mongoose.Types.ObjectId(buyerId.toString()), type: { $in: ['ORDER_PLACED', 'ORDER_ACCEPTED', 'SHIPMENT_CREATED'] }, read: false, 'eventData.orderId': orderId },
+                { $set: { read: true } }
+            ).catch(() => {});
+        }
+        // Seller notification(s)
+        const sids = Array.isArray(sellerIds) ? sellerIds : (sellerId ? [sellerId] : []);
+        for (const sid of sids) {
+            await sendNotification(
+                'ORDER_CANCELLED_SELLER',
+                `seller-${sid}@markee.local`,
+                `Order #${shortId} Has Been Cancelled`,
+                `Order #${shortId} has been cancelled. No further action is required.${reason ? ` Reason: ${reason}` : ''}`,
+                payload,
+                { userId: sid, link: `/orders/${orderId}`, icon: 'fa-times-circle', priority: 'medium' }
+            );
+            Notification.updateMany(
+                { userId: new mongoose.Types.ObjectId(sid.toString()), type: { $in: ['PAYMENT_CAPTURED', 'ORDER_ACCEPTED'] }, read: false, 'eventData.orderId': orderId },
+                { $set: { read: true } }
+            ).catch(() => {});
+        }
+    } catch (err) { console.error('[NOTIFY] order.cancelled handler error:', err.message); }
+});
+
+// shipment.auto_cancelled → buyer + seller: shipment automatically voided (e.g. stale)
+bus.on('shipment.auto_cancelled', async (payload) => {
+    try {
+        const { orderId, buyerId, sellerId } = payload;
+        const shortId = orderId?.toString().slice(-8).toUpperCase() || '';
+        if (buyerId) {
+            await sendNotification(
+                'ORDER_CANCELLED_BUYER',
+                `buyer-${buyerId}@markee.local`,
+                `Shipment for Order #${shortId} Was Cancelled`,
+                `The shipment for your order #${shortId} was automatically cancelled. Please contact the seller or support for next steps.`,
+                payload,
+                { userId: buyerId, link: `/orders/${orderId}`, icon: 'fa-times-circle', priority: 'high' }
+            );
+        }
+        if (sellerId) {
+            await sendNotification(
+                'ORDER_CANCELLED_SELLER',
+                `seller-${sellerId}@markee.local`,
+                `Shipment Auto-Cancelled — Order #${shortId}`,
+                `The shipment for order #${shortId} was automatically cancelled due to inactivity. Please contact the buyer or create a new shipment.`,
+                payload,
+                { userId: sellerId, link: `/orders/${orderId}`, icon: 'fa-times-circle', priority: 'high' }
+            );
+        }
+    } catch (err) { console.error('[NOTIFY] shipment.auto_cancelled handler error:', err.message); }
+});
+
+// shipment.late → seller: shipment has passed expected delivery date
+bus.on('shipment.late', async (payload) => {
+    try {
+        if (!payload.sellerId) return;
+        const shortId = payload.orderId?.toString().slice(-8).toUpperCase() || '';
+        await sendNotification(
+            'SHIPMENT_LATE',
+            `seller-${payload.sellerId}@markee.local`,
+            `Shipment Overdue — Order #${shortId}`,
+            `The shipment for order #${shortId} has passed its expected delivery date. Consider contacting the buyer and updating the tracking information.`,
+            payload,
+            { userId: payload.sellerId, link: `/orders/${payload.orderId}`, icon: 'fa-exclamation-triangle', priority: 'high' }
+        );
+    } catch (err) { console.error('[NOTIFY] shipment.late handler error:', err.message); }
 });
 
 // Scrub PII from notification records on hard-delete — records are kept for audit, userId/recipient cleared
@@ -1080,7 +1288,7 @@ bus.on('store.suspended', async (payload) => {
     try {
         if (!payload.sellerId) return;
         await sendNotification(
-            'STORE_VERIFIED',
+            'STORE_SUSPENDED',
             `seller-${payload.sellerId}@markee.local`,
             `Your Store Has Been Suspended`,
             `Your store "${payload.storeName || 'your store'}" has been suspended.${payload.reason ? ` Reason: ${payload.reason}` : ''} Contact support if you believe this is an error.`,
@@ -1095,7 +1303,7 @@ bus.on('store.restored', async (payload) => {
     try {
         if (!payload.sellerId) return;
         await sendNotification(
-            'STORE_VERIFIED',
+            'STORE_RESTORED',
             `seller-${payload.sellerId}@markee.local`,
             `Your Store Has Been Restored`,
             `Your store "${payload.storeName || 'your store'}" has been restored and is now active.`,
@@ -1110,7 +1318,7 @@ bus.on('store.unverified', async (payload) => {
     try {
         if (!payload.sellerId) return;
         await sendNotification(
-            'STORE_VERIFIED',
+            'STORE_UNVERIFIED',
             `seller-${payload.sellerId}@markee.local`,
             `Store Verification Revoked`,
             `Your store "${payload.storeName || 'your store'}" has had its verification status revoked. Contact support for more information.`,
@@ -1141,7 +1349,7 @@ bus.on('seller.tier_updated', async (payload) => {
         const sellerId = payload.sellerId;
         if (!sellerId) return;
         await sendNotification(
-            'PAYMENT_CAPTURED',
+            'SELLER_TIER_UPDATED',
             `seller-${sellerId}@markee.local`,
             `Your Seller Tier Has Changed`,
             `Your seller tier has been updated to ${payload.tier || 'a new tier'}. Log in to your dashboard to see your updated benefits and limits.`,
@@ -1157,7 +1365,7 @@ bus.on('seller.deactivated', async (payload) => {
         const sellerId = payload.sellerId;
         if (!sellerId) return;
         await sendNotification(
-            'STORE_VERIFIED',
+            'SELLER_DEACTIVATED',
             `seller-${sellerId}@markee.local`,
             `Seller Account Deactivated`,
             `Your seller account has been deactivated. Your products are no longer visible to buyers. Contact support for assistance.`,
@@ -1173,7 +1381,7 @@ bus.on('seller.reactivated', async (payload) => {
         const sellerId = payload.sellerId;
         if (!sellerId) return;
         await sendNotification(
-            'STORE_VERIFIED',
+            'SELLER_REACTIVATED',
             `seller-${sellerId}@markee.local`,
             `Seller Account Reactivated`,
             `Your seller account has been reactivated. Your products are visible to buyers again.`,
@@ -1191,7 +1399,7 @@ bus.on('user.pending_deletion', async (payload) => {
         const userId = payload.userId;
         if (!userId) return;
         await sendNotification(
-            'ORDER_PLACED',
+            'ACCOUNT_DELETION_SCHEDULED',
             `user-${userId}@markee.local`,
             `Account Deletion Scheduled`,
             `Your Markee account is scheduled for permanent deletion in 24 hours. If you did not request this, log in immediately to cancel.`,
@@ -1207,7 +1415,7 @@ bus.on('user.deletion_cancelled', async (payload) => {
         const userId = payload.userId;
         if (!userId) return;
         await sendNotification(
-            'ORDER_PLACED',
+            'ACCOUNT_DELETION_CANCELLED',
             `user-${userId}@markee.local`,
             `Account Deletion Cancelled`,
             `Your account deletion request has been cancelled. Your Markee account is safe.`,
@@ -1222,7 +1430,7 @@ bus.on('user.self_deleted', async (payload) => {
     try {
         if (!payload.email) return;
         await sendNotification(
-            'ORDER_PLACED',
+            'ACCOUNT_DELETED',
             payload.email,
             `Your Markee Account Has Been Deleted`,
             `Your Markee account has been permanently deleted as requested. If you change your mind, you can create a new account at any time.`,
@@ -1238,7 +1446,7 @@ bus.on('user.suspended', async (payload) => {
         const userId = payload.userId;
         if (!userId) return;
         await sendNotification(
-            'ORDER_PLACED',
+            'ACCOUNT_SUSPENDED',
             `user-${userId}@markee.local`,
             `Account Suspended`,
             `Your Markee account has been suspended.${payload.reason ? ` Reason: ${payload.reason}` : ''} Contact support if you believe this is an error.`,
@@ -1254,7 +1462,7 @@ bus.on('user.banned', async (payload) => {
         const userId = payload.userId;
         if (!userId) return;
         await sendNotification(
-            'ORDER_PLACED',
+            'ACCOUNT_BANNED',
             `user-${userId}@markee.local`,
             `Account Banned`,
             `Your Markee account has been banned.${payload.reason ? ` Reason: ${payload.reason}` : ''} Contact support to appeal.`,
@@ -1270,7 +1478,7 @@ bus.on('user.unbanned', async (payload) => {
         const userId = payload.userId;
         if (!userId) return;
         await sendNotification(
-            'ORDER_PLACED',
+            'ACCOUNT_REINSTATED',
             `user-${userId}@markee.local`,
             `Account Reinstated`,
             `Your Markee account has been reinstated. Welcome back — you can now log in and use Markee as normal.`,
@@ -1345,6 +1553,19 @@ app.patch('/:id/read', async (req, res) => {
             { _id: req.params.id, userId: req.user.sub },
             { $set: { read: true } }
         );
+        res.json({ ok: true });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// DELETE /:id — user dismisses (hard-deletes) a single notification they own
+app.delete('/:id', async (req, res) => {
+    if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
+    try {
+        const result = await Notification.deleteOne({
+            _id: req.params.id,
+            userId: new mongoose.Types.ObjectId(req.user.sub)
+        });
+        if (result.deletedCount === 0) return errorResponse(res, 404, 'Notification not found or not yours');
         res.json({ ok: true });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
