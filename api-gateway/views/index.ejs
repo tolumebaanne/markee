@@ -159,7 +159,7 @@
         <button class="modal-close-btn" onclick="closeSignInModal()" title="Close">&times;</button>
         <div style="text-align:center; margin-bottom:1.5rem;">
             <span class="brand" style="font-size:1.5rem;">Markee</span>
-            <p style="color:var(--text-muted); margin-top:0.5rem; font-size:0.9rem;">Sign in to continue</p>
+            <p id="signin-modal-subtitle" style="color:var(--text-muted); margin-top:0.5rem; font-size:0.9rem;">Sign in to continue</p>
         </div>
         <form id="signin-form" onsubmit="submitSignIn(event)">
             <div class="form-group mb-3">
@@ -324,7 +324,7 @@ function markAllRead() {
 
 function navigateSell() {
     const t = localStorage.getItem('access_token');
-    if (!t) { openSignInModal(() => { window.location.href = '/dashboard'; }); return; }
+    if (!t) { openSignInModal(() => { window.location.href = '/dashboard'; }, 'Sign in to start selling'); return; }
     window.location.href = '/dashboard';
 }
 
@@ -338,8 +338,10 @@ function handleLogout() {
 // ===== Sign In Modal =====
 let _pendingAction = null;
 
-function openSignInModal(pendingAction) {
+function openSignInModal(pendingAction, subtitle) {
     _pendingAction = pendingAction || null;
+    const sub = document.getElementById('signin-modal-subtitle');
+    if (sub) sub.textContent = subtitle || 'Sign in to continue';
     document.getElementById('signin-modal').classList.add('modal-open');
     setTimeout(() => document.getElementById('modal-email').focus(), 200);
 }
@@ -350,6 +352,9 @@ function closeSignInModal() {
     const btn = document.getElementById('modal-submit-btn');
     btn.disabled = false;
     btn.textContent = 'Sign In';
+    const sub = document.getElementById('signin-modal-subtitle');
+    if (sub) sub.textContent = 'Sign in to continue';
+    _pendingAction = null;
 }
 
 function handleModalOutsideClick(e) {
@@ -384,7 +389,7 @@ async function submitSignIn(e) {
         localStorage.setItem('refresh_token', data.refresh_token);
         if (window.MarkeeCart) MarkeeCart.migrateGuestCart();
         closeSignInModal();
-        updateAuthState();
+        try { updateAuthState(); } catch (_) {}
         showToast(`Welcome back!`, 'success');
         if (_pendingAction) _pendingAction();
     } catch (err) {
