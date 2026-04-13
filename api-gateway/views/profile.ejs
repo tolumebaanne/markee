@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="/js/toast.js"></script>
+    <script src="/js/confirm.js"></script>
     <script src="/js/cart.js"></script>
     <style>
         .profile-grid {
@@ -290,7 +291,8 @@
                             <input type="text" id="addr-country" value="Canada">
                         </div>
                     </div>
-                    <div style="display:flex; gap:0.75rem; margin-top:1rem;">
+                    <div id="address-error-container"></div>
+                    <div style="display:flex; gap:0.75rem; margin-top:0.5rem;">
                         <button class="btn" style="background:var(--accent-red); width:auto; padding:0.45rem 1rem; font-size:0.82rem;"
                                 onclick="saveAddress()">
                             <i class="fa fa-save" style="margin-right:0.35rem;"></i> Save Address
@@ -446,11 +448,14 @@
                         No store found. Register your store first.
                     </div>
                 </div>
-                <div style="border-top:1px solid var(--border-light); padding:1rem 1.25rem; display:none; justify-content:flex-end; gap:0.75rem;" id="store-actions">
-                    <button class="btn btn-outline" style="width:auto;" onclick="resetStoreForm()">Reset</button>
-                    <button class="btn" style="background:var(--accent-red); width:auto;" id="store-save-btn" onclick="saveStore()">
-                        <i class="fa fa-save" style="margin-right:0.4rem;"></i> Save Changes
-                    </button>
+                <div style="border-top:1px solid var(--border-light); padding:1rem 1.25rem; display:none; flex-direction:column; gap:0.5rem;" id="store-actions">
+                    <div id="store-save-error-container"></div>
+                    <div style="display:flex; justify-content:flex-end; gap:0.75rem;">
+                        <button class="btn btn-outline" style="width:auto;" onclick="resetStoreForm()">Reset</button>
+                        <button class="btn" style="background:var(--accent-red); width:auto;" id="store-save-btn" onclick="saveStore()">
+                            <i class="fa fa-save" style="margin-right:0.4rem;"></i> Save Changes
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -474,8 +479,11 @@
                         <input type="password" id="confirm-password" placeholder="Repeat new password" autocomplete="new-password">
                     </div>
                 </div>
-                <div style="border-top:1px solid var(--border-light); padding:1rem 1.25rem; display:flex; justify-content:flex-end;">
-                    <button class="btn btn-outline" onclick="changePassword()">Change Password</button>
+                <div style="border-top:1px solid var(--border-light); padding:1rem 1.25rem;">
+                    <div id="password-error-container"></div>
+                    <div style="display:flex; justify-content:flex-end; margin-top:0.5rem;">
+                        <button class="btn btn-outline" onclick="changePassword()">Change Password</button>
+                    </div>
                 </div>
             </div>
 
@@ -514,9 +522,10 @@
                     </p>
                     <div class="store-form-group" style="margin-bottom:1rem;">
                         <label>Confirm your email</label>
-                        <input type="email" id="delete-confirm-email" placeholder="<%= '' %>your@email.com">
+                        <input type="email" id="delete-confirm-email" placeholder="<%= '' %>your@email.com" oninput="clearInlineError('delete-account-error-container')">
                     </div>
-                    <button class="btn btn-outline" style="width:auto; border-color:#fecaca; color:#b91c1c;" id="delete-account-btn" onclick="deleteAccount()">
+                    <div id="delete-account-error-container"></div>
+                    <button class="btn btn-outline" style="width:auto; border-color:#fecaca; color:#b91c1c; margin-top:0.5rem;" id="delete-account-btn" onclick="deleteAccount()">
                         <i class="fa fa-trash-alt" style="margin-right:0.5rem;"></i> Delete My Account
                     </button>
                 </div>
@@ -766,6 +775,7 @@
     }
 
     async function saveStore() {
+        clearInlineError('store-save-error-container');
         const btn = document.getElementById('store-save-btn');
         btn.disabled = true;
         btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.4rem;"></i> Saving...';
@@ -806,7 +816,7 @@
             _originalStore = data;
             showToast('Store settings saved!', 'success');
         } catch (err) {
-            showToast('Error: ' + err.message, 'error');
+            showInlineError('store-save-error-container', 'Error: ' + err.message);
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<i class="fa fa-save" style="margin-right:0.4rem;"></i> Save Changes';
@@ -815,13 +825,14 @@
 
     // ── Change password ───────────────────────────────────────────────────────
     async function changePassword() {
+        clearInlineError('password-error-container');
         const oldPw  = document.getElementById('old-password')?.value || '';
         const newPw  = document.getElementById('new-password')?.value || '';
         const confPw = document.getElementById('confirm-password')?.value || '';
 
-        if (!oldPw || !newPw) { if (typeof showToast === 'function') showToast('All password fields are required', 'error'); return; }
-        if (newPw !== confPw)  { if (typeof showToast === 'function') showToast('New passwords do not match', 'error'); return; }
-        if (newPw.length < 8)  { if (typeof showToast === 'function') showToast('Password must be at least 8 characters', 'error'); return; }
+        if (!oldPw || !newPw) { showInlineError('password-error-container', 'All password fields are required'); return; }
+        if (newPw !== confPw)  { showInlineError('password-error-container', 'New passwords do not match'); return; }
+        if (newPw.length < 8)  { showInlineError('password-error-container', 'Password must be at least 8 characters'); return; }
 
         try {
             const r = await fetch('/api/auth/password', {
@@ -838,17 +849,18 @@
                     window.location.replace('/login');
                 }, 1800);
             } else {
-                if (typeof showToast === 'function') showToast(data.message || 'Password change failed', 'error');
+                showInlineError('password-error-container', data.message || 'Password change failed');
             }
-        } catch { if (typeof showToast === 'function') showToast('Request failed', 'error'); }
+        } catch { showInlineError('password-error-container', 'Request failed'); }
     }
 
     // ── Delete account (2FA: must type email) ────────────────────────────────
     async function deleteAccount() {
+        clearInlineError('delete-account-error-container');
         const typed = (document.getElementById('delete-confirm-email').value || '').trim().toLowerCase();
         const actual = (user.email || '').toLowerCase();
-        if (!typed) return showToast('Type your email address to confirm deletion.', 'error');
-        if (typed !== actual) return showToast('Email does not match. Please try again.', 'error');
+        if (!typed) { showInlineError('delete-account-error-container', 'Type your email address to confirm deletion.'); return; }
+        if (typed !== actual) { showInlineError('delete-account-error-container', 'Email does not match. Please try again.'); return; }
 
         const btn = document.getElementById('delete-account-btn');
         btn.disabled = true;
@@ -871,7 +883,7 @@
                 throw new Error(data.error || 'Unknown error');
             }
         } catch (err) {
-            showToast('Error: ' + err.message, 'error');
+            showInlineError('delete-account-error-container', 'Error: ' + err.message);
             btn.disabled = false;
             btn.innerHTML = '<i class="fa fa-trash-alt" style="margin-right:0.5rem;"></i> Delete My Account';
         }
@@ -1111,6 +1123,7 @@
     }
 
     async function saveAddress() {
+        clearInlineError('address-error-container');
         const editingId = document.getElementById('addr-editing-id').value.trim();
         const payload = {
             label:      document.getElementById('addr-label').value,
@@ -1122,7 +1135,8 @@
             country:    document.getElementById('addr-country').value.trim()
         };
         if (!payload.street || !payload.city || !payload.country) {
-            return showToast('Street, city and country are required.', 'error');
+            showInlineError('address-error-container', 'Street, city and country are required.');
+            return;
         }
         const url    = editingId ? `/api/users/me/addresses/${editingId}` : '/api/users/me/addresses';
         const method = editingId ? 'PUT' : 'POST';
@@ -1138,22 +1152,23 @@
             renderAddresses(updated);
             cancelAddressForm();
             showToast(editingId ? 'Address updated.' : 'Address added.', 'success');
-        } catch (e) { showToast(e.message || 'Could not save address.', 'error'); }
+        } catch (e) { showInlineError('address-error-container', e.message || 'Could not save address.'); }
     }
 
     async function deleteAddress(id) {
-        if (!confirm('Remove this address?')) return;
-        try {
-            const res = await fetch(`/api/users/me/addresses/${id}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (!res.ok) throw new Error();
-            const updated = await res.json();
-            _allAddresses = updated;
-            renderAddresses(updated);
-            showToast('Address removed.', 'success');
-        } catch { showToast('Could not delete address.', 'error'); }
+        showConfirm('Remove this address?', async () => {
+            try {
+                const res = await fetch(`/api/users/me/addresses/${id}`, {
+                    method: 'DELETE',
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error();
+                const updated = await res.json();
+                _allAddresses = updated;
+                renderAddresses(updated);
+                showToast('Address removed.', 'success');
+            } catch { showToast('Could not delete address.', 'error'); }
+        }, null, { confirmText: 'Remove', type: 'danger' });
     }
 
     // ── Reviewer score + own reviews (B.5) ───────────────────────────────────

@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="/js/toast.js"></script>
+    <script src="/js/confirm.js"></script>
     <script src="/js/cart.js"></script>
     <style>
         .notif-header {
@@ -624,30 +625,30 @@
 
     // ── Clear all notifications ───────────────────────────────────────────────
     async function clearAll() {
-        if (!confirm('Clear all notifications? This cannot be undone.')) return;
+        showConfirm('Clear all notifications? This cannot be undone.', async () => {
+            const btn = document.getElementById('clear-all-btn');
+            btn.disabled = true;
 
-        const btn = document.getElementById('clear-all-btn');
-        btn.disabled = true;
+            try {
+                const res = await fetch('/api/notifications/my', {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            } catch (err) {
+                showToast('Failed to clear notifications', 'error');
+                btn.disabled = false;
+                return;
+            }
 
-        try {
-            const res = await fetch('/api/notifications/my', {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        } catch (err) {
-            showToast('Failed to clear notifications', 'error');
+            allNotifications = [];
+            hasMore = false;
+            renderList();
+            updateLoadMore();
+
+            showToast('All notifications cleared', 'success');
             btn.disabled = false;
-            return;
-        }
-
-        allNotifications = [];
-        hasMore = false;
-        renderList();
-        updateLoadMore();
-
-        showToast('All notifications cleared', 'success');
-        btn.disabled = false;
+        }, null, { confirmText: 'Clear All', type: 'danger' });
     }
 
     // ── Boot ──────────────────────────────────────────────────────────────────

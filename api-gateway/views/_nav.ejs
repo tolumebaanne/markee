@@ -254,6 +254,26 @@ function handleLogout() {
     window.location.href = '/login';
 }
 
+// ── Inline error helpers (shared across all pages via _nav.ejs) ──────────────
+window.showInlineError = function(containerId, message) {
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    var err = el.querySelector('.inline-error-msg');
+    if (!err) {
+        err = document.createElement('div');
+        err.className = 'inline-error-msg';
+        el.appendChild(err);
+    }
+    err.textContent = message;
+    err.style.display = 'block';
+};
+window.clearInlineError = function(containerId) {
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    var err = el.querySelector('.inline-error-msg');
+    if (err) err.style.display = 'none';
+};
+
 // Shared monetary formatting (used across all pages)
 window.formatCurrency = function(amountCents, currency) {
     currency = currency || 'CAD';
@@ -292,6 +312,7 @@ function _handleSignInModalOutsideClick(e) {
 
 async function submitSignIn(e) {
     e.preventDefault();
+    clearInlineError('signin-error-container');
     var btn = document.getElementById('modal-submit-btn');
     var email = document.getElementById('modal-email').value;
     var password = document.getElementById('modal-password').value;
@@ -307,7 +328,7 @@ async function submitSignIn(e) {
         });
         var data = await res.json();
         if (!res.ok) {
-            if (typeof showToast === 'function') showToast(data.error || 'Invalid credentials', 'error');
+            showInlineError('signin-error-container', data.error || 'Invalid credentials');
             btn.disabled = false;
             btn.textContent = 'Sign In';
             return;
@@ -330,7 +351,7 @@ async function submitSignIn(e) {
         if (typeof showToast === 'function') showToast('Welcome back!', 'success');
         if (pendingAction) pendingAction();
     } catch (err) {
-        if (typeof showToast === 'function') showToast('Connection error. Please try again.', 'error');
+        showInlineError('signin-error-container', 'Connection error. Please try again.');
         btn.disabled = false;
         btn.textContent = 'Sign In';
     }
@@ -348,13 +369,14 @@ async function submitSignIn(e) {
         <form id="signin-form" onsubmit="submitSignIn(event)">
             <div class="form-group mb-3">
                 <label>Email address</label>
-                <input type="email" id="modal-email" placeholder="you@example.com" required autocomplete="email">
+                <input type="email" id="modal-email" placeholder="you@example.com" required autocomplete="email" oninput="clearInlineError('signin-error-container')">
             </div>
             <div class="form-group mb-4">
                 <label>Password</label>
-                <input type="password" id="modal-password" placeholder="••••••••" required autocomplete="current-password">
+                <input type="password" id="modal-password" placeholder="••••••••" required autocomplete="current-password" oninput="clearInlineError('signin-error-container')">
             </div>
-            <button type="submit" id="modal-submit-btn" class="btn w-100" style="background:var(--accent-red);">
+            <div id="signin-error-container"></div>
+            <button type="submit" id="modal-submit-btn" class="btn w-100" style="background:var(--accent-red); margin-top:0.75rem;">
                 Sign In
             </button>
         </form>

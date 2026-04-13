@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="/js/toast.js"></script>
+    <script src="/js/confirm.js"></script>
     <script src="/js/cart.js"></script>
     <style>
         /* ── Layout ──────────────────────────────────────────────────────────── */
@@ -1470,34 +1471,36 @@
 
     // ── Accept order (seller: pending → processing) ───────────────────────────
     async function acceptOrder() {
-        if (!confirm('Confirm this order? You are committing to fulfil it.')) return;
-        try {
-            const res = await fetch(`/api/orders/${ORDER_ID}/status`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ status: 'processing' })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
-            showToast('Order confirmed — now processing.', 'success');
-            setTimeout(() => window.location.reload(), 800);
-        } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        showConfirm('Confirm this order? You are committing to fulfil it.', async () => {
+            try {
+                const res = await fetch(`/api/orders/${ORDER_ID}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ status: 'processing' })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+                showToast('Order confirmed — now processing.', 'success');
+                setTimeout(() => window.location.reload(), 800);
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }, null, { confirmText: 'Confirm Order' });
     }
 
     // ── Mark delivered (seller: shipped → delivered, COD) ────────────────────
     async function deliverOrder() {
-        if (!confirm('Confirm the buyer received this order and payment was collected?')) return;
-        try {
-            const res = await fetch(`/api/orders/${ORDER_ID}/deliver`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({})
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
-            showToast('Order marked as delivered!', 'success');
-            setTimeout(() => window.location.reload(), 800);
-        } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        showConfirm('Confirm the buyer received this order and payment was collected?', async () => {
+            try {
+                const res = await fetch(`/api/orders/${ORDER_ID}/deliver`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({})
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+                showToast('Order marked as delivered!', 'success');
+                setTimeout(() => window.location.reload(), 800);
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }, null, { confirmText: 'Confirm Delivery' });
     }
 
     // ── Fulfillment type transitions — pickup / self_fulfilled (S23) ─────────────
@@ -1507,45 +1510,47 @@
             picked_up:        'confirm the buyer has collected this order',
             self_fulfilled:   'mark this order as fulfilled'
         };
-        if (!confirm(`Are you sure you want to ${labels[status] || status}? This cannot be undone.`)) return;
-        try {
-            const res = await fetch(`/api/orders/${ORDER_ID}/status`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ status })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-            showToast('Order updated successfully.', 'success');
-            setTimeout(() => window.location.reload(), 800);
-        } catch (err) {
-            showToast('Error: ' + err.message, 'error');
-        }
+        showConfirm(`Are you sure you want to ${labels[status] || status}? This cannot be undone.`, async () => {
+            try {
+                const res = await fetch(`/api/orders/${ORDER_ID}/status`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ status })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                showToast('Order updated successfully.', 'success');
+                setTimeout(() => window.location.reload(), 800);
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            }
+        }, null, { confirmText: 'Confirm' });
     }
 
     // ── Cancel order ──────────────────────────────────────────────────────────
     async function cancelOrder() {
         const reason = (document.getElementById('cancel-reason-input')?.value || '').trim();
-        if (!confirm('Cancel this order? This cannot be undone.')) return;
-        try {
-            const res = await fetch(`/api/orders/${ORDER_ID}/status`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ status: 'cancelled', cancellationReason: reason })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-            showToast('Order cancelled.', 'info');
-            setTimeout(() => window.location.reload(), 800);
-        } catch (err) {
-            showToast('Error: ' + err.message, 'error');
-        }
+        showConfirm('Cancel this order? This cannot be undone.', async () => {
+            try {
+                const res = await fetch(`/api/orders/${ORDER_ID}/status`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ status: 'cancelled', cancellationReason: reason })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                showToast('Order cancelled.', 'info');
+                setTimeout(() => window.location.reload(), 800);
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            }
+        }, null, { confirmText: 'Cancel Order', type: 'danger' });
     }
 
     // ── Review modal ──────────────────────────────────────────────────────────
@@ -1816,19 +1821,20 @@
     }
 
     async function fileDispute() {
-        if (!confirm('File a payment dispute for this order? Payment will be held until an admin reviews it.')) return;
-        try {
-            const res = await fetch(`/api/payments/dispute/${ORDER_ID}`, {
-                method:  'POST',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-            showToast('Dispute filed. Admin will review shortly.', 'success');
-            setTimeout(() => loadEscrowCard(_order), 500);
-        } catch (err) {
-            showToast('Error: ' + err.message, 'error');
-        }
+        showConfirm('File a payment dispute for this order? Payment will be held until an admin reviews it.', async () => {
+            try {
+                const res = await fetch(`/api/payments/dispute/${ORDER_ID}`, {
+                    method:  'POST',
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                showToast('Dispute filed. Admin will review shortly.', 'success');
+                setTimeout(() => loadEscrowCard(_order), 500);
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            }
+        }, null, { confirmText: 'File Dispute', type: 'danger' });
     }
 
     // ── Boot ─────────────────────────────────────────────────────────────────

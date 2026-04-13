@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="/js/toast.js"></script>
+    <script src="/js/confirm.js"></script>
     <script src="/js/cart.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <style>
@@ -541,18 +542,19 @@
 
     // ── Order action helpers ──────────────────────────────────────────────────
     async function acceptOrder(orderId) {
-        if (!confirm('Accept this order? You are committing to fulfil it.')) return;
-        try {
-            const res = await fetch(`/api/orders/${orderId}/status`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ status: 'processing' })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
-            showToast('Order accepted — now processing!', 'success');
-            loadSales();
-        } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        showConfirm('Accept this order? You are committing to fulfil it.', async () => {
+            try {
+                const res = await fetch(`/api/orders/${orderId}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ status: 'processing' })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+                showToast('Order accepted — now processing!', 'success');
+                loadSales();
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }, null, { confirmText: 'Accept Order' });
     }
 
     async function cancelOrder(orderId) {
@@ -572,18 +574,19 @@
     }
 
     async function buyerCancelOrder(orderId) {
-        if (!confirm('Cancel this order? This cannot be undone.')) return;
-        try {
-            const res = await fetch(`/api/orders/${orderId}/status`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ status: 'cancelled' })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
-            showToast('Order cancelled.', 'info');
-            loadPurchases();
-        } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        showConfirm('Cancel this order? This cannot be undone.', async () => {
+            try {
+                const res = await fetch(`/api/orders/${orderId}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ status: 'cancelled' })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+                showToast('Order cancelled.', 'info');
+                loadPurchases();
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }, null, { confirmText: 'Cancel Order', type: 'danger' });
     }
 
     // ── Load purchases (buyer view) ───────────────────────────────────────────

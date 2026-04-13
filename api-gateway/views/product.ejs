@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="/js/toast.js"></script>
+    <script src="/js/confirm.js"></script>
     <script src="/js/cart.js"></script>
     <script src="/js/telemetry.js" defer></script>
     <style>
@@ -947,17 +948,18 @@
 
     async function flagReview(reviewId, btn) {
         if (!token) { showToast('Sign in to report.', 'info'); return; }
-        if (!confirm('Report this review as inappropriate?')) return;
-        btn.disabled = true;
-        try {
-            const res = await fetch(`/api/reviews/${reviewId}/flag`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            const data = await res.json();
-            if (data.alreadyFlagged) { showToast('Already reported.', 'info'); btn.disabled = false; return; }
-            btn.textContent = 'Reported';
-        } catch { btn.disabled = false; }
+        showConfirm('Report this review as inappropriate?', async () => {
+            btn.disabled = true;
+            try {
+                const res = await fetch(`/api/reviews/${reviewId}/flag`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.alreadyFlagged) { showToast('Already reported.', 'info'); btn.disabled = false; return; }
+                btn.textContent = 'Reported';
+            } catch { btn.disabled = false; }
+        }, null, { confirmText: 'Report' });
     }
 
     function openReplyBox(reviewId, btn) {

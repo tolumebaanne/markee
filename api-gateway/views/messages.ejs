@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="/js/toast.js"></script>
+    <script src="/js/confirm.js"></script>
     <script src="/js/cart.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <style>
@@ -1205,15 +1206,16 @@ async function editMessage(msgId) {
 }
 
 async function deleteMessage(msgId) {
-    if (!confirm('Remove this message?')) return;
-    try {
-        var res = await apiFetch('/api/messages/' + msgId, { method: 'DELETE' });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        updateBubbleDeleted(msgId);
-    } catch (err) {
-        console.error('[MSG] deleteMessage failed:', err.message);
-        showToast('Delete failed.', 'error');
-    }
+    showConfirm('Remove this message?', async () => {
+        try {
+            var res = await apiFetch('/api/messages/' + msgId, { method: 'DELETE' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            updateBubbleDeleted(msgId);
+        } catch (err) {
+            console.error('[MSG] deleteMessage failed:', err.message);
+            showToast('Delete failed.', 'error');
+        }
+    }, null, { confirmText: 'Remove', type: 'danger' });
 }
 
 function updateBubbleEdited(msg) {

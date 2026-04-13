@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="/js/toast.js"></script>
+    <script src="/js/confirm.js"></script>
     <script src="/js/cart.js"></script>
     <style>
         /* ── Status badge ─────────────────────────────────────────────────── */
@@ -328,9 +329,15 @@
             <div class="notif-dropdown" id="notif-panel" style="display:none;">
                 <div class="notif-panel-header">
                     <span style="font-weight:700;">Notifications</span>
-                    <button onclick="markAllRead()" style="font-size:0.75rem; color:var(--accent-red); background:none; border:none; cursor:pointer;">Mark all read</button>
+                    <div style="display:flex; gap:0.5rem; align-items:center;">
+                        <button onclick="markAllRead()" style="font-size:0.75rem; color:var(--accent-red); background:none; border:none; cursor:pointer;">Mark all read</button>
+                        <button onclick="clearDashNotifs()" style="font-size:0.75rem; color:var(--text-muted); background:none; border:none; cursor:pointer;">Clear all</button>
+                    </div>
                 </div>
                 <div id="notif-list"><div class="notif-empty">Loading...</div></div>
+                <div class="notif-panel-footer" style="padding:0.5rem 1rem; border-top:1px solid var(--border-light); text-align:center;">
+                    <a href="/notifications" style="font-size:0.75rem; color:var(--accent-red); text-decoration:none;">See all notifications</a>
+                </div>
             </div>
         </div>
 
@@ -719,8 +726,9 @@
                         <div class="text-muted small" style="margin-bottom:1rem;">Turn your account into a seller storefront. No fees to start.</div>
                         <div class="form-group" style="text-align:left; margin-bottom:0.75rem;">
                             <label for="new-store-name" style="font-size:0.78rem; font-weight:600;">Store Name</label>
-                            <input type="text" id="new-store-name" placeholder="e.g. My Tech Shop" style="font-size:0.82rem;">
+                            <input type="text" id="new-store-name" placeholder="e.g. My Tech Shop" style="font-size:0.82rem;" oninput="clearInlineError('activate-store-error-container')">
                         </div>
+                        <div id="activate-store-error-container"></div>
                         <button class="btn" id="start-selling-btn" style="background:var(--accent-red); font-size:0.82rem;" onclick="activateStorefront()">
                             <i class="fa fa-store" style="margin-right:0.4rem;"></i> Activate Storefront
                         </button>
@@ -1107,7 +1115,8 @@
                 <textarea id="f-description" placeholder="Briefly describe what you're selling..." rows="3"></textarea>
             </div>
 
-            <button type="submit" id="submit-btn" class="btn w-100" style="background:var(--accent-red);">Post Listing</button>
+            <div id="listing-error-container"></div>
+            <button type="submit" id="submit-btn" class="btn w-100" style="background:var(--accent-red); margin-top:0.5rem;">Post Listing</button>
         </form>
     </div>
 </div>
@@ -2125,6 +2134,7 @@
                         <label for="delivery-${o._id}" style="font-size:0.78rem;">Est. Delivery</label>
                         <input type="date" id="delivery-${o._id}" min="${new Date().toISOString().split('T')[0]}">
                     </div>
+                    <div id="shipment-error-${o._id}"></div>
                     <button class="btn" style="background:var(--accent-red); width:auto; padding:0.5rem 1.1rem; font-size:0.8rem;"
                             onclick="submitShipment('${o._id}')">
                         <i class="fa fa-paper-plane" style="margin-right:0.4rem;"></i> Mark Shipped
@@ -2326,38 +2336,40 @@
 
     // ── Quick order actions from dashboard list ────────────────────────────────
     async function quickAcceptOrder(orderId) {
-        if (!confirm('Confirm this order? You are committing to fulfil it.')) return;
-        try {
-            const res = await fetch(`/api/orders/${orderId}/status`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ status: 'processing' })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
-            showToast('Order accepted — now processing!', 'success');
-            // Reload orders list
-            ordersLoaded = false;
-            loadSellerOrders();
-            ordersLoaded = true;
-        } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        showConfirm('Confirm this order? You are committing to fulfil it.', async () => {
+            try {
+                const res = await fetch(`/api/orders/${orderId}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ status: 'processing' })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+                showToast('Order accepted — now processing!', 'success');
+                // Reload orders list
+                ordersLoaded = false;
+                loadSellerOrders();
+                ordersLoaded = true;
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }, null, { confirmText: 'Confirm Order' });
     }
 
     async function buyerCancelOrder(orderId) {
-        if (!confirm('Cancel this order? This action cannot be undone.')) return;
-        try {
-            const res = await fetch(`/api/orders/${orderId}/status`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ status: 'cancelled' })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
-            showToast('Order cancelled.', 'info');
-            purchasesLoaded = false;
-            loadBuyerOrders();
-            purchasesLoaded = true;
-        } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        showConfirm('Cancel this order? This action cannot be undone.', async () => {
+            try {
+                const res = await fetch(`/api/orders/${orderId}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ status: 'cancelled' })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+                showToast('Order cancelled.', 'info');
+                purchasesLoaded = false;
+                loadBuyerOrders();
+                purchasesLoaded = true;
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }, null, { confirmText: 'Cancel Order', type: 'danger' });
     }
 
     async function quickCancelOrder(orderId) {
@@ -2379,12 +2391,13 @@
     }
 
     async function submitShipment(orderId) {
+        clearInlineError(`shipment-error-${orderId}`);
         const carrier  = document.getElementById(`carrier-${orderId}`).value;
         const tracking = document.getElementById(`tracking-${orderId}`).value.trim();
         const delivery = document.getElementById(`delivery-${orderId}`).value;
 
-        if (!tracking) { showToast('Enter a tracking number.', 'error'); return; }
-        if (!delivery) { showToast('Enter estimated delivery date.', 'error'); return; }
+        if (!tracking) { showInlineError(`shipment-error-${orderId}`, 'Enter a tracking number.'); return; }
+        if (!delivery) { showInlineError(`shipment-error-${orderId}`, 'Enter estimated delivery date.'); return; }
 
         try {
             const res = await fetch('/api/shipping', {
@@ -2402,7 +2415,7 @@
             ordersLoaded = false;
             loadSellerOrders();
         } catch (err) {
-            showToast('Error: ' + err.message, 'error');
+            showInlineError(`shipment-error-${orderId}`, 'Error: ' + err.message);
         }
     }
 
@@ -2520,6 +2533,7 @@
     // ── Create / Update listing ───────────────────────────────────────────────
     async function submitListing(e) {
         e.preventDefault();
+        clearInlineError('listing-error-container');
         const editId = document.getElementById('edit-id').value;
         const btn = document.getElementById('submit-btn');
         btn.disabled = true;
@@ -2552,7 +2566,7 @@
             filterListings();
             loadStats();
         } catch (err) {
-            showToast('Error: ' + err.message, 'error');
+            showInlineError('listing-error-container', 'Error: ' + err.message);
             btn.disabled = false;
             btn.textContent = editId ? 'Save Changes' : 'Post Listing';
         }
@@ -2589,22 +2603,23 @@
 
     // ── Delete listing ────────────────────────────────────────────────────────
     async function deleteProduct(productId) {
-        if (!confirm('Delete this listing? This cannot be undone.')) return;
-        try {
-            const res = await fetch(`/api/catalog/products/${productId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
-            delete _productsMap[productId]; // remove from map so filter count is accurate
-            const row = document.getElementById(`prod-row-${productId}`);
-            if (row) row.remove();
-            filterListings(); // re-run to update heading count
-            showToast('Listing deleted.', 'info');
-            loadStats();
-        } catch (err) {
-            showToast('Error: ' + err.message, 'error');
-        }
+        showConfirm('Delete this listing? This cannot be undone.', async () => {
+            try {
+                const res = await fetch(`/api/catalog/products/${productId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
+                delete _productsMap[productId]; // remove from map so filter count is accurate
+                const row = document.getElementById(`prod-row-${productId}`);
+                if (row) row.remove();
+                filterListings(); // re-run to update heading count
+                showToast('Listing deleted.', 'info');
+                loadStats();
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            }
+        }, null, { confirmText: 'Delete', type: 'danger' });
     }
 
     // ── Load buyer orders (My Purchases) ─────────────────────────────────────
@@ -2743,8 +2758,9 @@
 
     // ── Register store (first-time sellers) ──────────────────────────────────
     async function activateStorefront() {
+        clearInlineError('activate-store-error-container');
         const name = (document.getElementById('new-store-name')?.value || '').trim();
-        if (!name) { showToast('Enter a store name to continue.', 'error'); return; }
+        if (!name) { showInlineError('activate-store-error-container', 'Enter a store name to continue.'); return; }
         const btn = document.getElementById('start-selling-btn');
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Setting up...'; }
         try {
@@ -2811,7 +2827,7 @@
             setTimeout(() => window.location.reload(), 1200);
 
         } catch (err) {
-            showToast('Error: ' + err.message, 'error');
+            showInlineError('activate-store-error-container', 'Error: ' + err.message);
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-store" style="margin-right:0.4rem;"></i> Activate Storefront'; }
         }
     }
@@ -2869,7 +2885,8 @@
         try {
             const res = await fetch('/api/notifications/my', { headers: { Authorization: `Bearer ${token}` } });
             if (!res.ok) throw new Error();
-            const notifs = await res.json();
+            const data = await res.json();
+            const notifs = Array.isArray(data) ? data : (data?.notifications || []);
             if (!notifs.length) {
                 list.innerHTML = '<div class="notif-empty">No notifications yet.</div>';
                 return;
@@ -2878,18 +2895,35 @@
                 const ago = formatTimeAgo(new Date(n.sentAt));
                 const iconColor = n.priority === 'critical' ? '#b91c1c' : n.priority === 'high' ? '#ea580c' : '#6b7280';
                 return `
-                <div class="notif-item${n.read ? '' : ' unread'}" onclick="handleNotifClick('${n._id}', '${n.link || ''}')">
-                    <div class="notif-icon"><i class="fa ${n.icon || 'fa-bell'}" style="color:${iconColor};"></i></div>
-                    <div class="notif-body">
-                        <div class="notif-subject">${n.subject || 'Notification'}</div>
-                        <div class="notif-preview">${(n.body || '').slice(0, 80)}</div>
-                        <div class="notif-time">${ago}</div>
+                <div class="notif-item${n.read ? '' : ' unread'}" data-notif-id="${n._id}" style="display:flex; align-items:flex-start; gap:0.5rem;">
+                    <div style="flex:1; display:flex; gap:0.5rem; align-items:flex-start; cursor:pointer;" onclick="handleNotifClick('${n._id}', '${n.link || ''}')">
+                        <div class="notif-icon"><i class="fa ${n.icon || 'fa-bell'}" style="color:${iconColor};"></i></div>
+                        <div class="notif-body">
+                            <div class="notif-subject">${n.subject || 'Notification'}</div>
+                            <div class="notif-preview">${(n.body || '').slice(0, 80)}</div>
+                            <div class="notif-time">${ago}</div>
+                        </div>
                     </div>
+                    <button type="button" onclick="dismissDashNotif('${n._id}')" title="Dismiss" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.8rem;padding:0.25rem;flex-shrink:0;line-height:1;opacity:0.6;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">&times;</button>
                 </div>`;
             }).join('');
         } catch {
             if (list) list.innerHTML = '<div class="notif-empty">Unable to load notifications.</div>';
         }
+    }
+
+    async function dismissDashNotif(id) {
+        try {
+            await fetch(`/api/notifications/${id}`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
+            loadNotifPanel();
+        } catch(e) {}
+    }
+
+    async function clearDashNotifs() {
+        try {
+            await fetch('/api/notifications/my', { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
+            loadNotifPanel();
+        } catch(e) {}
     }
 
     async function handleNotifClick(notifId, link) {

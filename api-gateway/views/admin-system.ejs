@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="/js/toast.js"></script>
+    <script src="/js/confirm.js"></script>
     <style>
         body { background:#0f172a;color:#f1f5f9; }
         .admin-shell { display:grid;grid-template-columns:220px 1fr;min-height:100vh; }
@@ -269,31 +270,43 @@ function updateStatusPill(id, isOn) {
 
 async function toggleMaintenance() {
     const enabled = document.getElementById('toggle-maintenance').checked;
-    if (enabled && !confirm('Enable maintenance mode? Write operations will return 503.')) {
-        document.getElementById('toggle-maintenance').checked = false; return;
-    }
-    try {
-        await api('POST', '/system/maintenance', { enabled, reason: '' });
-        updateStatusPill('maintenance-status', enabled);
-        showToast(`Maintenance mode ${enabled ? 'enabled' : 'disabled'}`, enabled ? 'warning' : 'success');
-    } catch (err) {
-        document.getElementById('toggle-maintenance').checked = !enabled;
-        showToast(err.message, 'error');
+    const doToggle = async () => {
+        try {
+            await api('POST', '/system/maintenance', { enabled, reason: '' });
+            updateStatusPill('maintenance-status', enabled);
+            showToast(`Maintenance mode ${enabled ? 'enabled' : 'disabled'}`, enabled ? 'warning' : 'success');
+        } catch (err) {
+            document.getElementById('toggle-maintenance').checked = !enabled;
+            showToast(err.message, 'error');
+        }
+    };
+    if (enabled) {
+        showConfirm('Enable maintenance mode? Write operations will return 503.', doToggle, () => {
+            document.getElementById('toggle-maintenance').checked = false;
+        }, { confirmText: 'Enable', type: 'danger' });
+    } else {
+        await doToggle();
     }
 }
 
 async function toggleLockdown() {
     const enabled = document.getElementById('toggle-lockdown').checked;
-    if (enabled && !confirm('⚠️ ACTIVATE LOCKDOWN? All user traffic will be blocked immediately.')) {
-        document.getElementById('toggle-lockdown').checked = false; return;
-    }
-    try {
-        await api('POST', '/system/lockdown', { enabled, reason: '' });
-        updateStatusPill('lockdown-status', enabled);
-        showToast(`Lockdown ${enabled ? 'ACTIVATED' : 'deactivated'}`, enabled ? 'error' : 'success');
-    } catch (err) {
-        document.getElementById('toggle-lockdown').checked = !enabled;
-        showToast(err.message, 'error');
+    const doToggle = async () => {
+        try {
+            await api('POST', '/system/lockdown', { enabled, reason: '' });
+            updateStatusPill('lockdown-status', enabled);
+            showToast(`Lockdown ${enabled ? 'ACTIVATED' : 'deactivated'}`, enabled ? 'error' : 'success');
+        } catch (err) {
+            document.getElementById('toggle-lockdown').checked = !enabled;
+            showToast(err.message, 'error');
+        }
+    };
+    if (enabled) {
+        showConfirm('ACTIVATE LOCKDOWN? All user traffic will be blocked immediately.', doToggle, () => {
+            document.getElementById('toggle-lockdown').checked = false;
+        }, { confirmText: 'Activate Lockdown', type: 'danger' });
+    } else {
+        await doToggle();
     }
 }
 
@@ -313,13 +326,14 @@ async function nukeTokens() {
     const userId = document.getElementById('nuke-userid').value.trim();
     const reason = document.getElementById('nuke-reason').value.trim();
     if (!userId) { showToast('User ID required', 'error'); return; }
-    if (!confirm(`Nuke ALL tokens for user ${userId}?`)) return;
-    try {
-        await api('POST', `/system/nuke-tokens/${userId}`, { reason });
-        showToast('Tokens nuked successfully', 'success');
-        document.getElementById('nuke-userid').value = '';
-        document.getElementById('nuke-reason').value = '';
-    } catch (err) { showToast(err.message, 'error'); }
+    showConfirm(`Nuke ALL tokens for user ${userId}?`, async () => {
+        try {
+            await api('POST', `/system/nuke-tokens/${userId}`, { reason });
+            showToast('Tokens nuked successfully', 'success');
+            document.getElementById('nuke-userid').value = '';
+            document.getElementById('nuke-reason').value = '';
+        } catch (err) { showToast(err.message, 'error'); }
+    }, null, { confirmText: 'Nuke Tokens', type: 'danger' });
 }
 
 async function impersonateUser() {

@@ -274,8 +274,9 @@
                     </div>
                 </div>
 
+                <div id="checkout-error-container"></div>
                 <button id="place-order-btn" onclick="placeOrder()"
-                    class="btn w-100" style="background:var(--accent-red); padding:1rem; font-size:1rem;">
+                    class="btn w-100" style="background:var(--accent-red); padding:1rem; font-size:1rem; margin-top:0.5rem;">
                     <i class="fa fa-lock" style="margin-right:0.5rem;"></i> Place Order
                 </button>
                 <p class="text-muted small text-center" style="margin-top:0.75rem;">
@@ -603,10 +604,11 @@ async function checkStock() {
 
 // ── Place order ───────────────────────────────────────────────────────
 async function placeOrder() {
-    if (!validate()) { showToast('Please fill in all required fields.', 'error'); return; }
+    clearInlineError('checkout-error-container');
+    if (!validate()) { showInlineError('checkout-error-container', 'Please fill in all required fields.'); return; }
 
     const token = getToken();
-    if (!token) { showToast('You must be signed in to place an order.', 'error'); return; }
+    if (!token) { showInlineError('checkout-error-container', 'You must be signed in to place an order.'); return; }
     const user  = getUser();
 
     const btn = document.getElementById('place-order-btn');
@@ -615,7 +617,7 @@ async function placeOrder() {
 
     const stockIssues = await checkStock();
     if (stockIssues.length) {
-        showToast(stockIssues[0], 'error');
+        showInlineError('checkout-error-container', stockIssues[0]);
         btn.disabled = false;
         btn.innerHTML = '<i class="fa fa-lock" style="margin-right:0.5rem;"></i> Place Order';
         return;
@@ -681,7 +683,7 @@ async function placeOrder() {
         showToast('Order placed successfully!', 'success');
 
     } catch (err) {
-        showToast(`Failed to place order: ${err.message}`, 'error');
+        showInlineError('checkout-error-container', `Failed to place order: ${err.message}`);
         btn.disabled = false;
         btn.innerHTML = '<i class="fa fa-lock" style="margin-right:0.5rem;"></i> Place Order';
     }

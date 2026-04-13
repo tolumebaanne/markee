@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="/js/toast.js"></script>
+    <script src="/js/confirm.js"></script>
     <style>
         body { background:#0f172a;color:#f1f5f9; }
         .admin-shell { display:grid;grid-template-columns:220px 1fr;min-height:100vh; }
@@ -328,12 +329,13 @@ function viewTemplate(id, name, perms) {
 }
 
 async function deleteTemplate(id, name) {
-    if (!confirm(`Delete template "${name}"?`)) return;
-    try {
-        await api('DELETE', `/templates/${id}`);
-        showToast('Template deleted', 'success');
-        loadTemplates();
-    } catch (err) { showToast(err.message, 'error'); }
+    showConfirm(`Delete template "${name}"?`, async () => {
+        try {
+            await api('DELETE', `/templates/${id}`);
+            showToast('Template deleted', 'success');
+            loadTemplates();
+        } catch (err) { showToast(err.message, 'error'); }
+    }, null, { confirmText: 'Delete', type: 'danger' });
 }
 
 loadTemplates();
