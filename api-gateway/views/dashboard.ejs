@@ -1196,8 +1196,7 @@
     if (isSeller || isAdmin) {
         // Orders tab is always visible for sellers regardless of store-tools toggle
         document.getElementById('tab-orders').style.display = 'inline-flex';
-        const showStore = localStorage.getItem('dash_show_store') !== 'false';
-        applyStoreToolsVisibility(showStore);
+        applyStoreToolsVisibility(true);
     } else {
         document.getElementById('start-selling-card').style.display = 'block';
         // Check if this user has existing products — if so they're a returning seller
@@ -2980,6 +2979,7 @@
 
         // If Sell button navigated here, activate the appropriate sell flow
         if (new URLSearchParams(location.search).get('sell') === '1') {
+            history.replaceState(null, '', location.pathname);
             navSell();
         }
 
