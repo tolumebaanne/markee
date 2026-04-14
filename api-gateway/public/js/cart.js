@@ -40,14 +40,17 @@
         if (existing) {
             existing.qty += qty;
         } else {
-            // sellerId is required for multi-seller order payload at checkout
+            // sellerId and fulfillment fields are required at checkout
             cart.push({
-                _id:             product._id,
-                title:           product.title,
-                price:           product.price,
-                image:           (product.images || [])[0] || '',
-                sellerId:        product.sellerId || null,
-                fastDeliveryFee: product.fastDeliveryFee || 0,
+                _id:              product._id,
+                title:            product.title,
+                price:            product.price,
+                image:            (product.images || [])[0] || '',
+                sellerId:         product.sellerId || null,
+                fastDeliveryFee:  product.fastDeliveryFee || 0,
+                fulfillmentOptions: product.fulfillmentOptions || [],
+                enabledCarriers:    product.enabledCarriers   || [],
+                pickupLocationId:   product.pickupLocationId  || null,
                 qty
             });
         }
