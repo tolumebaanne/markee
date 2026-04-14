@@ -39,7 +39,7 @@
             let addresses = [];
 
             if (type === 'delivery') {
-                const token = localStorage.getItem('authToken') || localStorage.getItem('token') || '';
+                const token = localStorage.getItem('access_token') || localStorage.getItem('authToken') || localStorage.getItem('token') || '';
                 const r = await fetch('/api/users/me/addresses', {
                     headers: { Authorization: `Bearer ${token}` }
                 });
@@ -47,7 +47,7 @@
                 addresses = await r.json();
             } else if (type === 'pickup') {
                 if (!storeId) throw new Error('storeId required for pickup type');
-                const token = localStorage.getItem('authToken') || localStorage.getItem('token') || '';
+                const token = localStorage.getItem('access_token') || localStorage.getItem('authToken') || localStorage.getItem('token') || '';
                 const r = await fetch(`/api/seller/${storeId}/pickup-locations`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });

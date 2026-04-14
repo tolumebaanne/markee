@@ -219,6 +219,22 @@
                         <div style="border:1.5px solid #bfdbfe; border-radius:8px; padding:0.85rem 1rem; background:#eff6ff; margin-bottom:0.75rem;">
                             <p style="font-size:0.85rem; color:#1e40af; margin:0;"><i class="fa fa-info-circle" style="margin-right:0.4rem;"></i> The seller will coordinate fulfillment directly with you — this covers digital delivery, in-person services, and seller-arranged shipping.</p>
                         </div>
+                        <!-- Address the seller will see -->
+                        <div style="margin-bottom:0.75rem;">
+                            <label style="font-size:0.85rem; font-weight:600; margin-bottom:0.4rem; display:block;">Your address <span style="font-weight:400; color:var(--text-muted); font-size:0.8rem;">— shared with the seller for coordination</span></label>
+                            <div id="sf-addr-display" style="display:none; padding:0.75rem; border:1.5px solid #bfdbfe; border-radius:8px; background:#f0f9ff;">
+                                <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.15rem;" id="sf-addr-label"></div>
+                                <div style="font-size:0.82rem; color:var(--text-muted); line-height:1.5;" id="sf-addr-text"></div>
+                                <button type="button" onclick="showSelfFulfillSelector()" style="font-size:0.75rem; color:#1e40af; background:none; border:none; padding:0.2rem 0 0; cursor:pointer; display:inline-flex; align-items:center; gap:0.3rem;">
+                                    <i class="fa fa-pen"></i> Change address
+                                </button>
+                            </div>
+                            <div id="sf-addr-empty">
+                                <button type="button" class="btn btn-outline" style="width:auto; padding:0.5rem 1.25rem; font-size:0.875rem;" onclick="showSelfFulfillSelector()">
+                                    <i class="fa fa-map-marker-alt" style="margin-right:0.5rem;"></i> Select Address
+                                </button>
+                            </div>
+                        </div>
                         <div class="form-group">
                             <label>Instructions for seller <span style="font-weight:400; color:var(--text-muted);">(optional)</span></label>
                             <textarea id="sf-instructions" rows="3" placeholder="Any details the seller needs to fulfil your order..." maxlength="500" style="resize:vertical;"></textarea>
@@ -379,8 +395,9 @@ let checkoutItems = [];
 let selectedDelivery = 'standard';
 let sellerStoreData = [];  // store data for all sellers in cart
 let availableFulfillmentOptions = ['shipping'];  // computed from intersection
-let selectedBillingAddr  = null;   // address object chosen via modal
-let selectedShippingAddr = null;   // null = use billing
+let selectedBillingAddr      = null;   // address object chosen via modal
+let selectedShippingAddr     = null;   // null = use billing
+let selectedSelfFulfillAddr  = null;   // shown to seller for self_fulfilled orders
 
 // ── Address selector helpers ──────────────────────────────────────────
 function renderSelectedAddrCard(type, addr) {
@@ -425,6 +442,30 @@ function showShippingSelector() {
         selectedShippingAddr = addr;
         renderSelectedAddrCard('shipping', addr);
     });
+}
+
+function showSelfFulfillSelector() {
+    if (typeof window.showAddressSelector !== 'function') {
+        showToast('Address selector not available.', 'error'); return;
+    }
+    window.showAddressSelector({ type: 'delivery', title: 'Select Address for Seller' }, (addr) => {
+        selectedSelfFulfillAddr = addr;
+        renderSelfFulfillAddrCard(addr);
+        document.getElementById('sf-addr-empty').style.outline = '';
+    });
+}
+
+function renderSelfFulfillAddrCard(addr) {
+    const display = document.getElementById('sf-addr-display');
+    const empty   = document.getElementById('sf-addr-empty');
+    const label   = document.getElementById('sf-addr-label');
+    const text    = document.getElementById('sf-addr-text');
+    if (!display || !label || !text) return;
+    label.textContent = addr.label || 'Address';
+    const line2 = [addr.city, addr.province, addr.postalCode].filter(Boolean).join(', ');
+    text.innerHTML = [addr.street, line2, addr.country].filter(Boolean).join('<br>');
+    display.style.display = 'block';
+    if (empty) empty.style.display = 'none';
 }
 
 // ── Fulfillment options ───────────────────────────────────────────────
@@ -524,6 +565,11 @@ function onFulfillmentChange() {
         if (deliveryCard)  deliveryCard.style.display  = 'none';
         selectedDelivery = 'standard';
         updateTotals();
+        // Auto-populate from billing if already selected
+        if (selectedBillingAddr && !selectedSelfFulfillAddr) {
+            selectedSelfFulfillAddr = selectedBillingAddr;
+            renderSelfFulfillAddrCard(selectedBillingAddr);
+        }
     }
 }
 
@@ -741,6 +787,17 @@ function validate() {
         if (emptyEl) emptyEl.style.outline = '';
     }
 
+    // For self-fulfilled — buyer must share an address with the seller
+    if (ft === 'self_fulfilled' && !selectedSelfFulfillAddr) {
+        errors.push('Please select an address to share with the seller.');
+        const emptyEl = document.getElementById('sf-addr-empty');
+        if (emptyEl) emptyEl.style.outline = '2px solid var(--accent-red)';
+        ok = false;
+    } else if (ft === 'self_fulfilled') {
+        const emptyEl = document.getElementById('sf-addr-empty');
+        if (emptyEl) emptyEl.style.outline = '';
+    }
+
     const payMethod = document.querySelector('input[name="payment"]:checked').value;
     if (payMethod === 'card') {
         const card = document.getElementById('card-number').value.replace(/\s/g,'');
@@ -843,6 +900,15 @@ async function placeOrder(evt) {
         selfFulfillmentInstructions: fulfillmentType === 'self_fulfilled'
             ? (document.getElementById('sf-instructions')?.value || '').trim()
             : '',
+        selfFulfillmentAddress: fulfillmentType === 'self_fulfilled' && selectedSelfFulfillAddr
+            ? {
+                street:     selectedSelfFulfillAddr.street     || '',
+                city:       selectedSelfFulfillAddr.city       || '',
+                province:   selectedSelfFulfillAddr.province   || '',
+                postalCode: selectedSelfFulfillAddr.postalCode || '',
+                country:    selectedSelfFulfillAddr.country    || 'Canada',
+            }
+            : null,
     };
 
     try {
