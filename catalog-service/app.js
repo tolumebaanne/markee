@@ -105,12 +105,57 @@ const ProductSchema = new mongoose.Schema({
     // Q&A — answered questions visible publicly; open questions visible to seller (S1/S12)
     questions: [QuestionSchema],
     // Reason a product was system-paused (null = not system-paused or manual pause)
-    _pauseReason: { type: String, enum: ['seller_deactivated', 'account_deletion', null], default: null }
+    _pauseReason: { type: String, enum: ['seller_deactivated', 'account_deletion', null], default: null },
+
+    // ── Listing Review System ──────────────────────────────────────────────────
+    // reviewStatus: position in the review pipeline.
+    //   pending_review  → submitted, waiting for reviewer
+    //   in_review       → assigned and actively being reviewed
+    //   needs_changes   → disapproved; seller must address feedback and resubmit
+    //   approved        → review approved; auto-publishes to 'published'
+    //   published       → live and buyer-visible (displayStatus: 'visible')
+    //   rejected        → permanently rejected; listing is archived
+    //   offline         → seller-paused after publishing (returned from live)
+    //   archived        → removed from all views; terminal state
+    //
+    // displayStatus: the buyer-facing visibility switch. Only field checked in query filters.
+    //   'visible'  → returned by all buyer-facing catalog/search routes
+    //   'hidden'   → filtered out of buyer routes; not purchasable
+    //
+    // offlineBy: set when a seller takes a published listing offline.
+    //   'seller' → seller-initiated; 'admin' → admin-initiated
+    reviewStatus: {
+        type:    String,
+        enum:    ['pending_review', 'in_review', 'needs_changes', 'approved', 'published', 'rejected', 'offline', 'archived'],
+        default: undefined   // set by migration for existing docs; set at creation for new ones
+    },
+    displayStatus: {
+        type:    String,
+        enum:    ['visible', 'hidden'],
+        default: undefined   // set by migration for existing docs; set at creation for new ones
+    },
+    offlineBy:          { type: String, enum: ['seller', 'admin', null], default: null },
+    assignedTo:         { type: mongoose.Schema.Types.ObjectId, default: null },   // reviewer admin _id
+    assignedAt:         { type: Date, default: null },
+    reviewSubmittedAt:  { type: Date, default: null },
+    reviewCompletedAt:  { type: Date, default: null },
+    // reviewHistory: append-only audit trail of every review state transition
+    reviewHistory: [{
+        fromStatus:     { type: String },
+        toStatus:       { type: String },
+        reviewerId:     { type: mongoose.Schema.Types.ObjectId },
+        comment:        { type: String, default: '' },
+        templateId:     { type: mongoose.Schema.Types.ObjectId, default: null },
+        timestamp:      { type: Date, default: Date.now }
+    }]
 });
 ProductSchema.index({ title: 'text', description: 'text' });
-ProductSchema.index({ category: 1, subcategory: 1 });         // S10 — subcategory filter
-ProductSchema.index({ status: 1, sellerId: 1 });              // S5  — per-seller moderation view
-ProductSchema.index({ status: 1, createdAt: -1 });            // S5  — pending review queue (oldest first)
+ProductSchema.index({ category: 1, subcategory: 1 });                      // S10 — subcategory filter
+ProductSchema.index({ status: 1, sellerId: 1 });                           // S5  — per-seller moderation view
+ProductSchema.index({ status: 1, createdAt: -1 });                         // S5  — pending review queue (oldest first)
+ProductSchema.index({ reviewStatus: 1, displayStatus: 1 });                // Review: multi-state queue queries
+ProductSchema.index({ reviewStatus: 1, assignedTo: 1 });                   // Review: assigned queue per reviewer
+ProductSchema.index({ displayStatus: 1, status: 1, createdAt: -1 });       // Buyer routes: visible + active
 const Product = db.model('Product', ProductSchema);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -392,7 +437,8 @@ app.get('/products', async (req, res) => {
         const lim  = Math.min(parseInt(limit), 50);
 
         if (shuffle === 'true') {
-            const pipeline = [{ $match: { status: 'active' } }];
+            // Listing Review: only return buyer-visible, active products
+            const pipeline = [{ $match: { status: 'active', displayStatus: 'visible' } }];
             if (category)    pipeline[0].$match.category    = category;
             if (subcategory) pipeline[0].$match.subcategory = subcategory; // S10
             if (search)      pipeline[0].$match.$or = [
@@ -403,7 +449,8 @@ app.get('/products', async (req, res) => {
             return res.json(await Product.aggregate(pipeline));
         }
 
-        let query = { status: 'active' };
+        // Listing Review: displayStatus: 'visible' ensures only published listings reach buyers
+        let query = { status: 'active', displayStatus: 'visible' };
         if (category)    query.category    = category;
         if (subcategory) query.subcategory = subcategory; // S10
         if (search)      query.$or = [
@@ -447,6 +494,13 @@ app.get('/products/:id', async (req, res) => {
     try {
         const p = await Product.findById(req.params.id);
         if (!p) return errorResponse(res, 404, 'Not found');
+        // Listing Review: hide non-visible listings from buyers.
+        // Sellers may view their own listings; admins may view any listing.
+        if (p.displayStatus && p.displayStatus !== 'visible') {
+            const isOwner = req.user?.storeId && req.user.storeId.toString() === p.sellerId?.toString();
+            const isAdmin = req.user?.role === 'admin' || req.user?.role === 'super';
+            if (!isOwner && !isAdmin) return errorResponse(res, 404, 'Not found');
+        }
         const doc = p.toObject();
         // S9 — Bundle enrichment: resolve component titles/images for display
         if (p.type === 'bundle' && p.bundleItems?.length) {
@@ -475,8 +529,14 @@ app.get('/products/:id', async (req, res) => {
 // S8 — Price history for a product (public — buyers see trend tooltip)
 app.get('/products/:id/price-history', async (req, res) => {
     try {
-        const p = await Product.findById(req.params.id).select('priceHistory price');
+        const p = await Product.findById(req.params.id).select('priceHistory price displayStatus sellerId');
         if (!p) return errorResponse(res, 404, 'Not found');
+        // Listing Review: don't leak price history existence for non-visible listings
+        if (p.displayStatus && p.displayStatus !== 'visible') {
+            const isOwner = req.user?.storeId && req.user.storeId.toString() === p.sellerId?.toString();
+            const isAdmin = req.user?.role === 'admin' || req.user?.role === 'super';
+            if (!isOwner && !isAdmin) return errorResponse(res, 404, 'Not found');
+        }
         // Return newest-first; current price not in array but returned for context
         res.json({ currentPrice: p.price, history: (p.priceHistory || []) });
     } catch (err) { errorResponse(res, 500, err.message); }
@@ -497,9 +557,11 @@ app.get('/by-seller/:storeId', async (req, res) => {
             }
         } catch (_) { /* fail open — discount just won't be computed */ }
 
+        // Listing Review: only surface buyer-visible, active listings on storefronts
         const products = await Product.find({
             sellerId: req.params.storeId,
-            status: 'active'
+            status: 'active',
+            displayStatus: 'visible'
         }).select('_id title price images category stock likes description discount smartMetrics avgRating createdAt').limit(48).lean();
 
         const result = products.map(p => ({
@@ -802,6 +864,367 @@ setInterval(async () => {
         }
     } catch (err) { console.error('[CATALOG] Q&A unanswered sweep error:', err.message); }
 }, 60 * 60 * 1000); // every hour
+
+// ── Listing Review System — State Transition Routes ──────────────────────────
+// These routes implement the new reviewStatus / displayStatus state machine.
+// The old S5 approve/reject/resubmit routes still function for backward compat
+// but are superseded by these for the review pipeline.
+
+// Helper: append a review history event to a product document.
+function appendReviewEvent(product, { fromStatus, toStatus, reviewerId, comment, templateId } = {}) {
+    if (!product.reviewHistory) product.reviewHistory = [];
+    product.reviewHistory.push({
+        fromStatus:  fromStatus  || product.reviewStatus,
+        toStatus:    toStatus    || '',
+        reviewerId:  reviewerId  || null,
+        comment:     comment     || '',
+        templateId:  templateId  || null,
+        timestamp:   new Date()
+    });
+}
+
+// POST /products/:id/submit — Seller: submit listing for review (pending_review → pending_review + reviewSubmittedAt)
+app.post('/products/:id/submit', async (req, res) => {
+    if (!req.user?.storeId) return errorResponse(res, 401, 'Unauthorized');
+    try {
+        const p = await Product.findById(req.params.id);
+        if (!p) return errorResponse(res, 404, 'Not found');
+        if (p.sellerId.toString() !== req.user.storeId) return errorResponse(res, 403, 'Not owned by you');
+        const allowed = ['pending_review', 'needs_changes', undefined, null];
+        if (!allowed.includes(p.reviewStatus)) {
+            return errorResponse(res, 400, `Cannot submit a listing with reviewStatus '${p.reviewStatus}'.`);
+        }
+        const prev = p.reviewStatus;
+        p.reviewStatus       = 'pending_review';
+        p.displayStatus      = 'hidden';
+        p.reviewSubmittedAt  = new Date();
+        p.assignedTo         = null;
+        appendReviewEvent(p, { fromStatus: prev, toStatus: 'pending_review', reviewerId: req.user.sub });
+        await p.save();
+        bus.emit('product.updated', { productId: p._id, sellerId: p.sellerId, displayStatus: 'hidden' });
+        res.json(p);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// POST /products/:id/approve — Super or authorized Admin: approve listing in review
+// Supersedes the old S5 route; also sets new review fields.
+app.post('/products/:id/approve', async (req, res) => {
+    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    try {
+        const p = await Product.findById(req.params.id);
+        if (!p) return errorResponse(res, 404, 'Not found');
+        // Accept both old-system (status: 'pending_review') and new-system states
+        const allowedReview = ['pending_review', 'in_review', undefined, null];
+        const allowedStatus = ['pending_review'];
+        if (p.reviewStatus !== undefined) {
+            if (!allowedReview.includes(p.reviewStatus)) {
+                return errorResponse(res, 400, `Cannot approve a listing with reviewStatus '${p.reviewStatus}'.`);
+            }
+        } else if (!allowedStatus.includes(p.status)) {
+            return errorResponse(res, 400, `Cannot approve a product with status '${p.status}'.`);
+        }
+        const prev = p.reviewStatus;
+        p.reviewStatus      = 'published';
+        p.displayStatus     = 'visible';
+        p.reviewCompletedAt = new Date();
+        p.status            = 'active'; // keep legacy field in sync
+        appendReviewEvent(p, {
+            fromStatus: prev, toStatus: 'published',
+            reviewerId: req.user.sub, comment: (req.body.comment || '').trim()
+        });
+        await p.save();
+        bus.emit('product.approved', { productId: p._id, sellerId: p.sellerId, title: p.title });
+        bus.emit('listing.review_status_changed', {
+            subtype:   'approved',
+            productId: p._id,
+            sellerId:  p.sellerId,
+            title:     p.title
+        });
+        bus.emit('product.updated', { productId: p._id, sellerId: p.sellerId, displayStatus: 'visible' });
+        res.json(p);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// POST /products/:id/disapprove — Super or authorized Admin: request changes (listing stays accessible to seller)
+app.post('/products/:id/disapprove', async (req, res) => {
+    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    const { comment, templateId } = req.body;
+    if (!comment || !comment.trim()) return errorResponse(res, 400, 'A reviewer comment is required when requesting changes.');
+    try {
+        const p = await Product.findById(req.params.id);
+        if (!p) return errorResponse(res, 404, 'Not found');
+        const allowedReview = ['pending_review', 'in_review'];
+        if (p.reviewStatus !== undefined && !allowedReview.includes(p.reviewStatus)) {
+            return errorResponse(res, 400, `Cannot disapprove a listing with reviewStatus '${p.reviewStatus}'.`);
+        }
+        const prev = p.reviewStatus;
+        p.reviewStatus      = 'needs_changes';
+        p.displayStatus     = 'hidden';
+        p.reviewCompletedAt = new Date();
+        appendReviewEvent(p, {
+            fromStatus: prev, toStatus: 'needs_changes',
+            reviewerId: req.user.sub,
+            comment:    comment.trim(),
+            templateId: templateId || null
+        });
+        await p.save();
+        bus.emit('listing.review_status_changed', {
+            subtype:         'needs_changes',
+            productId:       p._id,
+            sellerId:        p.sellerId,
+            title:           p.title,
+            reviewerComment: comment.trim()
+        });
+        bus.emit('product.updated', { productId: p._id, sellerId: p.sellerId, displayStatus: 'hidden' });
+        res.json(p);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// POST /products/:id/reject — Super: permanently reject a listing (terminal state)
+app.post('/products/:id/reject', async (req, res) => {
+    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    const { reason, comment } = req.body;
+    const rejectionNote = (reason || comment || '').trim();
+    if (!rejectionNote) return errorResponse(res, 400, 'Rejection reason is required.');
+    try {
+        const p = await Product.findById(req.params.id);
+        if (!p) return errorResponse(res, 404, 'Not found');
+        // Works from any non-terminal review state (or old-system pending_review)
+        const terminal = ['rejected', 'archived'];
+        if (p.reviewStatus && terminal.includes(p.reviewStatus)) {
+            return errorResponse(res, 400, `Listing is already in terminal state '${p.reviewStatus}'.`);
+        }
+        const prev = p.reviewStatus;
+        p.reviewStatus      = 'rejected';
+        p.displayStatus     = 'hidden';
+        p.rejectionReason   = rejectionNote;
+        p.rejectionCount    = (p.rejectionCount || 0) + 1;
+        p.reviewCompletedAt = new Date();
+        p.status            = 'rejected'; // keep legacy field in sync
+        appendReviewEvent(p, {
+            fromStatus: prev, toStatus: 'rejected',
+            reviewerId: req.user.sub, comment: rejectionNote
+        });
+        await p.save();
+        bus.emit('product.rejected', {
+            productId: p._id, sellerId: p.sellerId,
+            title: p.title, reason: rejectionNote, rejectionCount: p.rejectionCount
+        });
+        bus.emit('listing.review_status_changed', {
+            subtype: 'rejected', productId: p._id,
+            sellerId: p.sellerId, title: p.title, rejectionReason: rejectionNote
+        });
+        if (p.rejectionCount >= 3) {
+            bus.emit('seller.repeated_rejections', { sellerId: p.sellerId, count: p.rejectionCount });
+        }
+        bus.emit('product.updated', { productId: p._id, sellerId: p.sellerId, displayStatus: 'hidden' });
+        res.json(p);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// POST /products/:id/resubmit — Seller: resubmit after needs_changes (or old rejected state)
+app.post('/products/:id/resubmit', async (req, res) => {
+    if (!req.user?.storeId) return errorResponse(res, 401, 'Unauthorized');
+    try {
+        const p = await Product.findById(req.params.id);
+        if (!p) return errorResponse(res, 404, 'Not found');
+        if (p.sellerId.toString() !== req.user.storeId) return errorResponse(res, 403, 'Not owned by you');
+        const allowed = ['needs_changes', 'rejected'];
+        const reviewOk  = p.reviewStatus && allowed.includes(p.reviewStatus);
+        const legacyOk  = !p.reviewStatus && p.status === 'rejected'; // old system fallback
+        if (!reviewOk && !legacyOk) {
+            return errorResponse(res, 400, `Only listings with status 'needs_changes' or 'rejected' can be resubmitted (current: '${p.reviewStatus || p.status}').`);
+        }
+        const prevReviewer = p.reviewHistory?.slice().reverse().find(h => h.reviewerId)?.reviewerId;
+        const prev = p.reviewStatus;
+        p.reviewStatus      = 'pending_review';
+        p.displayStatus     = 'hidden';
+        p.reviewSubmittedAt = new Date();
+        p.rejectionReason   = ''; // cleared on resubmit
+        p.status            = 'pending_review'; // keep legacy field in sync
+        appendReviewEvent(p, { fromStatus: prev, toStatus: 'pending_review', reviewerId: req.user.sub });
+        await p.save();
+        bus.emit('listing.review_status_changed', {
+            subtype:            'resubmitted',
+            productId:          p._id,
+            sellerId:           p.sellerId,
+            title:              p.title,
+            previousReviewerId: prevReviewer || null
+        });
+        res.json(p);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// POST /products/:id/offline — Seller: take a published listing temporarily offline
+app.post('/products/:id/offline', async (req, res) => {
+    if (!req.user?.storeId && req.user?.role !== 'admin' && req.user?.role !== 'super') {
+        return errorResponse(res, 401, 'Unauthorized');
+    }
+    try {
+        const p = await Product.findById(req.params.id);
+        if (!p) return errorResponse(res, 404, 'Not found');
+        const isSeller = req.user?.storeId && p.sellerId.toString() === req.user.storeId;
+        const isAdmin  = req.user?.role === 'admin' || req.user?.role === 'super';
+        if (!isSeller && !isAdmin) return errorResponse(res, 403, 'Not authorized');
+        if (p.reviewStatus !== 'published') {
+            return errorResponse(res, 400, `Only published listings can be taken offline (current: '${p.reviewStatus}').`);
+        }
+        const prev = p.reviewStatus;
+        p.reviewStatus  = 'offline';
+        p.displayStatus = 'hidden';
+        p.offlineBy     = isSeller ? 'seller' : 'admin';
+        appendReviewEvent(p, { fromStatus: prev, toStatus: 'offline', reviewerId: req.user.sub });
+        await p.save();
+        bus.emit('product.updated', { productId: p._id, sellerId: p.sellerId, displayStatus: 'hidden' });
+        res.json(p);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// POST /products/:id/restore — Seller: restore offline listing back to review queue
+app.post('/products/:id/restore', async (req, res) => {
+    if (!req.user?.storeId) return errorResponse(res, 401, 'Unauthorized');
+    try {
+        const p = await Product.findById(req.params.id);
+        if (!p) return errorResponse(res, 404, 'Not found');
+        if (p.sellerId.toString() !== req.user.storeId) return errorResponse(res, 403, 'Not owned by you');
+        if (p.reviewStatus !== 'offline') {
+            return errorResponse(res, 400, `Only offline listings can be restored (current: '${p.reviewStatus}').`);
+        }
+        const prev = p.reviewStatus;
+        p.reviewStatus      = 'pending_review';
+        p.displayStatus     = 'hidden';
+        p.offlineBy         = null;
+        p.reviewSubmittedAt = new Date();
+        appendReviewEvent(p, { fromStatus: prev, toStatus: 'pending_review', reviewerId: req.user.sub });
+        await p.save();
+        res.json(p);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// ── Review Queue Routes (Super / authorized Admin) ────────────────────────────
+// MUST be defined before /products/:id to avoid 'review' matching as :id.
+
+// GET /products/review/unassigned — Super: unassigned pending_review queue
+app.get('/products/review/unassigned', async (req, res) => {
+    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    try {
+        const { page = 1, limit = 50 } = req.query;
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const lim  = Math.min(parseInt(limit), 100);
+        const [products, total] = await Promise.all([
+            Product.find({ reviewStatus: 'pending_review', assignedTo: null })
+                .sort({ reviewSubmittedAt: 1 })  // oldest first — fair queue
+                .skip(skip).limit(lim)
+                .select('_id title category sellerId reviewStatus reviewSubmittedAt reviewHistory images'),
+            Product.countDocuments({ reviewStatus: 'pending_review', assignedTo: null })
+        ]);
+        res.json({ products, total, page: parseInt(page), hasMore: skip + lim < total });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// GET /products/review/assigned/:reviewerId — Super: assigned queue for a specific reviewer
+app.get('/products/review/assigned/:reviewerId', async (req, res) => {
+    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    try {
+        const { page = 1, limit = 50 } = req.query;
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const lim  = Math.min(parseInt(limit), 100);
+        const [products, total] = await Promise.all([
+            Product.find({
+                reviewStatus: { $in: ['pending_review', 'in_review'] },
+                assignedTo:   req.params.reviewerId
+            }).sort({ assignedAt: 1 }).skip(skip).limit(lim)
+             .select('_id title category sellerId reviewStatus assignedAt reviewSubmittedAt images'),
+            Product.countDocuments({
+                reviewStatus: { $in: ['pending_review', 'in_review'] },
+                assignedTo:   req.params.reviewerId
+            })
+        ]);
+        res.json({ products, total, page: parseInt(page), hasMore: skip + lim < total });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// POST /products/review/assign — Super: assign listings to a reviewer
+app.post('/products/review/assign', async (req, res) => {
+    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    const { listingIds, assignedTo, note } = req.body;
+    if (!listingIds?.length) return errorResponse(res, 400, 'listingIds is required.');
+    if (!assignedTo)         return errorResponse(res, 400, 'assignedTo is required.');
+    try {
+        await Product.updateMany(
+            { _id: { $in: listingIds }, reviewStatus: 'pending_review' },
+            { $set: { assignedTo, assignedAt: new Date(), reviewStatus: 'in_review' } }
+        );
+        bus.emit('listing.review_assigned', {
+            adminId:       assignedTo,
+            assignedBy:    req.user.sub,
+            assignedCount: listingIds.length,
+            note:          note || ''
+        });
+        res.json({ assigned: listingIds.length });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// POST /products/review/reassign — Super: reassign listings from one reviewer to another
+app.post('/products/review/reassign', async (req, res) => {
+    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    const { listingIds, assignedTo, note } = req.body;
+    if (!listingIds?.length) return errorResponse(res, 400, 'listingIds is required.');
+    if (!assignedTo)         return errorResponse(res, 400, 'assignedTo is required.');
+    try {
+        await Product.updateMany(
+            { _id: { $in: listingIds }, reviewStatus: { $in: ['in_review', 'pending_review'] } },
+            { $set: { assignedTo, assignedAt: new Date(), reviewStatus: 'in_review' } }
+        );
+        bus.emit('listing.review_assigned', {
+            adminId:       assignedTo,
+            assignedBy:    req.user.sub,
+            assignedCount: listingIds.length,
+            note:          note || '',
+            type:          'reassign'
+        });
+        res.json({ reassigned: listingIds.length });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// POST /products/review/pullback — Super: return assigned listings to unassigned queue
+app.post('/products/review/pullback', async (req, res) => {
+    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    const { listingIds } = req.body;
+    if (!listingIds?.length) return errorResponse(res, 400, 'listingIds is required.');
+    try {
+        await Product.updateMany(
+            { _id: { $in: listingIds }, reviewStatus: { $in: ['in_review', 'pending_review'] } },
+            { $set: { assignedTo: null, assignedAt: null, reviewStatus: 'pending_review' } }
+        );
+        res.json({ pulledBack: listingIds.length });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// GET /products/review/history — Super: full review history with filters
+app.get('/products/review/history', async (req, res) => {
+    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    try {
+        const { sellerId, reviewStatus, reviewerId, from, to, page = 1, limit = 50 } = req.query;
+        const query = { reviewHistory: { $exists: true, $ne: [] } };
+        if (sellerId)     query.sellerId     = sellerId;
+        if (reviewStatus) query.reviewStatus = reviewStatus;
+        if (reviewerId)   query['reviewHistory.reviewerId'] = reviewerId;
+        if (from || to) {
+            query.reviewCompletedAt = {};
+            if (from) query.reviewCompletedAt.$gte = new Date(from);
+            if (to)   query.reviewCompletedAt.$lte = new Date(to);
+        }
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const lim  = Math.min(parseInt(limit), 100);
+        const [products, total] = await Promise.all([
+            Product.find(query).sort({ reviewCompletedAt: -1 }).skip(skip).limit(lim)
+                .select('_id title sellerId reviewStatus displayStatus reviewHistory reviewCompletedAt'),
+            Product.countDocuments(query)
+        ]);
+        res.json({ products, total, page: parseInt(page), hasMore: skip + lim < total });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
 
 // ── Admin Routes ─────────────────────────────────────────────────────────────
 

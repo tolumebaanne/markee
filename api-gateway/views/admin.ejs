@@ -328,6 +328,10 @@
       <i class="fas fa-box-open"></i> Catalog
       <span class="sidebar-badge" id="badge-catalog" style="display:none"></span>
     </button>
+    <button class="sidebar-link" onclick="switchTab('listing-review',this)">
+      <i class="fas fa-clipboard-check"></i> Listing Review
+      <span class="sidebar-badge" id="badge-listing-review" style="display:none"></span>
+    </button>
     <button class="sidebar-link" onclick="switchTab('orders',this)"><i class="fas fa-box"></i> Orders</button>
     <button class="sidebar-link" onclick="switchTab('payments',this)">
       <i class="fas fa-wallet"></i> Payments
@@ -373,6 +377,7 @@
     <%- include('admin-partials/tab-users') %>
     <%- include('admin-partials/tab-sellers') %>
     <%- include('admin-partials/tab-catalog') %>
+    <%- include('admin-partials/tab-listing-review') %>
     <%- include('admin-partials/tab-orders') %>
     <%- include('admin-partials/tab-payments') %>
     <%- include('admin-partials/tab-inventory') %>
@@ -551,6 +556,7 @@ const tabLoaders = {
   users:          loadUsers,
   sellers:        loadSellers,
   catalog:        loadCatalog,
+  'listing-review': loadListingReview,
   orders:         () => loadOrders(),
   payments:       loadPayments,
   inventory:      loadInventory,

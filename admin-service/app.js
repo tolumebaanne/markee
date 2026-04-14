@@ -23,6 +23,8 @@ db.on('connected', () => {
   require('./models/AdminSession').init(db);
   require('./models/AdminActionLog').init(db);
   require('./models/PlatformConfig').init(db);
+  require('./models/ReviewTemplate').init(db);
+  require('./models/ReviewAssignment').init(db);
   console.log('[ADMIN] Models initialised');
 });
 db.on('error', (err) => console.error('[ADMIN] DB error:', err.message));
@@ -55,12 +57,13 @@ app.get('/internal/status', async (req, res) => {
 // ── Routes ────────────────────────────────────────────────────────────────────
 // Gateway mounts at /api/admin and strips that prefix before forwarding,
 // so routes here are relative (no /admin prefix needed).
-app.use('/auth',         require('./routes/auth'));
-app.use('/accounts',     require('./routes/accounts'));
-app.use('/templates',    require('./routes/templates'));
-app.use('/system',       require('./routes/system'));
-app.use('/intelligence', require('./routes/intelligence'));
-app.use('/proxy',        require('./routes/proxy'));
+app.use('/auth',            require('./routes/auth'));
+app.use('/accounts',        require('./routes/accounts'));
+app.use('/templates',       require('./routes/templates'));
+app.use('/system',          require('./routes/system'));
+app.use('/intelligence',    require('./routes/intelligence'));
+app.use('/proxy',           require('./routes/proxy'));
+app.use('/listing-review',  require('./routes/listingReview'));
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {

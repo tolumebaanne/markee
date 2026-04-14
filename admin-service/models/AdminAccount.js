@@ -25,7 +25,13 @@ const AdminAccountSchema = new mongoose.Schema({
   // ── Permissions bucket ───────────────────────────────────────────────────────
   permissions: {
     auth:          permissionFields(['read', 'write', 'ban', 'impersonate']),
-    catalog:       permissionFields(['read', 'write', 'approve', 'reject', 'feature', 'categoryMgmt', 'bulk']),
+    catalog:            permissionFields(['read', 'write', 'approve', 'reject', 'feature', 'categoryMgmt', 'bulk']),
+    listingReview: {
+      canReview:             { type: Boolean, default: false },  // see queue, approve, disapprove, reject
+      canAssign:             { type: Boolean, default: false },  // assign/reassign/pullback (Super-level)
+      canUseTemplates:       { type: Boolean, default: false },  // create and use review templates
+      canViewOwnActivityLog: { type: Boolean, default: false }   // view own assignment history
+    },
     orders:        permissionFields(['read', 'forceStatus', 'cancel', 'bulk']),
     payments:      permissionFields(['read', 'refund', 'release', 'partialRefund', 'freeze', 'splitRefund', 'resolveDisputes', 'payoutHold']),
     sellers:       permissionFields(['read', 'write', 'verify', 'suspend', 'ban', 'regApproval', 'tier']),

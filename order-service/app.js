@@ -386,7 +386,7 @@ app.post('/', async (req, res) => {
         const { items, shippingAddress, billingAddress, deliverySpeed, deliveryFee, totalAmount } = req.body;
         if (!items || !items.length) return errorResponse(res, 400, 'Order must have at least one item');
 
-        // S24 — Price validation: reject if any item differs from catalog price by > 5%
+        // S24 — Price validation + review guard: reject price mismatches and non-published listings
         for (const item of items) {
             try {
                 const controller = new AbortController();
@@ -394,6 +394,11 @@ app.post('/', async (req, res) => {
                 const r = await fetch(`http://localhost:5002/products/${item.productId}`, { signal: controller.signal });
                 if (r.ok) {
                     const prod = await r.json();
+                    // Listing Review guard — block purchase of any listing not yet published.
+                    // reviewStatus is only present after Phase 1 migration; guard is no-op until then.
+                    if (prod.reviewStatus !== undefined && prod.reviewStatus !== 'published') {
+                        return errorResponse(res, 400, 'This item is currently unavailable for purchase.');
+                    }
                     if (prod.price !== undefined && item.price !== undefined) {
                         const diff = Math.abs(item.price - prod.price) / prod.price;
                         if (diff > 0.05) {

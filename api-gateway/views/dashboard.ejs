@@ -1013,6 +1013,11 @@
                             <option value="">All</option>
                             <option value="active">Active</option>
                             <option value="paused">Paused</option>
+                            <option value="pending_review">Pending Review</option>
+                            <option value="in_review">In Review</option>
+                            <option value="needs_changes">Needs Changes</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="offline">Offline</option>
                         </select>
                     </div>
                     <div id="seller-products-list" class="list-group">
@@ -1921,6 +1926,172 @@
     }
 
 
+    // ── Review action helpers ─────────────────────────────────────────────────
+
+    async function _refreshProductRow(id) {
+        try {
+            const r = await fetch(`/api/catalog/products/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+            if (r.ok) { _productsMap[id] = await r.json(); filterListings(); }
+        } catch (_) {}
+    }
+
+    async function submitListingForReview(id, event) {
+        if (event) event.stopPropagation();
+        try {
+            const r = await fetch(`/api/catalog/products/${id}/submit`, {
+                method: 'POST', headers: { Authorization: `Bearer ${token}` }
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+            showToast('Listing submitted for review.', 'success');
+            await _refreshProductRow(id);
+        } catch (err) { showToast('Could not submit: ' + err.message, 'error'); }
+    }
+
+    async function resubmitListing(id, event) {
+        if (event) event.stopPropagation();
+        try {
+            const r = await fetch(`/api/catalog/products/${id}/resubmit`, {
+                method: 'POST', headers: { Authorization: `Bearer ${token}` }
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+            showToast('Listing resubmitted for review.', 'success');
+            await _refreshProductRow(id);
+        } catch (err) { showToast('Could not resubmit: ' + err.message, 'error'); }
+    }
+
+    async function restoreListing(id, event) {
+        if (event) event.stopPropagation();
+        try {
+            const r = await fetch(`/api/catalog/products/${id}/restore`, {
+                method: 'POST', headers: { Authorization: `Bearer ${token}` }
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+            showToast('Listing restored — submitted for review.', 'success');
+            await _refreshProductRow(id);
+        } catch (err) { showToast('Could not restore: ' + err.message, 'error'); }
+    }
+
+    async function takeOfflineListing(id, event) {
+        if (event) event.stopPropagation();
+        try {
+            const r = await fetch(`/api/catalog/products/${id}/offline`, {
+                method: 'POST', headers: { Authorization: `Bearer ${token}` }
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+            showToast('Listing taken offline.', 'success');
+            await _refreshProductRow(id);
+        } catch (err) { showToast('Could not take offline: ' + err.message, 'error'); }
+    }
+
+    // ── renderProductRow — shared renderer for load + filter ─────────────────
+    function renderProductRow(p) {
+        const sm         = p.smartMetrics || {};
+        const img        = (p.images || [])[0] || '';
+        const velocity   = sm.velocityScore || 0;
+        const cartCount  = sm.activeCartCount || 0;
+        const isLowStock = p.stock !== undefined && p.stock < 5;
+
+        const velocityBadge = velocity > 60
+            ? '<span style="font-size:0.65rem; background:#fef3c7; color:#b45309; border:1px solid #fde68a; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem; font-weight:700;">🔥 Hot</span>'
+            : velocity > 20
+            ? '<span style="font-size:0.65rem; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem; font-weight:700;">⚡ Rising</span>'
+            : '';
+        const cartBubble = cartCount > 0
+            ? `<span style="font-size:0.65rem; color:#6b7280; margin-left:0.4rem;"><i class="fa fa-shopping-cart" style="margin-right:0.2rem;"></i>${cartCount} in carts</span>`
+            : '';
+
+        // ── Review state badge ─────────────────────────────────────────────
+        const rs = p.reviewStatus;
+        const reviewBadgeMap = {
+            pending_review: '<span style="font-size:0.65rem; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem;">⏳ In Queue</span>',
+            in_review:      '<span style="font-size:0.65rem; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem;">🔍 In Review</span>',
+            needs_changes:  '<span style="font-size:0.65rem; background:#fefce8; color:#a16207; border:1px solid #fde047; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem;">⚠ Needs Changes</span>',
+            approved:       '<span style="font-size:0.65rem; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem;">✓ Approved</span>',
+            rejected:       '<span style="font-size:0.65rem; background:#fef2f2; color:#991b1b; border:1px solid #fecaca; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem;">✕ Rejected</span>',
+            offline:        '<span style="font-size:0.65rem; background:#f3f4f6; color:#6b7280; border:1px solid #e5e7eb; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem;">◌ Offline</span>',
+        };
+        const reviewBadge = rs ? (reviewBadgeMap[rs] || '') : '';
+
+        // ── Reviewer comment (shown for needs_changes) ─────────────────────
+        let reviewerComment = '';
+        if (rs === 'needs_changes' || rs === 'rejected') {
+            const hist = Array.isArray(p.reviewHistory) ? p.reviewHistory : [];
+            const lastEntry = [...hist].reverse().find(h => h.comment && h.comment.trim());
+            if (lastEntry) {
+                const escaped = lastEntry.comment.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                reviewerComment = `<div style="font-size:0.75rem; color:#b45309; margin-top:0.25rem; padding:0.25rem 0.5rem; background:#fefce8; border-radius:4px; max-width:320px; white-space:normal;">💬 ${escaped}</div>`;
+            }
+        }
+
+        // ── Status label (legacy status field) ────────────────────────────
+        const isPaused = p.status === 'paused';
+        const statusColor = isPaused ? '#a16207' : (rs === 'published' || (!rs && p.status === 'active') ? '#15803d' : '#6b7280');
+        const statusLabel = `<span id="status-label-${p._id}" style="color:${statusColor};">${p.status}</span>`;
+
+        // ── Context-aware action buttons ──────────────────────────────────
+        let actionBtn = '';
+        if (!rs) {
+            // Legacy listing — no reviewStatus: keep old pause/activate
+            actionBtn = `<button class="act-btn ${isPaused ? 'activate' : ''}" id="toggle-btn-${p._id}"
+                title="${isPaused ? 'Activate' : 'Pause'}"
+                onclick="toggleStatus('${p._id}', '${p.status}', event)">
+                <i class="fa fa-${isPaused ? 'play' : 'pause'}"></i> ${isPaused ? 'Activate' : 'Pause'}
+            </button>`;
+        } else if (rs === 'pending_review' || rs === 'in_review' || rs === 'approved') {
+            // Submitted — no seller action available
+            actionBtn = `<span style="font-size:0.75rem; color:#6b7280; padding:0.3rem 0.5rem;">Under Review</span>`;
+        } else if (rs === 'needs_changes') {
+            actionBtn = `<button class="act-btn" onclick="resubmitListing('${p._id}', event)">
+                <i class="fa fa-redo"></i> Resubmit
+            </button>`;
+        } else if (rs === 'rejected') {
+            actionBtn = `<button class="act-btn" onclick="resubmitListing('${p._id}', event)">
+                <i class="fa fa-redo"></i> Edit &amp; Resubmit
+            </button>`;
+        } else if (rs === 'published') {
+            actionBtn = `<button class="act-btn" id="toggle-btn-${p._id}" title="Take Offline"
+                onclick="takeOfflineListing('${p._id}', event)">
+                <i class="fa fa-pause"></i> Offline
+            </button>`;
+        } else if (rs === 'offline') {
+            actionBtn = `<button class="act-btn activate" onclick="restoreListing('${p._id}', event)">
+                <i class="fa fa-play"></i> Restore
+            </button>`;
+        }
+
+        return `
+        <div class="list-item flex-between animate-fade" id="prod-row-${p._id}" style="cursor:pointer;" onclick="window.location='/product/${p._id}'">
+            <div class="flex-center gap-2" style="min-width:0;">
+                <img src="${img}"
+                     style="width:44px; height:44px; border-radius:6px; object-fit:cover; background:var(--bg-secondary); flex-shrink:0;"
+                     onerror="this.onerror=null; this.src=''; this.style.background='var(--bg-secondary)'">
+                <div style="min-width:0;">
+                    <div style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px;">
+                        ${p.title}${velocityBadge}${reviewBadge}
+                        ${isLowStock ? '<span class="stock-low-chip">Low Stock</span>' : ''}
+                    </div>
+                    <div class="text-muted small">$${((p.price || 0) / 100).toFixed(2)} &middot;
+                        ${statusLabel}${cartBubble}
+                    </div>
+                    ${reviewerComment}
+                </div>
+            </div>
+            <div class="listing-actions" onclick="event.stopPropagation()">
+                <button class="act-btn" title="Edit" onclick="openEditModal('${p._id}')">
+                    <i class="fa fa-pen"></i> Edit
+                </button>
+                ${actionBtn}
+                <button class="act-btn danger" title="Delete" onclick="deleteProduct('${p._id}')">
+                    <i class="fa fa-trash"></i>
+                </button>
+            </div>
+        </div>`;
+    }
+
     // ── Load seller product listings ──────────────────────────────────────────
     const _productsMap = {}; // keyed by product _id — safe lookup for edit modal
 
@@ -1958,51 +2129,7 @@
                 return;
             }
 
-            list.innerHTML = products.map(p => {
-                const sm         = p.smartMetrics || {};
-                const isLowStock = p.stock !== undefined && p.stock < 5;
-                const isPaused   = p.status === 'paused';
-                const img        = (p.images || [])[0] || '';
-                const velocity   = sm.velocityScore || 0;
-                const cartCount  = sm.activeCartCount || 0;
-                const velocityBadge = velocity > 60
-                    ? '<span style="font-size:0.65rem; background:#fef3c7; color:#b45309; border:1px solid #fde68a; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem; font-weight:700;">🔥 Hot</span>'
-                    : velocity > 20
-                    ? '<span style="font-size:0.65rem; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem; font-weight:700;">⚡ Rising</span>'
-                    : '';
-                const cartBubble = cartCount > 0
-                    ? `<span style="font-size:0.65rem; color:#6b7280; margin-left:0.4rem;"><i class="fa fa-shopping-cart" style="margin-right:0.2rem;"></i>${cartCount} in carts</span>`
-                    : '';
-                return `
-                <div class="list-item flex-between animate-fade" id="prod-row-${p._id}" style="cursor:pointer;" onclick="window.location='/product/${p._id}'">
-                    <div class="flex-center gap-2" style="min-width:0;">
-                        <img src="${img}"
-                             style="width:44px; height:44px; border-radius:6px; object-fit:cover; background:var(--bg-secondary); flex-shrink:0;"
-                             onerror="this.onerror=null; this.src=''; this.style.background='var(--bg-secondary)'">
-                        <div style="min-width:0;">
-                            <div style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px;">
-                                ${p.title}${velocityBadge}
-                                ${isLowStock ? '<span class="stock-low-chip">Low Stock</span>' : ''}
-                            </div>
-                            <div class="text-muted small">$${((p.price || 0) / 100).toFixed(2)} &middot;
-                                <span id="status-label-${p._id}" style="color:${isPaused ? '#a16207' : '#15803d'};">${p.status}</span>${cartBubble}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="listing-actions" onclick="event.stopPropagation()">
-                        <button class="act-btn" title="Edit" onclick="openEditModal('${p._id}')">
-                            <i class="fa fa-pen"></i> Edit
-                        </button>
-                        <button class="act-btn ${isPaused ? 'activate' : ''}" id="toggle-btn-${p._id}" title="${isPaused ? 'Activate' : 'Pause'}"
-                                onclick="toggleStatus('${p._id}', '${p.status}', event)">
-                            <i class="fa fa-${isPaused ? 'play' : 'pause'}"></i> ${isPaused ? 'Activate' : 'Pause'}
-                        </button>
-                        <button class="act-btn danger" title="Delete" onclick="deleteProduct('${p._id}')">
-                            <i class="fa fa-trash"></i>
-                        </button>
-                    </div>
-                </div>`;
-            }).join('');
+            list.innerHTML = products.map(renderProductRow).join('');
         } catch {
             list.innerHTML = '<p class="text-red p-4">Error loading listings.</p>';
         }
@@ -2016,7 +2143,7 @@
 
         const allProducts = Object.values(_productsMap);
         const filtered = allProducts.filter(p => {
-            const matchStatus = !status || p.status === status;
+            const matchStatus = !status || p.status === status || p.reviewStatus === status;
             const matchQ      = !q || p.title.toLowerCase().includes(q)
                                    || (p.description || '').toLowerCase().includes(q)
                                    || (p.category || '').toLowerCase().includes(q);
@@ -2033,51 +2160,7 @@
             return;
         }
 
-        list.innerHTML = filtered.map(p => {
-            const sm         = p.smartMetrics || {};
-            const isLowStock = p.stock !== undefined && p.stock < 5;
-            const isPaused   = p.status === 'paused';
-            const img        = (p.images || [])[0] || '';
-            const velocity   = sm.velocityScore || 0;
-            const cartCount  = sm.activeCartCount || 0;
-            const velocityBadge = velocity > 60
-                ? '<span style="font-size:0.65rem; background:#fef3c7; color:#b45309; border:1px solid #fde68a; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem; font-weight:700;">🔥 Hot</span>'
-                : velocity > 20
-                ? '<span style="font-size:0.65rem; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem; font-weight:700;">⚡ Rising</span>'
-                : '';
-            const cartBubble = cartCount > 0
-                ? `<span style="font-size:0.65rem; color:#6b7280; margin-left:0.4rem;"><i class="fa fa-shopping-cart" style="margin-right:0.2rem;"></i>${cartCount} in carts</span>`
-                : '';
-            return `
-            <div class="list-item flex-between animate-fade" id="prod-row-${p._id}" style="cursor:pointer;" onclick="window.location='/product/${p._id}'">
-                <div class="flex-center gap-2" style="min-width:0;">
-                    <img src="${img}"
-                         style="width:44px; height:44px; border-radius:6px; object-fit:cover; background:var(--bg-secondary); flex-shrink:0;"
-                         onerror="this.onerror=null; this.src=''; this.style.background='var(--bg-secondary)'">
-                    <div style="min-width:0;">
-                        <div style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px;">
-                            ${p.title}${velocityBadge}
-                            ${isLowStock ? '<span class="stock-low-chip">Low Stock</span>' : ''}
-                        </div>
-                        <div class="text-muted small">$${((p.price || 0) / 100).toFixed(2)} &middot;
-                            <span id="status-label-${p._id}" style="color:${isPaused ? '#a16207' : '#15803d'};">${p.status}</span>${cartBubble}
-                        </div>
-                    </div>
-                </div>
-                <div class="listing-actions" onclick="event.stopPropagation()">
-                    <button class="act-btn" title="Edit" onclick="openEditModal('${p._id}')">
-                        <i class="fa fa-pen"></i> Edit
-                    </button>
-                    <button class="act-btn ${isPaused ? 'activate' : ''}" id="toggle-btn-${p._id}" title="${isPaused ? 'Activate' : 'Pause'}"
-                            onclick="toggleStatus('${p._id}', '${p.status}')">
-                        <i class="fa fa-${isPaused ? 'play' : 'pause'}"></i> ${isPaused ? 'Activate' : 'Pause'}
-                    </button>
-                    <button class="act-btn danger" title="Delete" onclick="deleteProduct('${p._id}')">
-                        <i class="fa fa-trash"></i>
-                    </button>
-                </div>
-            </div>`;
-        }).join('');
+        list.innerHTML = filtered.map(renderProductRow).join('');
     }
 
     // ── Load seller orders ────────────────────────────────────────────────────
@@ -2803,12 +2886,14 @@
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-            showToast(editId ? 'Listing updated!' : 'Listing posted!', 'success');
+            showToast(editId ? 'Listing updated!' : 'Listing posted — submitting for review…', 'success');
             closeModal();
             // Update map in-place so current filter/search state is preserved
             _productsMap[data._id] = data;
             filterListings();
             loadStats();
+            // Auto-submit new listings immediately into the review queue
+            if (!editId) { await submitListingForReview(data._id); }
         } catch (err) {
             showInlineError('listing-error-container', 'Error: ' + err.message);
             btn.disabled = false;

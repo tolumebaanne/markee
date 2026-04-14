@@ -11,11 +11,12 @@
 const express = require('express');
 const router  = express.Router();
 
-const requireAdminAuth  = require('../middleware/requireAdminAuth');
-const requirePermission = require('../middleware/requirePermission');
-const sessionActivity   = require('../middleware/sessionActivity');
-const auditLog          = require('../middleware/auditLog');
-const errorResponse     = require('../../shared/utils/errorResponse');
+const requireAdminAuth        = require('../middleware/requireAdminAuth');
+const requirePermission       = require('../middleware/requirePermission');
+const requireReviewPermission = require('../middleware/requireReviewPermission');
+const sessionActivity         = require('../middleware/sessionActivity');
+const auditLog                = require('../middleware/auditLog');
+const errorResponse           = require('../../shared/utils/errorResponse');
 
 router.use(requireAdminAuth, sessionActivity);
 
@@ -73,6 +74,69 @@ router.post('/catalog/products/:id/feature',
   auditLog('catalog.feature', 'Product'),
   async (req, res) => {
     const r = await callServiceAsAdmin('POST', `${catalogUrl()}/products/${req.params.id}/feature`, req.body, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+// ── Listing Review (reviewer-facing catalog proxy routes) ─────────────────────
+
+router.get('/catalog/products/review/unassigned',
+  requireReviewPermission('canReview'),
+  async (req, res) => {
+    const r = await callServiceAsAdmin('GET', `${catalogUrl()}/products/review/unassigned`, null, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+router.get('/catalog/products/review/assigned/:adminId',
+  requireReviewPermission('canReview'),
+  async (req, res) => {
+    const r = await callServiceAsAdmin('GET', `${catalogUrl()}/products/review/assigned/${req.params.adminId}`, null, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+router.get('/catalog/products/review/history',
+  requireReviewPermission('canReview'),
+  async (req, res) => {
+    const qs = new URLSearchParams(req.query).toString();
+    const r  = await callServiceAsAdmin('GET', `${catalogUrl()}/products/review/history?${qs}`, null, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+router.post('/catalog/products/:id/disapprove',
+  requireReviewPermission('canReview'),
+  auditLog('listingReview.disapprove', 'Product'),
+  async (req, res) => {
+    const r = await callServiceAsAdmin('POST', `${catalogUrl()}/products/${req.params.id}/disapprove`, req.body, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+router.post('/catalog/products/review/assign',
+  requireReviewPermission('canAssign'),
+  auditLog('listingReview.assign', 'Product'),
+  async (req, res) => {
+    const r = await callServiceAsAdmin('POST', `${catalogUrl()}/products/review/assign`, req.body, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+router.post('/catalog/products/review/reassign',
+  requireReviewPermission('canAssign'),
+  auditLog('listingReview.reassign', 'Product'),
+  async (req, res) => {
+    const r = await callServiceAsAdmin('POST', `${catalogUrl()}/products/review/reassign`, req.body, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+router.post('/catalog/products/review/pullback',
+  requireReviewPermission('canAssign'),
+  auditLog('listingReview.pullback', 'Product'),
+  async (req, res) => {
+    const r = await callServiceAsAdmin('POST', `${catalogUrl()}/products/review/pullback`, req.body, req.admin.email);
     res.status(r.status).json(r.data);
   }
 );

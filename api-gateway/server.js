@@ -46,26 +46,40 @@ app.use('/api/auth', createProxyMiddleware({
 }));
 
 // ── Catalog — GET public, write requires seller scope, admin review routes require admin role ──
-// S7 — Admin-only catalog paths:
-//   GET  /products/pending-review      — moderation queue
-//   POST /products/:id/approve         — approve a product
-//   POST /products/:id/reject          — reject with reason
-// These are enforced here at the gateway layer. The service enforces again internally.
+// Admin-only catalog paths (enforced at gateway; service enforces again internally):
+//   GET  /products/pending-review                — legacy moderation queue
+//   GET  /products/review/unassigned             — Phase 1 unassigned review queue
+//   GET  /products/review/assigned/:reviewerId   — Phase 1 assigned queue
+//   GET  /products/review/history                — Phase 1 review audit log
+//   POST /products/:id/approve                   — approve
+//   POST /products/:id/disapprove                — request changes
+//   POST /products/:id/reject                    — permanent reject
+//   POST /products/review/assign                 — batch assign
+//   POST /products/review/reassign               — batch reassign
+//   POST /products/review/pullback               — return to pool
 const CATALOG_URL = process.env.CATALOG_SERVICE_URL || 'http://localhost:5002';
 app.use('/api/catalog', (req, res, next) => {
     const isTelemetry = req.method === 'POST' && req.path.endsWith('/telemetry');
-    // Admin-only paths — require token + admin role (not seller scope)
+
+    // Admin / Super-only paths — require token + admin or super role
     const isAdminReviewPath =
         (req.method === 'GET'  && req.path === '/products/pending-review') ||
-        (req.method === 'POST' && /^\/products\/[^/]+\/(approve|reject)$/.test(req.path));
-    // Public GETs: any GET except /my-products and the admin review queue
-    const isPublicGet = req.method === 'GET' && !req.path.includes('/my-products') && !isAdminReviewPath;
+        (req.method === 'GET'  && /^\/products\/review\/(unassigned|history)$/.test(req.path)) ||
+        (req.method === 'GET'  && /^\/products\/review\/assigned\//.test(req.path)) ||
+        (req.method === 'POST' && /^\/products\/[^/]+\/(approve|disapprove|reject)$/.test(req.path)) ||
+        (req.method === 'POST' && /^\/products\/review\/(assign|reassign|pullback)$/.test(req.path));
+
+    // Public GETs: any GET except /my-products and admin review paths
+    const isPublicGet = req.method === 'GET'
+        && !req.path.includes('/my-products')
+        && !isAdminReviewPath;
 
     if (isTelemetry || isPublicGet) return proxy(CATALOG_URL)(req, res, next);
 
     verifyToken(req, res, () => {
         if (isAdminReviewPath) {
-            if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+            const role = req.user?.role;
+            if (role !== 'admin' && role !== 'super') return errorResponse(res, 403, 'Admin only');
             return proxy(CATALOG_URL)(req, res, next);
         }
         if (req.method !== 'GET') {

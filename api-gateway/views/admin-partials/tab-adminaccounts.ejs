@@ -186,6 +186,7 @@ async function openPermEdit(id, email) {
     _editingPerms = JSON.parse(JSON.stringify(perms));
     const domains = {
       auth: ['read','write','ban','impersonate'], catalog: ['read','write','approve','reject','feature','categoryMgmt','bulk'],
+      listingReview: ['canReview','canAssign','canUseTemplates','canViewOwnActivityLog'],
       orders: ['read','forceStatus','cancel','bulk'], payments: ['read','refund','release','partialRefund','freeze','splitRefund','resolveDisputes','payoutHold'],
       sellers: ['read','write','verify','suspend','ban','regApproval','tier'], reviews: ['read','moderate','delete','bulk'],
       messages: ['read','moderate','inject','ban'], notifications: ['read','send','broadcast','editTemplates'],
@@ -194,7 +195,7 @@ async function openPermEdit(id, email) {
       intelligence: ['sellerScores','buyerScores','fraudSignals','anomalies'],
       config: ['read','write'], audit: ['readOwn','readAll','export']
     };
-    const superuserOnly = { auth: ['impersonate'], system: true };
+    const superuserOnly = { auth: ['impersonate'], system: true, listingReview: ['canAssign'] };
 
     wrap.innerHTML = Object.entries(domains).map(([domain, actions]) => `
       <div style="margin-bottom:1.1rem">

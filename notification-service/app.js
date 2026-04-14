@@ -1603,6 +1603,113 @@ bus.on('shipment.dispute_resolved', async (payload) => {
     } catch (err) { console.error('[NOTIFY] shipment.dispute_resolved handler error:', err.message); }
 });
 
+// ── Listing Review Notifications ──────────────────────────────────────────────
+// Single event `listing.review_status_changed` with `subtype` field covers all
+// review state transitions. Pattern keeps the notification bus clean as new
+// review states are added.
+
+// listing.review_status_changed (subtype: 'approved') → seller: listing is now live
+bus.on('listing.review_status_changed', async (payload) => {
+    try {
+        if (!payload.sellerId || !payload.subtype) return;
+        const title = payload.title || 'your listing';
+        const link  = `/dashboard#listings`;
+
+        if (payload.subtype === 'approved') {
+            await sendNotification(
+                'LISTING_APPROVED',
+                `seller-${payload.sellerId}@markee.local`,
+                `Your listing is live — ${title}`,
+                `"${title}" has passed review and is now visible to buyers on Markee.\n\nView it: /product/${payload.productId}`,
+                payload,
+                { userId: payload.sellerId, link: `/product/${payload.productId}`, icon: 'fa-check-circle', priority: 'high' }
+            );
+
+        } else if (payload.subtype === 'needs_changes') {
+            const comment = payload.reviewerComment || 'Please review the feedback and resubmit.';
+            await sendNotification(
+                'LISTING_NEEDS_CHANGES',
+                `seller-${payload.sellerId}@markee.local`,
+                `Changes needed before your listing can go live — ${title}`,
+                `"${title}" needs some changes before it can be approved.\n\nFeedback: ${comment}\n\nEdit and resubmit from your dashboard.`,
+                payload,
+                { userId: payload.sellerId, link, icon: 'fa-pencil-alt', priority: 'high' }
+            );
+
+        } else if (payload.subtype === 'rejected') {
+            const reason = payload.rejectionReason || 'The listing did not meet platform guidelines.';
+            await sendNotification(
+                'LISTING_REJECTED',
+                `seller-${payload.sellerId}@markee.local`,
+                `Listing rejected — ${title}`,
+                `"${title}" has been rejected and will not be published.\n\nReason: ${reason}\n\nIf you believe this is an error, please contact Markee support.`,
+                payload,
+                { userId: payload.sellerId, link, icon: 'fa-ban', priority: 'high' }
+            );
+
+        } else if (payload.subtype === 'resubmitted') {
+            // Notify the previous reviewer (if known) so they can pick it up again.
+            if (payload.previousReviewerId) {
+                await sendNotification(
+                    'LISTING_RESUBMITTED',
+                    `admin-${payload.previousReviewerId}@markee.local`,
+                    `Resubmitted: ${title}`,
+                    `A seller has resubmitted "${title}" after feedback. It is ready for re-review.`,
+                    payload,
+                    { userId: payload.previousReviewerId, link: `/admin#moderation`, icon: 'fa-redo', priority: 'medium' }
+                );
+            }
+        }
+    } catch (err) { console.error('[NOTIFY] listing.review_status_changed handler error:', err.message); }
+});
+
+// listing.review_assigned → notify Admin with queued count
+bus.on('listing.review_assigned', async (payload) => {
+    try {
+        if (!payload.adminId) return;
+        const count = payload.assignedCount || 1;
+        await sendNotification(
+            'LISTING_REVIEW_ASSIGNED',
+            `admin-${payload.adminId}@markee.local`,
+            `${count} listing${count !== 1 ? 's' : ''} assigned to your review queue`,
+            `You have ${count} new listing${count !== 1 ? 's' : ''} ready for review in your Moderation queue.`,
+            payload,
+            { userId: payload.adminId, link: `/admin#moderation`, icon: 'fa-tasks', priority: 'medium' }
+        );
+    } catch (err) { console.error('[NOTIFY] listing.review_assigned handler error:', err.message); }
+});
+
+// listing.review_permission_revoked → notify Admin when their review access is removed
+bus.on('listing.review_permission_revoked', async (payload) => {
+    try {
+        if (!payload.adminId) return;
+        await sendNotification(
+            'LISTING_REVIEW_PERMISSION_REVOKED',
+            `admin-${payload.adminId}@markee.local`,
+            `Your listing review access has been updated`,
+            `Your listing review permissions have been changed by a superuser. Contact your team if you believe this is an error.`,
+            payload,
+            { userId: payload.adminId, link: `/admin`, icon: 'fa-lock', priority: 'high' }
+        );
+    } catch (err) { console.error('[NOTIFY] listing.review_permission_revoked handler error:', err.message); }
+});
+
+// listing.reviewer_override → notify Admin when a superuser overrides their decision
+bus.on('listing.reviewer_override', async (payload) => {
+    try {
+        if (!payload.originalReviewerId) return;
+        const title = payload.title || 'a listing';
+        await sendNotification(
+            'LISTING_REVIEWER_OVERRIDE',
+            `admin-${payload.originalReviewerId}@markee.local`,
+            `Your review decision was overridden — ${title}`,
+            `A superuser overrode your review decision on "${title}". New outcome: ${payload.newOutcome || 'updated'}.`,
+            payload,
+            { userId: payload.originalReviewerId, link: `/admin#moderation`, icon: 'fa-exclamation-circle', priority: 'medium' }
+        );
+    } catch (err) { console.error('[NOTIFY] listing.reviewer_override handler error:', err.message); }
+});
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 app.get('/logs', async (req, res) => {
