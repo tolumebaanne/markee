@@ -432,15 +432,24 @@ async function loadFulfillmentOptions() {
     const sellerIds = [...new Set(checkoutItems.map(i => i.sellerId).filter(Boolean))];
     if (!sellerIds.length) return;
     const results = await Promise.allSettled(
-        sellerIds.map(id => fetch(`/api/public-seller/${id}`).then(r => r.ok ? r.json() : null))
+        // /by-seller/:id resolves sellerId → store document (includes fulfillmentOptions, enabledCarriers, pickupLocations)
+        sellerIds.map(id => fetch(`/api/public-seller/by-seller/${id}`).then(r => r.ok ? r.json() : null))
     );
     sellerStoreData = results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean);
 
-    // Intersect fulfillmentOptions across all sellers
+    // Intersect fulfillmentOptions across all sellers in the cart
     const allOptions = sellerStoreData.map(s => (s.fulfillmentOptions && s.fulfillmentOptions.length) ? s.fulfillmentOptions : ['shipping']);
     availableFulfillmentOptions = allOptions.length
         ? allOptions.reduce((a, b) => a.filter(x => b.includes(x)))
         : ['shipping'];
+
+    // Product-level override: if the product defines its own FO list, intersect with store options
+    // (product can restrict to a subset of what the store offers, but cannot expand beyond it)
+    if (checkoutItems.length === 1 && checkoutItems[0].fulfillmentOptions?.length) {
+        const productFO = checkoutItems[0].fulfillmentOptions;
+        availableFulfillmentOptions = availableFulfillmentOptions.filter(o => productFO.includes(o));
+    }
+
     if (!availableFulfillmentOptions.length) availableFulfillmentOptions = ['shipping'];
 
     renderFulfillmentOptions();
