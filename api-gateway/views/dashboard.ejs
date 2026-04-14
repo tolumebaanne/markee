@@ -594,7 +594,10 @@
 
                     <!-- Pickup Locations (shown when pickup is enabled) -->
                     <div id="pickup-locations-section" style="display:none; margin-top:1rem;">
-                        <label style="font-weight:700; margin-bottom:0.5rem; display:block;"><i class="fa fa-map-marker-alt" style="margin-right:0.4rem; color:var(--accent-red);"></i> Pickup Locations</label>
+                        <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:0.5rem;">
+                            <label style="font-weight:700; margin:0;"><i class="fa fa-map-marker-alt" style="margin-right:0.4rem; color:var(--accent-red);"></i> Pickup Locations</label>
+                            <a href="/account/addresses" style="font-size:0.78rem; color:var(--primary); text-decoration:none;">Manage in Account Settings <i class="fa fa-external-link-alt" style="font-size:0.7rem;"></i></a>
+                        </div>
                         <div id="pickup-locations-list" style="margin-bottom:0.75rem;"></div>
                         <button type="button" class="btn btn-outline" style="font-size:0.8rem; padding:0.4rem 0.9rem; width:auto;" onclick="toggleAddPickupForm()">
                             <i class="fa fa-plus" style="margin-right:0.3rem;"></i> Add Location
@@ -1191,6 +1194,19 @@
                         <input type="checkbox" class="listing-fo-cb" value="self_fulfilled" onchange="onListingFulfillmentChange()">
                         <i class="fa fa-box-open" style="width:14px; font-size:0.85rem;"></i> Seller Fulfillment
                     </label>
+                </div>
+                <div id="listing-fo-status" style="font-size:0.78rem; color:var(--text-muted); margin-top:0.35rem;">Using store defaults</div>
+                <!-- Carrier override (shown when Courier Delivery is checked) -->
+                <div id="listing-carrier-section" style="display:none; margin-top:0.5rem; padding:0.6rem 0.8rem; border:1px solid var(--border-light); border-radius:8px; background:var(--bg-secondary);">
+                    <div style="font-size:0.75rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:0.4rem;">Carrier override <span style="font-weight:400; text-transform:none; letter-spacing:0;">(leave all unchecked to use store defaults)</span></div>
+                    <div style="display:flex; flex-wrap:wrap; gap:0.4rem 1.1rem;">
+                        <label class="check-label" style="margin:0;"><input type="checkbox" class="listing-carrier-cb" value="canada_post"> Canada Post</label>
+                        <label class="check-label" style="margin:0;"><input type="checkbox" class="listing-carrier-cb" value="ups"> UPS</label>
+                        <label class="check-label" style="margin:0;"><input type="checkbox" class="listing-carrier-cb" value="fedex"> FedEx</label>
+                        <label class="check-label" style="margin:0;"><input type="checkbox" class="listing-carrier-cb" value="purolator"> Purolator</label>
+                        <label class="check-label" style="margin:0;"><input type="checkbox" class="listing-carrier-cb" value="dhl"> DHL</label>
+                        <label class="check-label" style="margin:0;"><input type="checkbox" class="listing-carrier-cb" value="other"> Other</label>
+                    </div>
                 </div>
             </div>
 
@@ -2657,6 +2673,19 @@
             section.style.display = 'none';
             select.value = '';
         }
+
+        // Show/hide per-product carrier override section
+        const carrierSection = document.getElementById('listing-carrier-section');
+        const foStatus = document.getElementById('listing-fo-status');
+        if (carrierSection) carrierSection.style.display = checked.includes('shipping') ? 'block' : 'none';
+        if (foStatus) {
+            if (!checked.length) {
+                foStatus.textContent = 'Using store defaults';
+            } else {
+                const foLabels = { shipping: 'Courier', pickup: 'Pickup', self_fulfilled: 'Self-Fulfil' };
+                foStatus.textContent = 'Override: ' + checked.map(v => foLabels[v] || v).join(', ');
+            }
+        }
     }
 
     // ── Modal open/close ──────────────────────────────────────────────────────
@@ -2669,6 +2698,12 @@
         if (fastFeeEl) fastFeeEl.value = '';
         // Clear fulfillment checkboxes
         document.querySelectorAll('.listing-fo-cb').forEach(cb => { cb.checked = false; });
+        // Reset carrier checkboxes and sections
+        document.querySelectorAll('.listing-carrier-cb').forEach(cb => { cb.checked = false; });
+        const listingCarrierSection = document.getElementById('listing-carrier-section');
+        if (listingCarrierSection) listingCarrierSection.style.display = 'none';
+        const foStatus = document.getElementById('listing-fo-status');
+        if (foStatus) foStatus.textContent = 'Using store defaults';
         // Reset pickup location section
         const pickupSection = document.getElementById('listing-pickup-location-section');
         const pickupLocSel  = document.getElementById('listing-pickup-location-select');
@@ -2697,7 +2732,12 @@
         document.querySelectorAll('.listing-fo-cb').forEach(cb => {
             cb.checked = productFO.includes(cb.value);
         });
-        // Reveal/populate pickup section, then restore saved pickupLocationId
+        // Per-product carrier overrides — check saved carriers
+        const productCarriers = p.enabledCarriers || [];
+        document.querySelectorAll('.listing-carrier-cb').forEach(cb => {
+            cb.checked = productCarriers.includes(cb.value);
+        });
+        // Reveal/populate pickup section + carrier section, then restore saved pickupLocationId
         onListingFulfillmentChange();
         const pickupLocSel = document.getElementById('listing-pickup-location-select');
         if (pickupLocSel && p.pickupLocationId) pickupLocSel.value = p.pickupLocationId;
@@ -2731,6 +2771,9 @@
         // Per-product fulfillment options (empty array = inherit from store)
         const fulfillmentOptions = [...document.querySelectorAll('.listing-fo-cb:checked')].map(cb => cb.value);
 
+        // Per-product carrier overrides (empty array = inherit from store)
+        const enabledCarriers = [...document.querySelectorAll('.listing-carrier-cb:checked')].map(cb => cb.value);
+
         // Pickup location — only relevant when fulfillmentOptions includes 'pickup'
         const pickupLocationId = fulfillmentOptions.includes('pickup')
             ? (document.getElementById('listing-pickup-location-select')?.value || null)
@@ -2744,6 +2787,7 @@
             description:        document.getElementById('f-description').value.trim(),
             fastDeliveryFee,
             fulfillmentOptions,
+            enabledCarriers,
             pickupLocationId,
         };
         if (!editId) product.status = 'active';
@@ -3424,7 +3468,11 @@ function syncFulfillmentOptions() {
     const pickupSection  = document.getElementById('pickup-locations-section');
     const carrierSection = document.getElementById('carrier-selection-section');
     if (pickupSection)  pickupSection.style.display  = opts.includes('pickup')   ? 'block' : 'none';
-    if (carrierSection) carrierSection.style.display = opts.includes('shipping') ? 'block' : 'none';
+    const showCarrier = opts.includes('shipping');
+    if (carrierSection) {
+        carrierSection.style.display = showCarrier ? 'block' : 'none';
+        if (!showCarrier) document.querySelectorAll('.carrier-cb').forEach(cb => { cb.checked = false; });
+    }
 }
 
 function toggleAddPickupForm() {

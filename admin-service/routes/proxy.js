@@ -421,6 +421,12 @@ router.patch('/users/:userId/role', requirePermission('auth', 'write'), auditLog
   res.status(r.status).json(r.data);
 });
 
+// User profile detail (addresses, display name, etc.)
+router.get('/users/:userId/profile', requirePermission('auth', 'read'), async (req, res) => {
+  const r = await callServiceAsAdmin('GET', `${userUrl()}/admin/users/${req.params.userId}`, null, req.admin.email);
+  res.status(r.status).json(r.data);
+});
+
 // Hard-delete — superuser only, pre-condition gates enforced before forwarding
 router.delete('/users/:userId',
   (req, res, next) => {

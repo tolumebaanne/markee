@@ -407,33 +407,60 @@ app.post('/', async (req, res) => {
         const { fulfillmentType, paymentMethod, selectedCarrier, selfFulfillmentAddress, selfFulfillmentInstructions, pickupLocationId } = req.body;
         const sellerIds = [...new Set(items.map(i => i.sellerId?.toString()).filter(Boolean))];
 
-        // S29 — Vacation mode check: block order if any seller is on vacation
+        // S29 — Fetch seller stores: used for vacation mode, fulfillmentOptions, and enabledCarriers validation
+        const sellerStores = {};
         for (const sid of sellerIds) {
             try {
                 const controller = new AbortController();
                 setTimeout(() => controller.abort(), 2000);
                 const r = await fetch(`http://localhost:5005/by-seller/${sid}`, { signal: controller.signal });
-                if (r.ok) {
-                    const store = await r.json();
-                    if (store.vacationMode?.active) {
-                        const resume = store.vacationMode.resumesAt
-                            ? ` Expected return: ${new Date(store.vacationMode.resumesAt).toLocaleDateString()}.`
-                            : '';
-                        return errorResponse(res, 400, `"${store.name || 'A seller'}" is currently on vacation.${resume} ${store.vacationMode.message || ''}`);
-                    }
-                }
+                if (r.ok) sellerStores[sid] = await r.json();
             } catch { /* fail open — seller service unreachable */ }
         }
 
+        // Vacation mode check
+        for (const sid of sellerIds) {
+            const store = sellerStores[sid];
+            if (store?.vacationMode?.active) {
+                const resume = store.vacationMode.resumesAt
+                    ? ` Expected return: ${new Date(store.vacationMode.resumesAt).toLocaleDateString()}.`
+                    : '';
+                return errorResponse(res, 400, `"${store.name || 'A seller'}" is currently on vacation.${resume} ${store.vacationMode.message || ''}`);
+            }
+        }
+
+        // B2a — fulfillmentType: validate against first seller's fulfillmentOptions (single-seller orders only for pickup/self_fulfilled)
+        const primaryStore = sellerStores[sellerIds[0]];
+        const allowedFulfillmentTypes = (primaryStore?.fulfillmentOptions?.length)
+            ? primaryStore.fulfillmentOptions
+            : ['shipping'];
         const resolvedFulfillmentType = (
-            (fulfillmentType === 'pickup' || fulfillmentType === 'self_fulfilled') && sellerIds.length === 1
+            (fulfillmentType === 'pickup' || fulfillmentType === 'self_fulfilled') &&
+            sellerIds.length === 1 &&
+            allowedFulfillmentTypes.includes(fulfillmentType)
         ) ? fulfillmentType : 'shipping';
 
-        // B2b — Carrier: validate against enum; null if absent or invalid
+        if (fulfillmentType && fulfillmentType !== resolvedFulfillmentType &&
+            (fulfillmentType === 'pickup' || fulfillmentType === 'self_fulfilled')) {
+            return errorResponse(res, 400, `Fulfillment type '${fulfillmentType}' is not enabled for this seller.`);
+        }
+
+        // B2b — Carrier: validate against seller's enabledCarriers; fall back to enum check
         const VALID_CARRIERS = ['canada_post', 'ups', 'fedex', 'purolator', 'dhl', 'other'];
-        const resolvedCarrier = (resolvedFulfillmentType === 'shipping' && VALID_CARRIERS.includes(selectedCarrier))
+        const sellerCarriers = (primaryStore?.enabledCarriers?.length)
+            ? primaryStore.enabledCarriers
+            : VALID_CARRIERS;
+        const resolvedCarrier = (resolvedFulfillmentType === 'shipping' && selectedCarrier && sellerCarriers.includes(selectedCarrier))
             ? selectedCarrier
-            : null;
+            : (resolvedFulfillmentType === 'shipping' && selectedCarrier && VALID_CARRIERS.includes(selectedCarrier))
+                ? (() => { /* carrier valid globally but not in seller's list — warn but allow */ return selectedCarrier; })()
+                : null;
+        if (resolvedFulfillmentType === 'shipping' && selectedCarrier && !VALID_CARRIERS.includes(selectedCarrier)) {
+            return errorResponse(res, 400, `Unknown carrier '${selectedCarrier}'.`);
+        }
+        if (resolvedFulfillmentType === 'shipping' && selectedCarrier && !sellerCarriers.includes(selectedCarrier)) {
+            return errorResponse(res, 400, `Carrier '${selectedCarrier}' is not offered by this seller.`);
+        }
 
         // Address validation — shippingAddress required for shipping/self_fulfilled; not required for pickup (stored as pickup location)
         if (resolvedFulfillmentType !== 'pickup') {
@@ -441,6 +468,10 @@ app.post('/', async (req, res) => {
             if (!shippingAddress?.city?.trim())       return errorResponse(res, 400, 'shippingAddress.city is required');
             if (!shippingAddress?.postalCode?.trim()) return errorResponse(res, 400, 'shippingAddress.postalCode is required');
         }
+        // billingAddress validation — always required
+        if (!billingAddress?.street?.trim())     return errorResponse(res, 400, 'billingAddress.street is required');
+        if (!billingAddress?.city?.trim())       return errorResponse(res, 400, 'billingAddress.city is required');
+        if (!billingAddress?.postalCode?.trim()) return errorResponse(res, 400, 'billingAddress.postalCode is required');
 
         // Sanitize shippingAddress and billingAddress to canonical fields only
         const sanitizeAddr = (a) => a ? {

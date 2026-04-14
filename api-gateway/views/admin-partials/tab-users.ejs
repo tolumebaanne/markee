@@ -79,6 +79,7 @@ async function loadUsers(page) {
         <td style="color:var(--muted);font-size:0.7rem">${fmtDate(u.createdAt)}</td>
         <td>
           <div class="btn-gap">
+            <button class="btn btn-info btn-xs" onclick="viewUserDetail('${uid}')"><i class="fas fa-eye"></i></button>
             ${modStatus !== 'suspended' && modStatus !== 'banned'
               ? `<button class="btn btn-warn btn-xs" onclick="suspendUser('${uid}')"><i class="fas fa-pause"></i> Suspend</button>`
               : `<button class="btn btn-success btn-xs" onclick="unbanUser('${uid}')"><i class="fas fa-rotate-right"></i> Restore</button>`}
@@ -103,6 +104,43 @@ async function loadUsers(page) {
   } catch (err) {
     showErr('u-error', err.message);
     el.innerHTML = '';
+  }
+}
+
+async function viewUserDetail(id) {
+  const modal = document.getElementById('userDetailModal');
+  const body  = document.getElementById('userDetailBody');
+  if (!modal || !body) return;
+  body.innerHTML = `<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading profile…</div>`;
+  openModal('userDetailModal');
+  try {
+    const profile = await adminApi('GET', `/proxy/users/${id}/profile`);
+    const p = profile.profile || profile.user || profile;
+    const addresses = p.addresses || [];
+    const addrCount = addresses.length;
+    const defaultAddr = addresses.find(a => a.isDefault) || addresses[0];
+    body.innerHTML = `<div class="grid-2">
+      <div>${[
+        ['Display Name', p.displayName || '—'],
+        ['Email',        p.email       || '—'],
+        ['User ID',      `<span class="mono" style="font-size:.75rem">${trunc(id, 22)}</span>`],
+        ['Role',         badge(p.role || 'user')],
+        ['Status',       badge(p.moderationStatus || p.status || 'active')],
+        ['Joined',       fmtDate(p.createdAt)],
+      ].map(([l,v]) => `<div class="order-detail-row"><div class="order-detail-label" style="min-width:110px">${l}</div><div style="font-size:.83rem">${v}</div></div>`).join('')}
+      </div>
+      <div>
+        <div style="font-weight:600;margin-bottom:.5rem">Saved Addresses <span style="font-weight:400;color:var(--muted)">(${addrCount})</span></div>
+        ${addrCount
+          ? addresses.map(a => `<div style="font-size:.8rem;margin-bottom:.4rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;background:var(--bg2)">
+              ${a.isDefault ? '<span style="color:var(--success);font-weight:700;font-size:.68rem;margin-right:.3rem">DEFAULT</span>' : ''}
+              ${[a.label,a.street,a.city,a.province,a.postalCode,a.country].filter(Boolean).join(', ')}
+            </div>`).join('')
+          : '<p style="color:var(--muted);font-size:.8rem">No saved addresses.</p>'}
+      </div>
+    </div>`;
+  } catch(err) {
+    body.innerHTML = `<div class="error-banner"><i class="fas fa-triangle-exclamation"></i> ${err.message}</div>`;
   }
 }
 
@@ -229,6 +267,18 @@ async function hardDeleteDeletedUser(id, email) {
   } catch (err) { toast('Error: ' + err.message, 'error'); }
 }
 </script>
+
+<!-- ── User Detail Modal ── -->
+<div class="modal-overlay" id="userDetailModal">
+  <div class="modal modal-xl">
+    <div class="modal-header">
+      <h3>User Profile</h3>
+      <button class="modal-close" onclick="closeModal('userDetailModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="userDetailBody"></div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('userDetailModal')">Close</button></div>
+  </div>
+</div>
 
 <!-- ── Deleted Accounts Section (Superuser only — hidden until _isSuperuser flag set) ── -->
 <div id="deleted-accounts-section" style="margin-top:2rem;border:1px solid var(--border);border-radius:8px;overflow:hidden;display:none">

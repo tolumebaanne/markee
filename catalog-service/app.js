@@ -38,6 +38,7 @@ const QuestionSchema = new mongoose.Schema({
     askedAt:   { type: Date, default: Date.now }
 }, { _id: true });
 
+// Canonical address fields (when used here or in nested docs): street, city, province, postalCode, country, label, isDefault
 const ProductSchema = new mongoose.Schema({
     sellerId:    { type: mongoose.Schema.Types.ObjectId, required: true },
     title:       { type: String, required: true },

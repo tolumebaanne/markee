@@ -539,6 +539,16 @@ app.patch('/admin/users/:userId/role', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
+// GET /admin/users/:userId — fetch full profile (includes addresses) for admin detail view
+app.get('/admin/users/:userId', async (req, res) => {
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
+    try {
+        const profile = await Profile.findOne({ userId: req.params.userId }).lean();
+        if (!profile) return errorResponse(res, 404, 'Profile not found');
+        res.json({ profile });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
 // DELETE /admin/users/:userId — hard delete: fetch storeId, emit full cascade, then delete profile
 // Body: { reason }
 app.delete('/admin/users/:userId', async (req, res) => {

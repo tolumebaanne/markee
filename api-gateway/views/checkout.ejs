@@ -470,9 +470,12 @@ function renderFulfillmentOptions() {
             dhl:         'DHL',
             other:       'Other Carrier',
         };
-        const enabledCarriers = (sellerStoreData[0]?.enabledCarriers?.length)
-            ? sellerStoreData[0].enabledCarriers
-            : ['canada_post','ups','fedex','purolator','dhl'];
+        // Product-level carrier override takes precedence over store default
+        const productCarriers = checkoutItems.length === 1 && checkoutItems[0].enabledCarriers?.length
+            ? checkoutItems[0].enabledCarriers : null;
+        const enabledCarriers = productCarriers
+            || (sellerStoreData[0]?.enabledCarriers?.length ? sellerStoreData[0].enabledCarriers : null)
+            || ['canada_post','ups','fedex','purolator','dhl'];
         carrierSelect.innerHTML = enabledCarriers
             .map(c => `<option value="${c}">${carrierLabels[c] || c}</option>`)
             .join('');
@@ -613,7 +616,9 @@ function loadCheckoutItems() {
                     title: p.title, price: p.price, qty: 1,
                     image: (p.images||[])[0],
                     fastDeliveryFee: p.fastDeliveryFee || 0,
-                    pickupLocationId: p.pickupLocationId || null
+                    pickupLocationId: p.pickupLocationId || null,
+                    enabledCarriers: p.enabledCarriers || [],
+                    fulfillmentOptions: p.fulfillmentOptions || [],
                 }];
                 renderSummary();
                 updateFastDeliveryLabel();
@@ -625,7 +630,9 @@ function loadCheckoutItems() {
             _id: i._id, productId: i._id, sellerId: i.sellerId,
             title: i.title, price: i.price, qty: i.qty, image: i.image,
             fastDeliveryFee: i.fastDeliveryFee || 0,
-            pickupLocationId: i.pickupLocationId || null
+            pickupLocationId: i.pickupLocationId || null,
+            enabledCarriers: i.enabledCarriers || [],
+            fulfillmentOptions: i.fulfillmentOptions || [],
         }));
         if (checkoutItems.length === 0) {
             document.getElementById('checkout-main').innerHTML =
