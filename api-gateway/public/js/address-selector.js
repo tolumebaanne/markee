@@ -76,7 +76,7 @@
                 body.innerHTML = `
                     <div class="address-selector-empty">
                         <p>${msg}</p>
-                        <a href="${href}" class="address-selector-add-btn">${cta}</a>
+                        <a href="${href}" class="nav-pill nav-pill-red" style="text-decoration:none;">${cta}</a>
                     </div>`;
                 return;
             }
@@ -109,7 +109,7 @@
             body.innerHTML = `
                 <div class="address-selector-empty">
                     <p>Couldn't load your addresses.</p>
-                    <a href="/account/addresses" class="address-selector-add-btn">Add Address</a>
+                    <a href="/account/addresses" class="nav-pill nav-pill-red" style="text-decoration:none;">Add Address</a>
                 </div>`;
         }
     };

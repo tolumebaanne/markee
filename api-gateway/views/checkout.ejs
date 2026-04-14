@@ -173,10 +173,10 @@
                     <!-- Different delivery address (shown when "same as billing" is unchecked) -->
                     <div id="shipping-fields" style="display:none;">
                         <!-- Selected delivery address card -->
-                        <div id="shipping-addr-display" style="display:none; padding:0.75rem; border:1.5px solid #2563eb; border-radius:8px; background:#eff6ff; margin-bottom:0.75rem;">
+                        <div id="shipping-addr-display" style="display:none; padding:0.75rem; border:1.5px solid var(--accent-red); border-radius:8px; background:#fff5f5; margin-bottom:0.75rem;">
                             <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.15rem;" id="shipping-addr-label"></div>
                             <div style="font-size:0.82rem; color:var(--text-muted); line-height:1.5;" id="shipping-addr-text"></div>
-                            <button type="button" onclick="showShippingSelector()" style="font-size:0.75rem; color:#2563eb; background:none; border:none; padding:0.2rem 0 0; cursor:pointer; display:inline-flex; align-items:center; gap:0.3rem;">
+                            <button type="button" onclick="showShippingSelector()" style="font-size:0.75rem; color:var(--accent-red); background:none; border:none; padding:0.2rem 0 0; cursor:pointer; display:inline-flex; align-items:center; gap:0.3rem;">
                                 <i class="fa fa-pen"></i> Change address
                             </button>
                         </div>
@@ -216,16 +216,16 @@
                     </div>
                     <!-- Self-fulfil form (shown when self_fulfilled selected) -->
                     <div id="self-fulfill-form" style="display:none; margin-top:0.75rem;">
-                        <div style="border:1.5px solid #bfdbfe; border-radius:8px; padding:0.85rem 1rem; background:#eff6ff; margin-bottom:0.75rem;">
-                            <p style="font-size:0.85rem; color:#1e40af; margin:0;"><i class="fa fa-info-circle" style="margin-right:0.4rem;"></i> The seller will coordinate fulfillment directly with you — this covers digital delivery, in-person services, and seller-arranged shipping.</p>
+                        <div style="border:1.5px solid var(--border-light); border-radius:8px; padding:0.85rem 1rem; background:var(--bg-secondary); margin-bottom:0.75rem;">
+                            <p style="font-size:0.85rem; color:var(--text-muted); margin:0;"><i class="fa fa-info-circle" style="margin-right:0.4rem;"></i> The seller will coordinate fulfillment directly with you — this covers digital delivery, in-person services, and seller-arranged shipping.</p>
                         </div>
                         <!-- Address the seller will see -->
                         <div style="margin-bottom:0.75rem;">
                             <label style="font-size:0.85rem; font-weight:600; margin-bottom:0.4rem; display:block;">Your address <span style="font-weight:400; color:var(--text-muted); font-size:0.8rem;">— shared with the seller for coordination</span></label>
-                            <div id="sf-addr-display" style="display:none; padding:0.75rem; border:1.5px solid #bfdbfe; border-radius:8px; background:#f0f9ff;">
+                            <div id="sf-addr-display" style="display:none; padding:0.75rem; border:1.5px solid var(--accent-red); border-radius:8px; background:#fff5f5;">
                                 <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.15rem;" id="sf-addr-label"></div>
                                 <div style="font-size:0.82rem; color:var(--text-muted); line-height:1.5;" id="sf-addr-text"></div>
-                                <button type="button" onclick="showSelfFulfillSelector()" style="font-size:0.75rem; color:#1e40af; background:none; border:none; padding:0.2rem 0 0; cursor:pointer; display:inline-flex; align-items:center; gap:0.3rem;">
+                                <button type="button" onclick="showSelfFulfillSelector()" style="font-size:0.75rem; color:var(--accent-red); background:none; border:none; padding:0.2rem 0 0; cursor:pointer; display:inline-flex; align-items:center; gap:0.3rem;">
                                     <i class="fa fa-pen"></i> Change address
                                 </button>
                             </div>

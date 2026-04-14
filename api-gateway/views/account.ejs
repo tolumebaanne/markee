@@ -16,19 +16,19 @@
         }
         .account-card {
             display: flex; flex-direction: column;
-            background: var(--surface2); border: 1.5px solid var(--border);
+            background: var(--bg-secondary); border: 1.5px solid var(--border-light);
             border-radius: 12px; padding: 1.25rem 1.25rem 1rem;
             text-decoration: none; color: inherit;
             transition: border-color 0.15s, box-shadow 0.15s;
         }
-        .account-card:hover { border-color: var(--primary, #2563eb); box-shadow: 0 4px 16px rgba(37,99,235,0.1); }
+        .account-card:hover { border-color: var(--accent-red); box-shadow: 0 4px 16px rgba(204,0,0,0.08); }
         .account-card-icon {
-            font-size: 1.5rem; color: var(--primary, #2563eb);
+            font-size: 1.5rem; color: var(--accent-red);
             margin-bottom: 0.75rem;
         }
         .account-card-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 0.25rem; }
-        .account-card-desc  { font-size: 0.82rem; color: var(--muted); flex: 1; }
-        .account-card-arrow { margin-top: 0.75rem; color: var(--muted); font-size: 0.9rem; text-align: right; }
+        .account-card-desc  { font-size: 0.82rem; color: var(--text-muted); flex: 1; }
+        .account-card-arrow { margin-top: 0.75rem; color: var(--text-muted); font-size: 0.9rem; text-align: right; }
     </style>
 </head>
 <body>
@@ -42,7 +42,7 @@
 
 <div class="container py-4 animate-fade">
     <h2 class="mb-1">My Account</h2>
-    <p style="color:var(--muted);margin-bottom:0">Manage your profile, addresses, and settings.</p>
+    <p style="color:var(--text-muted);margin-bottom:0">Manage your profile, addresses, and settings.</p>
 
     <div class="account-grid" id="account-grid">
         <a href="/profile" class="account-card">
@@ -81,7 +81,7 @@
 
 <script>
 (async () => {
-    const token = localStorage.getItem('authToken') || localStorage.getItem('token') || '';
+    const token = localStorage.getItem('access_token') || localStorage.getItem('authToken') || localStorage.getItem('token') || '';
     if (!token) return;
     try {
         const r = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
