@@ -13,6 +13,15 @@
 const path = require('path');
 const fs   = require('fs');
 
+// Prevent a single unhandled async error (e.g. a notification bus listener throwing)
+// from crashing the entire 13-service monolith. Log it and keep running.
+process.on('unhandledRejection', (reason) => {
+    console.error('[MONOLITH] Unhandled promise rejection — process kept alive:', reason?.message || reason);
+});
+process.on('uncaughtException', (err) => {
+    console.error('[MONOLITH] Uncaught exception — process kept alive:', err.message);
+});
+
 /**
  * Load a service's .env file with override: true so each service gets
  * its own correct MONGODB_URI, PORT, and any other service-specific vars —
