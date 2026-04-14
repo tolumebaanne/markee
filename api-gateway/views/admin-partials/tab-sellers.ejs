@@ -155,6 +155,16 @@ async function viewSellerProfile(id){
       }).join('')}</div>
       <div>
         ${s.bio?`<div style="font-size:0.8rem;color:var(--muted2);margin-bottom:0.75rem;line-height:1.5">${trunc(s.bio,300)}</div>`:''}
+        ${(()=>{
+          const foLabels={shipping:'Courier',pickup:'Pickup',self_fulfilled:'Self-Fulfil'};
+          const foList=(s.fulfillmentOptions&&s.fulfillmentOptions.length)?s.fulfillmentOptions.map(f=>foLabels[f]||f).join(', '):'Default (Courier)';
+          const crLabels={canada_post:'Canada Post',ups:'UPS',fedex:'FedEx',purolator:'Purolator',dhl:'DHL',other:'Other'};
+          const crList=(s.enabledCarriers&&s.enabledCarriers.length)?s.enabledCarriers.map(c=>crLabels[c]||c).join(', '):'All';
+          const pickupCount=(s.pickupLocations||[]).filter(l=>l.active!==false).length;
+          return `<div style="font-size:0.8rem;margin-bottom:0.5rem"><b>Fulfillment:</b> ${foList}</div>
+                  <div style="font-size:0.8rem;margin-bottom:0.5rem"><b>Carriers:</b> ${crList}</div>
+                  <div style="font-size:0.8rem;margin-bottom:0.75rem"><b>Pickup Locations:</b> ${pickupCount} active</div>`;
+        })()}
         <div class="btn-gap" style="margin-top:0.75rem">
           <button class="btn btn-danger btn-sm" onclick="suspendStore('${id}');closeModal('sellerProfileModal')"><i class="fas fa-ban"></i> Suspend</button>
           <button class="btn btn-purple btn-sm" onclick="changeTier('${id}','${s.tier||'standard'}');closeModal('sellerProfileModal')"><i class="fas fa-layer-group"></i> Tier</button>

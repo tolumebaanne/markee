@@ -42,8 +42,9 @@ const OrderSchema = new mongoose.Schema({
         enum:    ['shipping', 'pickup', 'self_fulfilled'],
         default: 'shipping'
     },
-    shippingAddress: { street: String, city: String, zip: String, country: String },
-    billingAddress:  { street: String, city: String, zip: String, country: String },
+    // Canonical address fields: street, city, province, postalCode, country, label, isDefault
+    shippingAddress: { street: String, city: String, province: String, postalCode: String, country: String },
+    billingAddress:  { street: String, city: String, province: String, postalCode: String, country: String },
     deliverySpeed:   { type: String, enum: ['standard', 'fast'], default: 'standard' },
     deliveryFee:     { type: Number, default: 0 },
     cancellationReason: { type: String, default: '' },
@@ -60,6 +61,21 @@ const OrderSchema = new mongoose.Schema({
     // S3/R-O1 — Order notes: buyer note visible to seller; seller note hidden from buyer
     buyerNote:  { type: String, default: '', maxLength: 500 },
     sellerNote: { type: String, default: '', maxLength: 500 },
+    // Fulfillment detail fields — populated at order creation based on fulfillmentType
+    selectedCarrier: {
+        type:    String,
+        enum:    ['canada_post', 'ups', 'fedex', 'purolator', 'dhl', 'other'],
+        default: null
+    },
+    pickupLocationId: { type: String, default: null },
+    selfFulfillmentAddress: {
+        street:     { type: String, default: '' },
+        city:       { type: String, default: '' },
+        province:   { type: String, default: '' },
+        postalCode: { type: String, default: '' },
+        country:    { type: String, default: 'Canada' }
+    },
+    selfFulfillmentInstructions: { type: String, default: '', maxLength: 500 },
     createdAt:  { type: Date, default: Date.now, index: true }
 });
 const Order = db.model('Order', OrderSchema);
@@ -388,7 +404,7 @@ app.post('/', async (req, res) => {
             } catch { /* fail open — catalog unreachable */ }
         }
 
-        const { fulfillmentType, paymentMethod } = req.body;
+        const { fulfillmentType, paymentMethod, selectedCarrier, selfFulfillmentAddress, selfFulfillmentInstructions, pickupLocationId } = req.body;
         const sellerIds = [...new Set(items.map(i => i.sellerId?.toString()).filter(Boolean))];
 
         // S29 — Vacation mode check: block order if any seller is on vacation
@@ -413,17 +429,62 @@ app.post('/', async (req, res) => {
             (fulfillmentType === 'pickup' || fulfillmentType === 'self_fulfilled') && sellerIds.length === 1
         ) ? fulfillmentType : 'shipping';
 
+        // B2b — Carrier: validate against enum; null if absent or invalid
+        const VALID_CARRIERS = ['canada_post', 'ups', 'fedex', 'purolator', 'dhl', 'other'];
+        const resolvedCarrier = (resolvedFulfillmentType === 'shipping' && VALID_CARRIERS.includes(selectedCarrier))
+            ? selectedCarrier
+            : null;
+
+        // Address validation — shippingAddress required for shipping/self_fulfilled; not required for pickup (stored as pickup location)
+        if (resolvedFulfillmentType !== 'pickup') {
+            if (!shippingAddress?.street?.trim())     return errorResponse(res, 400, 'shippingAddress.street is required');
+            if (!shippingAddress?.city?.trim())       return errorResponse(res, 400, 'shippingAddress.city is required');
+            if (!shippingAddress?.postalCode?.trim()) return errorResponse(res, 400, 'shippingAddress.postalCode is required');
+        }
+
+        // Sanitize shippingAddress and billingAddress to canonical fields only
+        const sanitizeAddr = (a) => a ? {
+            street:     String(a.street     || '').trim().slice(0, 200),
+            city:       String(a.city       || '').trim().slice(0, 100),
+            province:   String(a.province   || '').trim().slice(0, 100),
+            postalCode: String(a.postalCode || '').trim().slice(0, 20),
+            country:    String(a.country    || 'Canada').trim().slice(0, 100),
+        } : undefined;
+
+        const resolvedShippingAddress = sanitizeAddr(shippingAddress);
+        const resolvedBillingAddress  = sanitizeAddr(billingAddress || shippingAddress);
+
+        // B2c — Self-fulfil address: sanitize each field; only store when fulfillmentType is self_fulfilled
+        const resolvedSFAddress = resolvedFulfillmentType === 'self_fulfilled' && selfFulfillmentAddress
+            ? {
+                street:     String(selfFulfillmentAddress.street     || '').trim().slice(0, 200),
+                city:       String(selfFulfillmentAddress.city       || '').trim().slice(0, 100),
+                province:   String(selfFulfillmentAddress.province   || '').trim().slice(0, 100),
+                postalCode: String(selfFulfillmentAddress.postalCode || '').trim().slice(0, 20),
+                country:    String(selfFulfillmentAddress.country    || 'Canada').trim().slice(0, 100),
+            }
+            : undefined;
+
+        // B2d — Self-fulfil instructions: strip < to prevent HTML injection, trim, cap at 500
+        const resolvedSFInstructions = resolvedFulfillmentType === 'self_fulfilled'
+            ? String(selfFulfillmentInstructions || '').replace(/</g, '&lt;').trim().slice(0, 500)
+            : '';
+
         const order = await Order.create({
             buyerId: req.user?.sub || req.body.buyerId,
             items,
             fulfillmentType: resolvedFulfillmentType,
-            shippingAddress,
-            billingAddress:  billingAddress  || shippingAddress,
+            shippingAddress:  resolvedShippingAddress,
+            billingAddress:   resolvedBillingAddress,
             deliverySpeed:   deliverySpeed   || 'standard',
             deliveryFee:     deliveryFee     || 0,
             totalAmount,
-            paymentMethod:   paymentMethod   || 'escrow',
-            buyerNote:       (req.body.buyerNote || '').slice(0, 500),
+            paymentMethod:               paymentMethod   || 'escrow',
+            buyerNote:                   (req.body.buyerNote || '').slice(0, 500),
+            selectedCarrier:             resolvedCarrier,
+            pickupLocationId:            resolvedFulfillmentType === 'pickup' ? (pickupLocationId || null) : null,
+            selfFulfillmentAddress:      resolvedSFAddress,
+            selfFulfillmentInstructions: resolvedSFInstructions,
             status:   'pending',
             timeline: [{ status: 'pending', timestamp: new Date() }]
         });

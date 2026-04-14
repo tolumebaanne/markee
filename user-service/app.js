@@ -189,36 +189,86 @@ app.put('/users/me', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// POST /users/me/addresses
-app.post('/users/me/addresses', async (req, res) => {
+// Canonical address fields allowed from client
+const ADDR_ALLOWED = ['label', 'street', 'city', 'province', 'postalCode', 'country', 'isDefault'];
+const ADDR_MAX = { street: 200, city: 100, province: 100, postalCode: 20, country: 100 };
+
+function validateAddress(body) {
+    if (!body.street?.trim())     return 'street is required';
+    if (!body.city?.trim())       return 'city is required';
+    if (!body.postalCode?.trim()) return 'postalCode is required';
+    for (const [k, max] of Object.entries(ADDR_MAX)) {
+        if (body[k] && body[k].length > max) return `${k} exceeds max length of ${max}`;
+    }
+    return null;
+}
+
+function pickAddrFields(body) {
+    const out = {};
+    for (const k of ADDR_ALLOWED) if (body[k] !== undefined) out[k] = body[k];
+    return out;
+}
+
+// GET /users/me/addresses
+app.get('/users/me/addresses', async (req, res) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
     try {
         const profile = await getOrCreate(req.user.sub);
-        if (req.body.isDefault) {
+        res.json(profile.addresses);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// POST /users/me/addresses
+app.post('/users/me/addresses', async (req, res) => {
+    if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
+    const err = validateAddress(req.body);
+    if (err) return errorResponse(res, 400, err);
+    try {
+        const profile = await getOrCreate(req.user.sub);
+        const data = pickAddrFields(req.body);
+        if (data.isDefault) {
             profile.addresses.forEach(a => { a.isDefault = false; });
         }
-        profile.addresses.push(req.body);
+        profile.addresses.push(data);
         profile.updatedAt = new Date();
         await profile.save();
         res.json(profile.addresses);
-    } catch (err) { errorResponse(res, 500, err.message); }
+    } catch (e) { errorResponse(res, 500, e.message); }
 });
 
 // PUT /users/me/addresses/:addressId
 app.put('/users/me/addresses/:addressId', async (req, res) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
+    const err = validateAddress(req.body);
+    if (err) return errorResponse(res, 400, err);
     try {
         const profile = await getOrCreate(req.user.sub);
         const addr    = profile.addresses.id(req.params.addressId);
         if (!addr) return errorResponse(res, 404, 'Address not found');
-        if (req.body.isDefault) {
+        const data = pickAddrFields(req.body);
+        if (data.isDefault) {
             profile.addresses.forEach(a => { a.isDefault = false; });
         }
-        Object.assign(addr, req.body);
+        Object.assign(addr, data);
         profile.updatedAt = new Date();
         await profile.save();
         res.json(profile.addresses);
-    } catch (err) { errorResponse(res, 500, err.message); }
+    } catch (e) { errorResponse(res, 500, e.message); }
+});
+
+// PATCH /users/me/addresses/:addressId/set-default
+app.patch('/users/me/addresses/:addressId/set-default', async (req, res) => {
+    if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
+    try {
+        const profile = await getOrCreate(req.user.sub);
+        const addr = profile.addresses.id(req.params.addressId);
+        if (!addr) return errorResponse(res, 404, 'Address not found');
+        profile.addresses.forEach(a => { a.isDefault = false; });
+        addr.isDefault = true;
+        profile.updatedAt = new Date();
+        await profile.save();
+        res.json(profile.addresses);
+    } catch (e) { errorResponse(res, 500, e.message); }
 });
 
 // DELETE /users/me/addresses/:addressId

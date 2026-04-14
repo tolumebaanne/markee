@@ -152,7 +152,11 @@ async function viewOrder(id) {
         <div><b>Payment:</b> ${o.paymentMethod||'—'}</div>
         <div><b>Total:</b> <b style="color:var(--accent)">${fmt$(o.totalAmount)}</b></div>
         <div><b>Date:</b> ${fmtDate(o.createdAt)}</div>
-        ${o.shippingAddress ? `<div style="grid-column:1/-1"><b>Ship To:</b> ${JSON.stringify(o.shippingAddress)}</div>` : ''}
+        <div><b>Fulfillment:</b> ${{shipping:'Courier',pickup:'Local Pickup',self_fulfilled:'Seller Fulfillment'}[o.fulfillmentType]||o.fulfillmentType||'—'}</div>
+        ${o.selectedCarrier ? `<div><b>Carrier:</b> ${{canada_post:'Canada Post',ups:'UPS',fedex:'FedEx',purolator:'Purolator',dhl:'DHL'}[o.selectedCarrier]||o.selectedCarrier}</div>` : '<div></div>'}
+        ${o.billingAddress?.street ? `<div style="grid-column:1/-1"><b>Billing:</b> ${o.billingAddress.street}, ${o.billingAddress.city||''} ${o.billingAddress.province ? o.billingAddress.province+' ' : ''}${o.billingAddress.postalCode||''}, ${o.billingAddress.country||''}</div>` : ''}
+        ${o.shippingAddress ? `<div style="grid-column:1/-1"><b>Ship To:</b> ${o.shippingAddress.street||''}, ${o.shippingAddress.city||''} ${o.shippingAddress.province ? o.shippingAddress.province+' ' : ''}${o.shippingAddress.postalCode||''}, ${o.shippingAddress.country||''}</div>` : ''}
+        ${o.selfFulfillmentInstructions ? `<div style="grid-column:1/-1"><b>Buyer Instructions:</b> ${o.selfFulfillmentInstructions.replace(/</g,'&lt;')}</div>` : ''}
       </div>
       <h4 style="margin-bottom:.5rem">Line Items (${items.length})</h4>
       <div class="table-wrap">

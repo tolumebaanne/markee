@@ -110,6 +110,12 @@ app.use('/api/seller/admin', verifyToken, (req, res, next) => {
     next();
 }, proxy(process.env.SELLER_SERVICE_URL || 'http://localhost:5005'));
 
+// Pickup locations — any authenticated user can read (buyers need this for address selector modal)
+app.use('/api/seller', verifyToken, (req, _res, next) => {
+    if (req.method === 'GET' && /^\/[^/]+\/pickup-locations/.test(req.path)) return next();
+    next('route');
+}, proxy(process.env.SELLER_SERVICE_URL || 'http://localhost:5005'));
+
 // Seller routes — register and activate skip the scope gate (user has no seller scopes yet);
 // everything else requires catalog:write.
 app.use('/api/seller', verifyToken, (req, res, next) => {
@@ -270,7 +276,9 @@ app.get('/checkout',    (req, res) => res.render('checkout'));
 app.get('/cart',        (req, res) => res.render('cart'));
 app.get('/product/:id',    (req, res) => res.render('product',    { productId: req.params.id }));
 app.get('/store/:storeId', (req, res) => res.render('storefront', { storeId: req.params.storeId }));
-app.get('/profile',        (req, res) => res.render('profile'));
+app.get('/profile',              (_req, res) => res.render('profile'));
+app.get('/account',              (_req, res) => res.render('account'));
+app.get('/account/addresses',    (_req, res) => res.render('account-addresses'));
 app.get('/orders',      (req, res) => res.render('orders'));
 app.get('/orders/:id',  (req, res) => res.render('order-detail', { orderId: req.params.id }));
 app.get('/purchases/history', (req, res) => res.render('purchases-history'));

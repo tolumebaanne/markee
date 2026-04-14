@@ -363,10 +363,10 @@
                 <div class="section-card-body" id="items-list" style="padding-top:0; padding-bottom:0;"></div>
             </div>
 
-            <!-- Shipping Address -->
+            <!-- Fulfillment Address (shipping / pickup / self_fulfilled) -->
             <div class="section-card">
                 <div class="section-card-header">
-                    <h4><i class="fa fa-map-marker-alt" style="margin-right:0.5rem; color:var(--accent-red);"></i> Shipping Address</h4>
+                    <h4 id="address-card-title"><i class="fa fa-map-marker-alt" style="margin-right:0.5rem; color:var(--accent-red);"></i> Shipping Address</h4>
                 </div>
                 <div class="section-card-body">
                     <div class="address-block" id="address-block">—</div>
@@ -395,11 +395,11 @@
                                 <label>Carrier</label>
                                 <select name="carrier" required>
                                     <option value="">Select carrier...</option>
-                                    <option value="UPS">UPS</option>
-                                    <option value="FedEx">FedEx</option>
-                                    <option value="USPS">USPS</option>
-                                    <option value="DHL">DHL</option>
-                                    <option value="Other">Other</option>
+                                    <option value="canada_post">Canada Post</option>
+                                    <option value="ups">UPS</option>
+                                    <option value="fedex">FedEx</option>
+                                    <option value="purolator">Purolator</option>
+                                    <option value="dhl">DHL</option>
                                 </select>
                             </div>
                             <div class="form-group mb-3">
@@ -497,6 +497,14 @@
                 </div>
             </div>
 
+            <!-- Fulfillment details: self-fulfillment address/instructions (seller) -->
+            <div class="section-card" id="fulfillment-detail-card" style="display:none;">
+                <div class="section-card-header">
+                    <h4><i class="fa fa-box-open" style="margin-right:0.5rem; color:var(--accent-red);"></i> Fulfillment Details</h4>
+                </div>
+                <div class="section-card-body" id="fulfillment-detail-body"></div>
+            </div>
+
             <!-- S33 — Order notes (buyer note to seller; seller note to buyer) -->
             <div class="section-card" id="notes-card" style="display:none;">
                 <div class="section-card-header">
@@ -540,6 +548,14 @@
                     <div class="list-item" style="justify-content:flex-start; gap:0.5rem;" id="delivery-row" style="display:none;">
                         <span class="text-muted small" style="width:90px; flex-shrink:0;">Delivery</span>
                         <span id="summary-delivery" style="font-size:0.875rem;"></span>
+                    </div>
+                    <div class="list-item" id="fulfillment-row" style="justify-content:flex-start; gap:0.5rem; display:none;">
+                        <span class="text-muted small" style="width:90px; flex-shrink:0;">Fulfillment</span>
+                        <span id="summary-fulfillment" style="font-size:0.875rem;"></span>
+                    </div>
+                    <div class="list-item" id="carrier-row" style="justify-content:flex-start; gap:0.5rem; display:none;">
+                        <span class="text-muted small" style="width:90px; flex-shrink:0;">Carrier</span>
+                        <span id="summary-carrier" style="font-size:0.875rem;"></span>
                     </div>
                     <div class="list-item" style="border-bottom:none;">
                         <span class="text-muted small">Order Total</span>
@@ -635,11 +651,11 @@
         <div class="form-group">
             <label>Carrier</label>
             <select id="ship-carrier" class="form-control">
-                <option value="USPS">USPS</option>
-                <option value="UPS">UPS</option>
-                <option value="FedEx">FedEx</option>
-                <option value="DHL">DHL</option>
-                <option value="Other">Other</option>
+                <option value="canada_post">Canada Post</option>
+                <option value="ups">UPS</option>
+                <option value="fedex">FedEx</option>
+                <option value="purolator">Purolator</option>
+                <option value="dhl">DHL</option>
             </select>
         </div>
         <div class="form-group">
@@ -830,17 +846,43 @@
         }).join('');
     }
 
-    // ── Render shipping address ───────────────────────────────────────────────
+    // ── Render fulfillment address ────────────────────────────────────────────
+    // The order-detail is a permanent buyer record. Every fulfillment type stores
+    // a relevant address: shipping → shippingAddress, pickup → shippingAddress
+    // (set to the pickup location at checkout), self_fulfilled → selfFulfillmentAddress.
     function renderAddress(order) {
-        const addr = order.shippingAddress;
+        const titleEl = document.getElementById('address-card-title');
+        const blockEl = document.getElementById('address-block');
+        const ft = order.fulfillmentType;
+
+        // Determine which address and label to use
+        let addr, cardTitle, emptyMsg;
+        if (ft === 'self_fulfilled') {
+            addr      = order.selfFulfillmentAddress;
+            cardTitle = '<i class="fa fa-box-open" style="margin-right:0.5rem; color:var(--accent-red);"></i> Delivery Address';
+            emptyMsg  = 'No delivery address on record.';
+        } else if (ft === 'pickup') {
+            addr      = order.shippingAddress; // stored as pickup location at checkout
+            cardTitle = '<i class="fa fa-store" style="margin-right:0.5rem; color:var(--accent-red);"></i> Pickup Location';
+            emptyMsg  = 'No pickup location on record.';
+        } else {
+            addr      = order.shippingAddress;
+            cardTitle = '<i class="fa fa-map-marker-alt" style="margin-right:0.5rem; color:var(--accent-red);"></i> Shipping Address';
+            emptyMsg  = 'No shipping address on record.';
+        }
+
+        if (titleEl) titleEl.innerHTML = cardTitle;
+
         if (!addr || !addr.street) {
-            document.getElementById('address-block').textContent = 'No shipping address on record.';
+            blockEl.textContent = emptyMsg;
             return;
         }
-        document.getElementById('address-block').innerHTML = `
-            <strong>${addr.street}</strong><br>
-            ${addr.city}${addr.zip ? ', ' + addr.zip : ''}<br>
-            ${addr.country || ''}
+
+        const zip = addr.postalCode || addr.zip || '';
+        blockEl.innerHTML = `
+            <strong>${escHtml(addr.street)}</strong><br>
+            ${escHtml(addr.city || '')}${zip ? ', ' + escHtml(zip) : ''}<br>
+            ${escHtml(addr.province || addr.state || '')}${(addr.province || addr.state) && addr.country ? ', ' : ''}${escHtml(addr.country || '')}
         `;
     }
 
@@ -1148,9 +1190,10 @@
         const same = sa && sa.street === addr.street && sa.city === addr.city;
         if (same) return;
         document.getElementById('billing-card').style.display = 'block';
+        const bPostal = addr.postalCode || addr.zip || '';
         document.getElementById('billing-block').innerHTML = `
             <strong>${addr.street}</strong><br>
-            ${addr.city}${addr.zip ? ', ' + addr.zip : ''}<br>
+            ${addr.city}${bPostal ? ', ' + bPostal : ''}<br>
             ${addr.country || ''}
         `;
     }
@@ -1167,6 +1210,63 @@
         } else if (order.deliverySpeed === 'standard') {
             el.textContent = 'Standard (Free)';
             row.style.display = 'flex';
+        }
+    }
+
+    // ── Render fulfillment type + carrier in summary + detail card ───────────
+    function renderFulfillmentDetails(order) {
+        const isBuyer  = order.buyerId?.toString() === user.sub;
+        const isSeller = user.storeActive && order.items.some(i => i.sellerId?.toString() === user.storeId);
+        const isAdmin  = user.role === 'admin';
+
+        const CARRIER_LABELS = {
+            canada_post: 'Canada Post', ups: 'UPS', fedex: 'FedEx',
+            purolator: 'Purolator', dhl: 'DHL'
+        };
+        const FT_LABELS = {
+            shipping: 'Courier Delivery', pickup: 'Local Pickup', self_fulfilled: 'Seller Fulfillment'
+        };
+
+        // Summary card rows (visible to all roles)
+        const ftRow = document.getElementById('fulfillment-row');
+        const ftEl  = document.getElementById('summary-fulfillment');
+        if (ftRow && ftEl && order.fulfillmentType) {
+            ftEl.textContent = FT_LABELS[order.fulfillmentType] || order.fulfillmentType;
+            ftRow.style.display = 'flex';
+        }
+        if (order.fulfillmentType === 'shipping' && order.selectedCarrier) {
+            const cRow = document.getElementById('carrier-row');
+            const cEl  = document.getElementById('summary-carrier');
+            if (cRow && cEl) {
+                cEl.textContent = CARRIER_LABELS[order.selectedCarrier] || order.selectedCarrier;
+                cRow.style.display = 'flex';
+            }
+        }
+
+        // Fulfillment detail card — seller sees self-fulfillment address + instructions
+        if ((isSeller || isAdmin) && order.fulfillmentType === 'self_fulfilled') {
+            const card = document.getElementById('fulfillment-detail-card');
+            const body = document.getElementById('fulfillment-detail-body');
+            if (!card || !body) return;
+            let html = '';
+            const sfa = order.selfFulfillmentAddress;
+            if (sfa && sfa.street) {
+                html += `<div style="margin-bottom:0.85rem;">
+                    <div style="font-weight:600; font-size:0.78rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.35rem;">Delivery Address</div>
+                    <div style="font-size:0.875rem; line-height:1.6;">
+                        ${escHtml(sfa.street)}<br>
+                        ${escHtml(sfa.city || '')}${sfa.province ? ', ' + escHtml(sfa.province) : ''}${sfa.postalCode ? ' ' + escHtml(sfa.postalCode) : ''}<br>
+                        ${escHtml(sfa.country || 'Canada')}
+                    </div>
+                </div>`;
+            }
+            if (order.selfFulfillmentInstructions) {
+                html += `<div>
+                    <div style="font-weight:600; font-size:0.78rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.35rem;">Buyer Instructions</div>
+                    <div style="padding:0.65rem 0.9rem; background:var(--bg-secondary); border-radius:8px; font-size:0.875rem; line-height:1.5;">${escHtml(order.selfFulfillmentInstructions)}</div>
+                </div>`;
+            }
+            if (html) { body.innerHTML = html; card.style.display = 'block'; }
         }
     }
 
@@ -1329,6 +1429,7 @@
             renderActions(_order);
             showShipmentForm(_order);
             renderDelivery(_order);
+            renderFulfillmentDetails(_order);
             renderCancellationReason(_order);
             renderNotes(_order);
 
@@ -1834,6 +1935,8 @@
     }
 
     function openShipModal() {
+        const carrierSel = document.getElementById('ship-carrier');
+        if (carrierSel && _order && _order.selectedCarrier) carrierSel.value = _order.selectedCarrier;
         document.getElementById('ship-modal').style.display = 'flex';
     }
     function closeShipModal() {

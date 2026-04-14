@@ -234,73 +234,20 @@
                 </div>
             </div>
 
-            <!-- Addresses card -->
-            <div class="profile-card" style="margin-bottom:1.5rem;" id="addresses-card">
-                <div class="profile-card-header" style="justify-content:space-between;">
-                    <div style="display:flex;align-items:center;gap:0.6rem;">
-                        <i class="fa fa-map-marker-alt" style="color:var(--accent-red);"></i>
-                        <h4>Saved Addresses</h4>
-                    </div>
-                    <button class="btn" style="background:var(--accent-red); width:auto; padding:0.3rem 0.75rem; font-size:0.78rem;"
-                            onclick="showAddressForm()">
-                        <i class="fa fa-plus" style="margin-right:0.3rem;"></i> Add
-                    </button>
-                </div>
-                <div id="addresses-list" style="padding:0;">
-                    <p class="text-muted" style="padding:1.25rem; font-size:0.875rem;">Loading addresses...</p>
-                </div>
-                <!-- Add / Edit form (hidden by default) -->
-                <div id="address-form-wrap" style="display:none; border-top:1px solid var(--border-light); padding:1.25rem;">
-                    <input type="hidden" id="addr-editing-id">
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:0.75rem;">
-                        <div class="store-form-group" style="margin:0;">
-                            <label>Label</label>
-                            <select id="addr-label" style="font-size:0.875rem;">
-                                <option>Home</option>
-                                <option>Work</option>
-                                <option>Other</option>
-                            </select>
+            <!-- Addresses link card -->
+            <div class="profile-card" style="margin-bottom:1.5rem;">
+                <a href="/account/addresses" style="display:flex; align-items:center; justify-content:space-between; padding:1rem 1.25rem; text-decoration:none; color:inherit;">
+                    <div style="display:flex; align-items:center; gap:0.75rem;">
+                        <div style="width:36px; height:36px; border-radius:8px; background:#eff6ff; display:flex; align-items:center; justify-content:center; color:#2563eb; font-size:1rem; flex-shrink:0;">
+                            <i class="fa fa-map-marker-alt"></i>
                         </div>
-                        <div class="store-form-group" style="margin:0; display:flex; align-items:flex-end; gap:0.5rem;">
-                            <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-weight:normal; margin-bottom:0.5rem;">
-                                <input type="checkbox" id="addr-default"> Set as default
-                            </label>
+                        <div>
+                            <div style="font-weight:700; font-size:0.92rem;">Addresses</div>
+                            <div style="font-size:0.8rem; color:var(--text-muted);">Delivery addresses and pickup locations</div>
                         </div>
                     </div>
-                    <div class="store-form-group">
-                        <label>Street Address</label>
-                        <input type="text" id="addr-street" placeholder="123 Main Street">
-                    </div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
-                        <div class="store-form-group" style="margin:0;">
-                            <label>City</label>
-                            <input type="text" id="addr-city" placeholder="Toronto">
-                        </div>
-                        <div class="store-form-group" style="margin:0;">
-                            <label>Province / State</label>
-                            <input type="text" id="addr-province" placeholder="ON">
-                        </div>
-                    </div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:0.75rem;">
-                        <div class="store-form-group" style="margin:0;">
-                            <label>Postal Code</label>
-                            <input type="text" id="addr-postal" placeholder="M5V 2T6">
-                        </div>
-                        <div class="store-form-group" style="margin:0;">
-                            <label>Country</label>
-                            <input type="text" id="addr-country" value="Canada">
-                        </div>
-                    </div>
-                    <div id="address-error-container"></div>
-                    <div style="display:flex; gap:0.75rem; margin-top:0.5rem;">
-                        <button class="btn" style="background:var(--accent-red); width:auto; padding:0.45rem 1rem; font-size:0.82rem;"
-                                onclick="saveAddress(event)">
-                            <i class="fa fa-save" style="margin-right:0.35rem;"></i> Save Address
-                        </button>
-                        <button class="btn btn-outline" style="width:auto; padding:0.45rem 0.85rem; font-size:0.82rem;"
-                                onclick="cancelAddressForm()">Cancel</button>
-                    </div>
-                </div>
+                    <i class="fa fa-chevron-right" style="color:var(--text-muted); font-size:0.85rem;"></i>
+                </a>
             </div>
 
             <!-- Quick links -->
@@ -1041,136 +988,6 @@
         showToast('Bio saved!', 'success', 3500, evt);
     }
 
-    // ── Addresses ─────────────────────────────────────────────────────────────
-    async function loadAddresses() {
-        try {
-            const res = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
-            if (!res.ok) throw new Error();
-            const profile = await res.json();
-            renderAddresses(profile.addresses || []);
-        } catch {
-            document.getElementById('addresses-list').innerHTML =
-                '<p class="text-muted" style="padding:1.25rem; font-size:0.875rem;">Could not load addresses.</p>';
-        }
-    }
-
-    function renderAddresses(addresses) {
-        const list = document.getElementById('addresses-list');
-        if (!addresses.length) {
-            list.innerHTML = '<p class="text-muted" style="padding:1.25rem; font-size:0.875rem;">No saved addresses yet.</p>';
-            return;
-        }
-        list.innerHTML = addresses.map(a => `
-            <div style="display:flex; align-items:flex-start; justify-content:space-between; padding:1rem 1.25rem; border-bottom:1px solid var(--border-light);">
-                <div>
-                    <div style="font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:0.5rem;">
-                        ${a.label || 'Address'}
-                        ${a.isDefault ? '<span style="font-size:0.7rem; background:var(--accent-red); color:#fff; border-radius:4px; padding:0.1rem 0.45rem; font-weight:700;">DEFAULT</span>' : ''}
-                    </div>
-                    <div style="font-size:0.82rem; color:var(--text-muted); margin-top:0.25rem; line-height:1.5;">
-                        ${a.street || ''}<br>
-                        ${[a.city, a.province, a.postalCode].filter(Boolean).join(', ')}<br>
-                        ${a.country || ''}
-                    </div>
-                </div>
-                <div style="display:flex; gap:0.5rem; flex-shrink:0; margin-left:0.75rem;">
-                    <button onclick="editAddress('${a._id}')" style="background:none; border:1px solid var(--border-light); border-radius:6px; padding:0.3rem 0.65rem; font-size:0.78rem; cursor:pointer; color:var(--text-main);">
-                        <i class="fa fa-pen"></i>
-                    </button>
-                    <button onclick="deleteAddress('${a._id}')" style="background:none; border:1px solid #fca5a5; border-radius:6px; padding:0.3rem 0.65rem; font-size:0.78rem; cursor:pointer; color:#dc2626;">
-                        <i class="fa fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-        `).join('');
-    }
-
-    let _allAddresses = [];
-
-    async function _fetchAddresses() {
-        const res = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok) throw new Error('Failed to load profile');
-        const profile = await res.json();
-        _allAddresses = profile.addresses || [];
-        return _allAddresses;
-    }
-
-    function showAddressForm(addr) {
-        const wrap = document.getElementById('address-form-wrap');
-        wrap.style.display = 'block';
-        document.getElementById('addr-editing-id').value = addr ? addr._id : '';
-        document.getElementById('addr-label').value      = addr ? (addr.label    || 'Home') : 'Home';
-        document.getElementById('addr-default').checked  = addr ? !!addr.isDefault : false;
-        document.getElementById('addr-street').value     = addr ? (addr.street   || '') : '';
-        document.getElementById('addr-city').value       = addr ? (addr.city     || '') : '';
-        document.getElementById('addr-province').value   = addr ? (addr.province || '') : '';
-        document.getElementById('addr-postal').value     = addr ? (addr.postalCode || '') : '';
-        document.getElementById('addr-country').value    = addr ? (addr.country  || 'Canada') : 'Canada';
-        wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-
-    function cancelAddressForm() {
-        document.getElementById('address-form-wrap').style.display = 'none';
-        document.getElementById('addr-editing-id').value = '';
-    }
-
-    async function editAddress(id) {
-        try {
-            const addresses = await _fetchAddresses();
-            const addr = addresses.find(a => a._id === id);
-            if (addr) showAddressForm(addr);
-        } catch { showToast('Could not load address', 'error'); }
-    }
-
-    async function saveAddress(evt) {
-        clearInlineError('address-error-container');
-        const editingId = document.getElementById('addr-editing-id').value.trim();
-        const payload = {
-            label:      document.getElementById('addr-label').value,
-            isDefault:  document.getElementById('addr-default').checked,
-            street:     document.getElementById('addr-street').value.trim(),
-            city:       document.getElementById('addr-city').value.trim(),
-            province:   document.getElementById('addr-province').value.trim(),
-            postalCode: document.getElementById('addr-postal').value.trim(),
-            country:    document.getElementById('addr-country').value.trim()
-        };
-        if (!payload.street || !payload.city || !payload.country) {
-            showInlineError('address-error-container', 'Street, city and country are required.');
-            return;
-        }
-        const url    = editingId ? `/api/users/me/addresses/${editingId}` : '/api/users/me/addresses';
-        const method = editingId ? 'PUT' : 'POST';
-        try {
-            const res = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify(payload)
-            });
-            if (!res.ok) throw new Error((await res.json()).message || 'Save failed');
-            const updated = await res.json();
-            _allAddresses = updated;
-            renderAddresses(updated);
-            cancelAddressForm();
-            showToast(editingId ? 'Address updated.' : 'Address added.', 'success', 3500, evt);
-        } catch (e) { showInlineError('address-error-container', e.message || 'Could not save address.'); }
-    }
-
-    async function deleteAddress(id) {
-        showConfirm('Remove this address?', async () => {
-            try {
-                const res = await fetch(`/api/users/me/addresses/${id}`, {
-                    method: 'DELETE',
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                if (!res.ok) throw new Error();
-                const updated = await res.json();
-                _allAddresses = updated;
-                renderAddresses(updated);
-                showToast('Address removed.', 'success');
-            } catch { showToast('Could not delete address.', 'error'); }
-        }, null, { confirmText: 'Remove', type: 'danger' });
-    }
-
     // ── Reviewer score + own reviews (B.5) ───────────────────────────────────
     function renderReviewStars(rating) {
         return ['','','','',''].map((_,i) =>
@@ -1268,7 +1085,6 @@
     // ── Boot ──────────────────────────────────────────────────────────────────
     loadAvatar();
     loadBio();
-    loadAddresses();
     loadReviewerScore();
     loadMyReviews();
     if (window.MarkeeCart) MarkeeCart.updateAllCartBadges();

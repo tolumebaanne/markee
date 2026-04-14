@@ -55,6 +55,14 @@ const ProductSchema = new mongoose.Schema({
         enum:    ['shipping', 'pickup', 'self_fulfilled'],
         default: []
     },
+    // Per-product carrier override. Empty array = inherit from seller store enabledCarriers.
+    enabledCarriers: {
+        type:    [String],
+        enum:    ['canada_post', 'ups', 'fedex', 'purolator', 'dhl', 'other'],
+        default: []
+    },
+    // References a seller's pickupLocations[].  _id (stored as String) — only used when fulfillmentOptions includes 'pickup'
+    pickupLocationId: { type: String, default: null },
     smartMetrics: {
         viewCount:       { type: Number, default: 0 },
         activeCartCount: { type: Number, default: 0 },

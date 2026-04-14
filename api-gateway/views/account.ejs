@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account | Markee</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js"></script>
+    <style>
+        .account-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        .account-card {
+            display: flex; flex-direction: column;
+            background: var(--surface2); border: 1.5px solid var(--border);
+            border-radius: 12px; padding: 1.25rem 1.25rem 1rem;
+            text-decoration: none; color: inherit;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .account-card:hover { border-color: var(--primary, #2563eb); box-shadow: 0 4px 16px rgba(37,99,235,0.1); }
+        .account-card-icon {
+            font-size: 1.5rem; color: var(--primary, #2563eb);
+            margin-bottom: 0.75rem;
+        }
+        .account-card-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 0.25rem; }
+        .account-card-desc  { font-size: 0.82rem; color: var(--muted); flex: 1; }
+        .account-card-arrow { margin-top: 0.75rem; color: var(--muted); font-size: 0.9rem; text-align: right; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="brand-combo">
+        <a href="/"><span class="brand">Markee</span></a>
+    </div>
+    <%- include('_nav') %>
+</nav>
+
+<div class="container py-4 animate-fade">
+    <h2 class="mb-1">My Account</h2>
+    <p style="color:var(--muted);margin-bottom:0">Manage your profile, addresses, and settings.</p>
+
+    <div class="account-grid" id="account-grid">
+        <a href="/profile" class="account-card">
+            <div class="account-card-icon"><i class="fa fa-user-circle"></i></div>
+            <div class="account-card-title">Profile</div>
+            <div class="account-card-desc">Display name, bio, phone, and avatar.</div>
+            <div class="account-card-arrow"><i class="fa fa-arrow-right"></i></div>
+        </a>
+        <a href="/account/addresses" class="account-card">
+            <div class="account-card-icon"><i class="fa fa-map-marker-alt"></i></div>
+            <div class="account-card-title">Addresses</div>
+            <div class="account-card-desc">Delivery addresses and pickup locations.</div>
+            <div class="account-card-arrow"><i class="fa fa-arrow-right"></i></div>
+        </a>
+        <a href="/orders" class="account-card">
+            <div class="account-card-icon"><i class="fa fa-box"></i></div>
+            <div class="account-card-title">Orders</div>
+            <div class="account-card-desc">Track and manage your orders.</div>
+            <div class="account-card-arrow"><i class="fa fa-arrow-right"></i></div>
+        </a>
+        <a href="/notifications" class="account-card">
+            <div class="account-card-icon"><i class="fa fa-bell"></i></div>
+            <div class="account-card-title">Notifications</div>
+            <div class="account-card-desc">Your notification centre and activity.</div>
+            <div class="account-card-arrow"><i class="fa fa-arrow-right"></i></div>
+        </a>
+        <!-- Store Settings — shown only if user has storeActive -->
+        <a href="/dashboard" class="account-card" id="store-card" style="display:none">
+            <div class="account-card-icon"><i class="fa fa-store"></i></div>
+            <div class="account-card-title">Store Settings</div>
+            <div class="account-card-desc">Manage your seller store, fulfillment, and listings.</div>
+            <div class="account-card-arrow"><i class="fa fa-arrow-right"></i></div>
+        </a>
+    </div>
+</div>
+
+<script>
+(async () => {
+    const token = localStorage.getItem('authToken') || localStorage.getItem('token') || '';
+    if (!token) return;
+    try {
+        const r = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
+        if (!r.ok) return;
+        const p = await r.json();
+        if (p.storeActive || p.storeId) {
+            document.getElementById('store-card').style.display = '';
+        }
+    } catch (_) {}
+})();
+</script>
+</body>
+</html>

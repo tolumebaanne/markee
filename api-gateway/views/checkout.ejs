@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="/js/toast.js"></script>
+    <script src="/js/address-selector.js"></script>
     <script src="/js/cart.js"></script>
     <style>
         .checkout-grid { display: grid; grid-template-columns: 1fr 380px; gap: 2rem; align-items: start; }
@@ -127,26 +128,23 @@
                         <span class="step-badge">1</span> Billing Address
                     </div>
 
-                    <!-- Saved address chips (hidden until loaded) -->
-                    <div id="billing-saved-addrs" class="addr-chips" style="display:none;"></div>
-
-                    <div class="form-group mb-3">
-                        <label>Street Address</label>
-                        <input type="text" id="bill-street" placeholder="123 Main Street" autocomplete="billing street-address">
+                    <!-- Selected billing address card -->
+                    <div id="billing-addr-display" style="display:none; padding:0.75rem; border:1.5px solid var(--accent-red); border-radius:8px; background:#fff5f5; margin-bottom:0.75rem;">
+                        <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.15rem;" id="billing-addr-label"></div>
+                        <div style="font-size:0.82rem; color:var(--text-muted); line-height:1.5;" id="billing-addr-text"></div>
+                        <button type="button" onclick="showBillingSelector()" style="font-size:0.75rem; color:var(--accent-red); background:none; border:none; padding:0.2rem 0 0; cursor:pointer; display:inline-flex; align-items:center; gap:0.3rem;">
+                            <i class="fa fa-pen"></i> Change address
+                        </button>
                     </div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem;">
-                        <div class="form-group">
-                            <label>City</label>
-                            <input type="text" id="bill-city" placeholder="Toronto" autocomplete="billing address-level2">
-                        </div>
-                        <div class="form-group">
-                            <label>Province / State</label>
-                            <input type="text" id="bill-zip" placeholder="ON M5V 2T6" autocomplete="billing postal-code">
-                        </div>
-                        <div class="form-group">
-                            <label>Country</label>
-                            <input type="text" id="bill-country" value="Canada" autocomplete="billing country">
-                        </div>
+
+                    <!-- Empty state -->
+                    <div id="billing-addr-empty">
+                        <p class="text-muted small" style="margin-bottom:0.75rem;">
+                            Select a saved address. Addresses are managed in <a href="/account/addresses" style="color:var(--accent-red);">Account Settings</a>.
+                        </p>
+                        <button type="button" class="btn btn-outline" style="width:auto; padding:0.5rem 1.25rem; font-size:0.875rem;" onclick="showBillingSelector()">
+                            <i class="fa fa-map-marker-alt" style="margin-right:0.5rem;"></i> Select Billing Address
+                        </button>
                     </div>
                 </div>
 
@@ -169,37 +167,29 @@
                     <!-- Same as billing toggle -->
                     <label class="same-billing-row" for="same-as-billing">
                         <input type="checkbox" id="same-as-billing" checked onchange="toggleShippingFields()">
-                        <span style="font-weight:600; font-size:0.9rem;">Same as billing address</span>
+                        <span style="font-weight:600; font-size:0.9rem;">Deliver to billing address</span>
                     </label>
 
-                    <!-- Shipping fields — hidden by default when "same as billing" is checked -->
+                    <!-- Different delivery address (shown when "same as billing" is unchecked) -->
                     <div id="shipping-fields" style="display:none;">
-                        <!-- Saved address chips for shipping -->
-                        <div id="shipping-saved-addrs" class="addr-chips" style="display:none;"></div>
-
-                        <div class="form-group mb-3">
-                            <label>Street Address</label>
-                            <input type="text" id="ship-street" placeholder="456 Delivery Ave" autocomplete="shipping street-address">
+                        <!-- Selected delivery address card -->
+                        <div id="shipping-addr-display" style="display:none; padding:0.75rem; border:1.5px solid #2563eb; border-radius:8px; background:#eff6ff; margin-bottom:0.75rem;">
+                            <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.15rem;" id="shipping-addr-label"></div>
+                            <div style="font-size:0.82rem; color:var(--text-muted); line-height:1.5;" id="shipping-addr-text"></div>
+                            <button type="button" onclick="showShippingSelector()" style="font-size:0.75rem; color:#2563eb; background:none; border:none; padding:0.2rem 0 0; cursor:pointer; display:inline-flex; align-items:center; gap:0.3rem;">
+                                <i class="fa fa-pen"></i> Change address
+                            </button>
                         </div>
-                        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem;">
-                            <div class="form-group">
-                                <label>City</label>
-                                <input type="text" id="ship-city" placeholder="Toronto" autocomplete="shipping address-level2">
-                            </div>
-                            <div class="form-group">
-                                <label>Province / State</label>
-                                <input type="text" id="ship-zip" placeholder="ON M5V 2T6" autocomplete="shipping postal-code">
-                            </div>
-                            <div class="form-group">
-                                <label>Country</label>
-                                <input type="text" id="ship-country" value="Canada" autocomplete="shipping country">
-                            </div>
+                        <div id="shipping-addr-empty">
+                            <button type="button" class="btn btn-outline" style="width:auto; padding:0.5rem 1.25rem; font-size:0.875rem;" onclick="showShippingSelector()">
+                                <i class="fa fa-map-marker-alt" style="margin-right:0.5rem;"></i> Select Delivery Address
+                            </button>
                         </div>
                     </div>
 
                     <p id="shipping-same-note" class="text-muted small" style="margin:0.25rem 0 0;">
                         <i class="fa fa-check-circle" style="color:#22c55e; margin-right:0.3rem;"></i>
-                        Shipping to the same address as billing.
+                        Delivering to billing address.
                     </p>
 
                     </div><!-- end #shipping-address-section -->
@@ -213,10 +203,25 @@
                             <p id="pickup-instructions-text" style="font-size:0.8rem; color:var(--text-muted); margin:0;"></p>
                         </div>
                     </div>
-                    <!-- Self-fulfil note (shown when self_fulfilled selected) -->
-                    <div id="self-fulfill-note" style="display:none; margin-top:0.75rem;">
-                        <div style="border:1.5px solid #bfdbfe; border-radius:8px; padding:0.85rem 1rem; background:#eff6ff;">
+                    <!-- Carrier picker (shown when Courier Delivery selected) -->
+                    <div id="carrier-picker-section" style="display:none; margin-top:0.75rem;">
+                        <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.35rem;">Select Carrier</label>
+                        <select id="carrier-select" class="form-control" style="width:100%;">
+                            <option value="canada_post">Canada Post</option>
+                            <option value="ups">UPS</option>
+                            <option value="fedex">FedEx</option>
+                            <option value="purolator">Purolator</option>
+                            <option value="dhl">DHL</option>
+                        </select>
+                    </div>
+                    <!-- Self-fulfil form (shown when self_fulfilled selected) -->
+                    <div id="self-fulfill-form" style="display:none; margin-top:0.75rem;">
+                        <div style="border:1.5px solid #bfdbfe; border-radius:8px; padding:0.85rem 1rem; background:#eff6ff; margin-bottom:0.75rem;">
                             <p style="font-size:0.85rem; color:#1e40af; margin:0;"><i class="fa fa-info-circle" style="margin-right:0.4rem;"></i> The seller will coordinate fulfillment directly with you — this covers digital delivery, in-person services, and seller-arranged shipping.</p>
+                        </div>
+                        <div class="form-group">
+                            <label>Instructions for seller <span style="font-weight:400; color:var(--text-muted);">(optional)</span></label>
+                            <textarea id="sf-instructions" rows="3" placeholder="Any details the seller needs to fulfil your order..." maxlength="500" style="resize:vertical;"></textarea>
                         </div>
                     </div>
                 </div>
@@ -371,65 +376,55 @@ function getUser() {
 
 // ── State ─────────────────────────────────────────────────────────────
 let checkoutItems = [];
-let savedAddresses = [];   // from User Service
 let selectedDelivery = 'standard';
 let sellerStoreData = [];  // store data for all sellers in cart
 let availableFulfillmentOptions = ['shipping'];  // computed from intersection
+let selectedBillingAddr  = null;   // address object chosen via modal
+let selectedShippingAddr = null;   // null = use billing
 
-// ── Saved addresses ───────────────────────────────────────────────────
-async function loadSavedAddresses() {
-    const token = getToken();
-    if (!token) return;
-    try {
-        const res = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok) return;
-        const profile = await res.json();
-        savedAddresses = (profile.addresses || []);
-        renderAddressChips('billing-saved-addrs',  'billing');
-        renderAddressChips('shipping-saved-addrs', 'shipping');
-    } catch {}
-}
-
-function renderAddressChips(containerId, type) {
-    if (savedAddresses.length === 0) return;
-    const container = document.getElementById(containerId);
-    container.style.display = 'flex';
-    container.innerHTML = savedAddresses.map((a, idx) => `
-        <div class="addr-chip" onclick="fillAddress('${type}', ${idx})" id="${type}-chip-${idx}">
-            <strong>${a.label || 'Address ' + (idx + 1)}</strong><br>
-            ${a.street}, ${a.city}
-        </div>
-    `).join('') + `
-        <div class="addr-chip" onclick="clearAddressChips('${type}')">
-            <i class="fa fa-pen" style="margin-right:0.3rem; opacity:0.5;"></i> Enter manually
-        </div>
-    `;
-}
-
-function fillAddress(type, idx) {
-    const a = savedAddresses[idx];
-    if (!a) return;
-    const prefix = type === 'billing' ? 'bill' : 'ship';
-    document.getElementById(`${prefix}-street`).value  = a.street  || '';
-    document.getElementById(`${prefix}-city`).value    = a.city    || '';
-    document.getElementById(`${prefix}-zip`).value     = a.postalCode || a.zip || a.postal || '';
-    document.getElementById(`${prefix}-country`).value = a.country || 'Canada';
-
-    // Highlight selected chip
-    clearAddressChips(type, false);
-    const chip = document.getElementById(`${type}-chip-${idx}`);
-    if (chip) chip.classList.add('selected');
-}
-
-function clearAddressChips(type, clearFields = true) {
-    document.querySelectorAll(`#${type}-saved-addrs .addr-chip`).forEach(c => c.classList.remove('selected'));
-    if (clearFields) {
-        const prefix = type === 'billing' ? 'bill' : 'ship';
-        ['street','city','zip','country'].forEach(f => {
-            const el = document.getElementById(`${prefix}-${f}`);
-            if (el) el.value = f === 'country' ? 'Canada' : '';
-        });
+// ── Address selector helpers ──────────────────────────────────────────
+function renderSelectedAddrCard(type, addr) {
+    const display = document.getElementById(`${type}-addr-display`);
+    const empty   = document.getElementById(`${type}-addr-empty`);
+    const labelEl = document.getElementById(`${type}-addr-label`);
+    const textEl  = document.getElementById(`${type}-addr-text`);
+    if (!display || !empty) return;
+    if (!addr) {
+        display.style.display = 'none';
+        empty.style.display   = '';
+        return;
     }
+    if (labelEl) labelEl.textContent = addr.label || 'Address';
+    if (textEl) {
+        const line2 = [addr.city, addr.province, addr.postalCode].filter(Boolean).join(', ');
+        textEl.innerHTML = `${addr.street || ''}<br>${line2}<br>${addr.country || ''}`;
+    }
+    display.style.display = '';
+    empty.style.display   = 'none';
+}
+
+function showBillingSelector() {
+    if (typeof window.showAddressSelector !== 'function') {
+        showToast('Address selector not available.', 'error'); return;
+    }
+    window.showAddressSelector({ type: 'delivery', title: 'Select Billing Address' }, (addr) => {
+        selectedBillingAddr = addr;
+        renderSelectedAddrCard('billing', addr);
+        // If "deliver to billing" is checked, keep shipping in sync
+        if (document.getElementById('same-as-billing')?.checked) {
+            selectedShippingAddr = null; // means use billing
+        }
+    });
+}
+
+function showShippingSelector() {
+    if (typeof window.showAddressSelector !== 'function') {
+        showToast('Address selector not available.', 'error'); return;
+    }
+    window.showAddressSelector({ type: 'delivery', title: 'Select Delivery Address' }, (addr) => {
+        selectedShippingAddr = addr;
+        renderSelectedAddrCard('shipping', addr);
+    });
 }
 
 // ── Fulfillment options ───────────────────────────────────────────────
@@ -455,52 +450,67 @@ function renderFulfillmentOptions() {
     const section = document.getElementById('fulfillment-type-section');
     if (!section) return;
     const labels = {
-        shipping:       { label: 'Courier Delivery',   icon: 'fa-truck',          detail: 'Shipped to your address' },
-        pickup:         { label: 'Local Pickup',        icon: 'fa-map-marker-alt', detail: 'Pick up from seller location' },
-        self_fulfilled: { label: 'Seller Fulfillment', icon: 'fa-box-open',       detail: 'Digital delivery or in-person — seller will coordinate' }
+        shipping:       'Courier Delivery',
+        pickup:         'Local Pickup',
+        self_fulfilled: 'Seller Fulfillment',
     };
-    section.innerHTML = availableFulfillmentOptions.map((opt, idx) => {
-        const cfg = labels[opt] || { label: opt, icon: 'fa-box', detail: '' };
-        return `<label class="radio-option" onclick="this.querySelector('input').checked=true;onFulfillmentChange()">
-            <input type="radio" name="fulfillmentType" value="${opt}" ${idx === 0 ? 'checked' : ''}>
-            <i class="fa ${cfg.icon}"></i>
-            <span>${cfg.label}<span style="display:block;font-size:0.75rem;font-weight:400;color:var(--text-muted);">${cfg.detail}</span></span>
-        </label>`;
-    }).join('');
+    const options = availableFulfillmentOptions.map((opt, idx) =>
+        `<option value="${opt}" ${idx === 0 ? 'selected' : ''}>${labels[opt] || opt}</option>`
+    ).join('');
+    section.innerHTML = `<select id="fulfillment-type-select" class="form-control" onchange="onFulfillmentChange()" style="width:100%;">${options}</select>`;
+
+    // Populate carrier select from seller's enabled carriers
+    const carrierSelect = document.getElementById('carrier-select');
+    if (carrierSelect) {
+        const carrierLabels = {
+            canada_post: 'Canada Post',
+            ups:         'UPS',
+            fedex:       'FedEx',
+            purolator:   'Purolator',
+            dhl:         'DHL',
+            other:       'Other Carrier',
+        };
+        const enabledCarriers = (sellerStoreData[0]?.enabledCarriers?.length)
+            ? sellerStoreData[0].enabledCarriers
+            : ['canada_post','ups','fedex','purolator','dhl'];
+        carrierSelect.innerHTML = enabledCarriers
+            .map(c => `<option value="${c}">${carrierLabels[c] || c}</option>`)
+            .join('');
+    }
+
     onFulfillmentChange();
 }
 
 function onFulfillmentChange() {
-    const ft = document.querySelector('input[name="fulfillmentType"]:checked')?.value || 'shipping';
+    const ft = document.getElementById('fulfillment-type-select')?.value || 'shipping';
 
-    // Highlight the selected option
-    document.querySelectorAll('.radio-option').forEach(l => {
-        l.classList.toggle('selected', l.querySelector('input')?.value === ft);
-    });
-
-    const addrSection  = document.getElementById('shipping-address-section');
-    const pickupCard   = document.getElementById('pickup-location-card');
-    const selfNote     = document.getElementById('self-fulfill-note');
-    const deliveryCard = document.getElementById('delivery-step-card');
+    const addrSection   = document.getElementById('shipping-address-section');
+    const pickupCard    = document.getElementById('pickup-location-card');
+    const carrierPicker = document.getElementById('carrier-picker-section');
+    const selfNote      = document.getElementById('self-fulfill-form');
+    const deliveryCard  = document.getElementById('delivery-step-card');
 
     if (ft === 'shipping') {
-        if (addrSection) addrSection.style.display = 'block';
-        if (pickupCard)  pickupCard.style.display  = 'none';
-        if (selfNote)    selfNote.style.display    = 'none';
-        if (deliveryCard) deliveryCard.style.display = 'block';
+        if (addrSection)   addrSection.style.display   = 'block';
+        if (pickupCard)    pickupCard.style.display    = 'none';
+        if (carrierPicker) carrierPicker.style.display = 'block';
+        if (selfNote)      selfNote.style.display      = 'none';
+        if (deliveryCard)  deliveryCard.style.display  = 'block';
     } else if (ft === 'pickup') {
-        if (addrSection) addrSection.style.display = 'none';
-        if (pickupCard)  pickupCard.style.display  = 'block';
-        if (selfNote)    selfNote.style.display    = 'none';
-        if (deliveryCard) deliveryCard.style.display = 'none';
+        if (addrSection)   addrSection.style.display   = 'none';
+        if (pickupCard)    pickupCard.style.display    = 'block';
+        if (carrierPicker) carrierPicker.style.display = 'none';
+        if (selfNote)      selfNote.style.display      = 'none';
+        if (deliveryCard)  deliveryCard.style.display  = 'none';
         renderPickupLocation();
         selectedDelivery = 'standard';
         updateTotals();
     } else if (ft === 'self_fulfilled') {
-        if (addrSection) addrSection.style.display = 'none';
-        if (pickupCard)  pickupCard.style.display  = 'none';
-        if (selfNote)    selfNote.style.display    = 'block';
-        if (deliveryCard) deliveryCard.style.display = 'none';
+        if (addrSection)   addrSection.style.display   = 'none';
+        if (pickupCard)    pickupCard.style.display    = 'none';
+        if (carrierPicker) carrierPicker.style.display = 'none';
+        if (selfNote)      selfNote.style.display      = 'block';
+        if (deliveryCard)  deliveryCard.style.display  = 'none';
         selectedDelivery = 'standard';
         updateTotals();
     }
@@ -518,8 +528,11 @@ function renderPickupLocation() {
         if (instrEl) instrEl.textContent = '';
         return;
     }
-    const loc = locations[0];
-    const addr = [loc.address, loc.city, loc.province, loc.postalCode, loc.country].filter(Boolean).join(', ');
+    // Resolve by pickupLocationId from the first checkout item; fall back to locations[0]
+    const preferredId = (checkoutItems[0] || {}).pickupLocationId;
+    const loc = (preferredId && locations.find(l => l._id?.toString() === preferredId?.toString())) || locations[0];
+    const streetVal = loc.street || loc.address || '';
+    const addr = [streetVal, loc.city, loc.province, loc.postalCode, loc.country].filter(Boolean).join(', ');
     if (addrEl) addrEl.textContent = addr;
     if (hoursEl) hoursEl.textContent = loc.hours ? `Hours: ${loc.hours}` : '';
     if (instrEl) instrEl.textContent = loc.instructions || '';
@@ -530,23 +543,20 @@ function toggleShippingFields() {
     const sameAsBilling = document.getElementById('same-as-billing').checked;
     document.getElementById('shipping-fields').style.display  = sameAsBilling ? 'none' : 'block';
     document.getElementById('shipping-same-note').style.display = sameAsBilling ? 'block' : 'none';
+    if (sameAsBilling) selectedShippingAddr = null;
     updateTotals();
 }
 
 function getShippingAddress() {
-    if (document.getElementById('same-as-billing').checked) {
-        return {
-            street:  document.getElementById('bill-street').value.trim(),
-            city:    document.getElementById('bill-city').value.trim(),
-            zip:     document.getElementById('bill-zip').value.trim(),
-            country: document.getElementById('bill-country').value.trim(),
-        };
-    }
+    const sameAsBilling = document.getElementById('same-as-billing').checked;
+    const addr = sameAsBilling ? selectedBillingAddr : (selectedShippingAddr || selectedBillingAddr);
+    if (!addr) return null;
     return {
-        street:  document.getElementById('ship-street').value.trim(),
-        city:    document.getElementById('ship-city').value.trim(),
-        zip:     document.getElementById('ship-zip').value.trim(),
-        country: document.getElementById('ship-country').value.trim(),
+        street:     addr.street     || '',
+        city:       addr.city       || '',
+        province:   addr.province   || '',
+        postalCode: addr.postalCode || '',
+        country:    addr.country    || 'Canada',
     };
 }
 
@@ -602,7 +612,8 @@ function loadCheckoutItems() {
                     _id: p._id, productId: p._id, sellerId: p.sellerId,
                     title: p.title, price: p.price, qty: 1,
                     image: (p.images||[])[0],
-                    fastDeliveryFee: p.fastDeliveryFee || 0
+                    fastDeliveryFee: p.fastDeliveryFee || 0,
+                    pickupLocationId: p.pickupLocationId || null
                 }];
                 renderSummary();
                 updateFastDeliveryLabel();
@@ -613,7 +624,8 @@ function loadCheckoutItems() {
         checkoutItems = MarkeeCart.getCart().map(i => ({
             _id: i._id, productId: i._id, sellerId: i.sellerId,
             title: i.title, price: i.price, qty: i.qty, image: i.image,
-            fastDeliveryFee: i.fastDeliveryFee || 0
+            fastDeliveryFee: i.fastDeliveryFee || 0,
+            pickupLocationId: i.pickupLocationId || null
         }));
         if (checkoutItems.length === 0) {
             document.getElementById('checkout-main').innerHTML =
@@ -686,23 +698,32 @@ function formatExpiry(el) {
 
 // ── Validation ────────────────────────────────────────────────────────
 function validate() {
-    const billingFields = ['bill-street','bill-city','bill-zip','bill-country'];
     let ok = true;
-    billingFields.forEach(id => {
-        const el = document.getElementById(id);
-        if (!el.value.trim()) { el.classList.add('error-field'); ok = false; }
-        else el.classList.remove('error-field');
-    });
+    const errors = [];
 
-    const ft = document.querySelector('input[name="fulfillmentType"]:checked')?.value || 'shipping';
+    // Billing address — must have selected an address
+    if (!selectedBillingAddr) {
+        errors.push('Please select a billing address.');
+        const emptyEl = document.getElementById('billing-addr-empty');
+        if (emptyEl) emptyEl.style.outline = '2px solid var(--accent-red)';
+        ok = false;
+    } else {
+        const emptyEl = document.getElementById('billing-addr-empty');
+        if (emptyEl) emptyEl.style.outline = '';
+    }
+
+    const ft = document.getElementById('fulfillment-type-select')?.value || 'shipping';
     const sameAsBilling = document.getElementById('same-as-billing').checked;
-    if (ft === 'shipping' && !sameAsBilling) {
-        const shippingFields = ['ship-street','ship-city','ship-zip','ship-country'];
-        shippingFields.forEach(id => {
-            const el = document.getElementById(id);
-            if (!el.value.trim()) { el.classList.add('error-field'); ok = false; }
-            else el.classList.remove('error-field');
-        });
+
+    // For shipping with a separate delivery address
+    if (ft === 'shipping' && !sameAsBilling && !selectedShippingAddr) {
+        errors.push('Please select a delivery address.');
+        const emptyEl = document.getElementById('shipping-addr-empty');
+        if (emptyEl) emptyEl.style.outline = '2px solid var(--accent-red)';
+        ok = false;
+    } else {
+        const emptyEl = document.getElementById('shipping-addr-empty');
+        if (emptyEl) emptyEl.style.outline = '';
     }
 
     const payMethod = document.querySelector('input[name="payment"]:checked').value;
@@ -711,6 +732,7 @@ function validate() {
         if (card.length < 13) { document.getElementById('card-number').classList.add('error-field'); ok = false; }
         else document.getElementById('card-number').classList.remove('error-field');
     }
+    if (!ok && errors.length) showInlineError('checkout-error-container', errors[0]);
     return ok;
 }
 
@@ -758,15 +780,31 @@ async function placeOrder(evt) {
     const taxCents      = Math.round(subtotalCents * 0.13);
 
     const billingAddress = {
-        street:  document.getElementById('bill-street').value.trim(),
-        city:    document.getElementById('bill-city').value.trim(),
-        zip:     document.getElementById('bill-zip').value.trim(),
-        country: document.getElementById('bill-country').value.trim(),
+        street:     selectedBillingAddr?.street     || '',
+        city:       selectedBillingAddr?.city       || '',
+        province:   selectedBillingAddr?.province   || '',
+        postalCode: selectedBillingAddr?.postalCode || '',
+        country:    selectedBillingAddr?.country    || 'Canada',
     };
-    const shippingAddress = getShippingAddress();
+    const fulfillmentType = document.getElementById('fulfillment-type-select')?.value || 'shipping';
 
-    const fulfillmentTypeEl = document.querySelector('input[name="fulfillmentType"]:checked');
-    const fulfillmentType = fulfillmentTypeEl ? fulfillmentTypeEl.value : 'shipping';
+    // For pickup orders, store the resolved pickup location as shippingAddress
+    // so order-detail can always display where to get the order.
+    let shippingAddress;
+    if (fulfillmentType === 'pickup') {
+        const store = sellerStoreData[0];
+        const locations = (store?.pickupLocations || []).filter(l => l.active !== false);
+        const preferredId = (checkoutItems[0] || {}).pickupLocationId;
+        const loc = (preferredId && locations.find(l => l._id?.toString() === preferredId?.toString())) || locations[0];
+        shippingAddress = loc ? {
+            street:     loc.street     || loc.address || '',
+            city:       loc.city       || '',
+            postalCode: loc.postalCode || '',
+            country:    loc.country    || 'Canada',
+        } : getShippingAddress();
+    } else {
+        shippingAddress = getShippingAddress();
+    }
 
     const payload = {
         buyerId: user.sub,
@@ -784,6 +822,12 @@ async function placeOrder(evt) {
         deliveryFee:    deliveryCost,
         totalAmount:    subtotalCents + taxCents + deliveryCost,
         fulfillmentType,
+        selectedCarrier: fulfillmentType === 'shipping'
+            ? (document.getElementById('carrier-select')?.value || null)
+            : null,
+        selfFulfillmentInstructions: fulfillmentType === 'self_fulfilled'
+            ? (document.getElementById('sf-instructions')?.value || '').trim()
+            : '',
     };
 
     try {
@@ -828,7 +872,6 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     loadCheckoutItems();
-    loadSavedAddresses();
 
 });
 </script>

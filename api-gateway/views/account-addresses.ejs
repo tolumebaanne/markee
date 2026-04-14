@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Addresses | Markee</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js"></script>
+    <script src="/js/confirm.js"></script>
+    <style>
+        .addr-section      { margin-bottom: 2.5rem; }
+        .addr-section h3   { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
+        .addr-list         { display: flex; flex-direction: column; gap: 0.75rem; }
+        .addr-item         { border: 1.5px solid var(--border); border-radius: 10px; padding: 1rem 1.1rem; background: var(--surface2); }
+        .addr-item.default { border-color: var(--primary, #2563eb); }
+        .addr-item-top     { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+        .addr-label        { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.2rem; }
+        .addr-street       { font-weight: 600; }
+        .addr-line2, .addr-country { font-size: 0.85rem; color: var(--muted); }
+        .addr-badge        { background: var(--primary, #2563eb); color: #fff; border-radius: 4px; padding: 2px 7px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; white-space: nowrap; }
+        .addr-actions      { display: flex; gap: 0.4rem; flex-shrink: 0; flex-wrap: wrap; }
+        .addr-meta         { font-size: 0.8rem; color: var(--muted); margin-top: 0.2rem; }
+
+        .addr-form-wrap    { border: 1.5px dashed var(--border); border-radius: 10px; padding: 1.1rem; margin-top: 0.5rem; display: none; }
+        .addr-form-wrap.open { display: block; }
+        .addr-form-grid    { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+        .addr-form-grid .full { grid-column: 1 / -1; }
+        @media(max-width:540px) { .addr-form-grid { grid-template-columns: 1fr; } .addr-form-grid .full { grid-column: 1; } }
+
+        .pickup-note       { font-size: 0.82rem; color: var(--muted); margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="brand-combo">
+        <a href="/"><span class="brand">Markee</span></a>
+    </div>
+    <%- include('_nav') %>
+</nav>
+
+<div class="container py-4 animate-fade">
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.75rem">
+        <a href="/account" style="color:var(--muted);text-decoration:none;font-size:0.85rem"><i class="fa fa-arrow-left"></i> Account</a>
+        <span style="color:var(--border)">/</span>
+        <h2 style="margin:0">Addresses</h2>
+    </div>
+
+    <!-- ── SECTION 1: Delivery Addresses ─────────────────────────────────────── -->
+    <div class="addr-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+            <h3 style="margin:0">My Delivery Addresses</h3>
+            <button class="btn btn-sm btn-primary" onclick="openDeliveryForm(null)"><i class="fa fa-plus"></i> Add Address</button>
+        </div>
+        <div id="delivery-list" class="addr-list">
+            <div style="color:var(--muted);font-size:.85rem"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+        </div>
+        <!-- Add / Edit inline form -->
+        <div class="addr-form-wrap" id="delivery-form-wrap">
+            <h4 id="delivery-form-title" style="margin-top:0;margin-bottom:1rem;font-size:.9rem">Add Address</h4>
+            <input type="hidden" id="delivery-edit-id">
+            <div class="addr-form-grid">
+                <div class="full">
+                    <label class="form-label">Label</label>
+                    <select id="d-label" class="form-control">
+                        <option value="Home">Home</option>
+                        <option value="Work">Work</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="full">
+                    <label class="form-label">Street Address <span style="color:var(--danger)">*</span></label>
+                    <input type="text" id="d-street" class="form-control" placeholder="123 Main St" maxlength="200">
+                </div>
+                <div>
+                    <label class="form-label">City <span style="color:var(--danger)">*</span></label>
+                    <input type="text" id="d-city" class="form-control" placeholder="Toronto" maxlength="100">
+                </div>
+                <div>
+                    <label class="form-label">Province</label>
+                    <input type="text" id="d-province" class="form-control" placeholder="ON" maxlength="100">
+                </div>
+                <div>
+                    <label class="form-label">Postal Code <span style="color:var(--danger)">*</span></label>
+                    <input type="text" id="d-postalCode" class="form-control" placeholder="M5V 2T6" maxlength="20">
+                </div>
+                <div>
+                    <label class="form-label">Country</label>
+                    <input type="text" id="d-country" class="form-control" placeholder="Canada" maxlength="100" value="Canada">
+                </div>
+                <div style="display:flex;align-items:center;gap:.5rem" class="full">
+                    <input type="checkbox" id="d-isDefault" style="width:auto">
+                    <label for="d-isDefault" style="margin:0;font-size:.88rem">Set as default</label>
+                </div>
+            </div>
+            <div style="display:flex;gap:.5rem;margin-top:1rem">
+                <button class="btn btn-sm btn-primary" onclick="saveDeliveryAddress()">Save</button>
+                <button class="btn btn-sm btn-ghost" onclick="closeDeliveryForm()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── SECTION 2: Pickup Locations (sellers only) ────────────────────────── -->
+    <div class="addr-section" id="pickup-section" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+            <h3 style="margin:0">Pickup Locations</h3>
+            <button class="btn btn-sm btn-primary" onclick="openPickupForm(null)"><i class="fa fa-plus"></i> Add Location</button>
+        </div>
+        <p class="pickup-note">These are the locations buyers will come to for local pickup.</p>
+        <div id="pickup-list" class="addr-list"></div>
+        <!-- Add / Edit inline form -->
+        <div class="addr-form-wrap" id="pickup-form-wrap">
+            <h4 id="pickup-form-title" style="margin-top:0;margin-bottom:1rem;font-size:.9rem">Add Pickup Location</h4>
+            <input type="hidden" id="pickup-edit-id">
+            <div class="addr-form-grid">
+                <div class="full">
+                    <label class="form-label">Location Name <span style="color:var(--danger)">*</span></label>
+                    <input type="text" id="p-label" class="form-control" placeholder="Main Store" maxlength="100">
+                </div>
+                <div class="full">
+                    <label class="form-label">Street Address <span style="color:var(--danger)">*</span></label>
+                    <input type="text" id="p-street" class="form-control" placeholder="456 Queen St W" maxlength="200">
+                </div>
+                <div>
+                    <label class="form-label">City <span style="color:var(--danger)">*</span></label>
+                    <input type="text" id="p-city" class="form-control" placeholder="Toronto" maxlength="100">
+                </div>
+                <div>
+                    <label class="form-label">Province</label>
+                    <input type="text" id="p-province" class="form-control" placeholder="ON" maxlength="100">
+                </div>
+                <div>
+                    <label class="form-label">Postal Code</label>
+                    <input type="text" id="p-postalCode" class="form-control" placeholder="M5V 2T6" maxlength="20">
+                </div>
+                <div>
+                    <label class="form-label">Country</label>
+                    <input type="text" id="p-country" class="form-control" placeholder="Canada" maxlength="100" value="Canada">
+                </div>
+                <div class="full">
+                    <label class="form-label">Hours</label>
+                    <input type="text" id="p-hours" class="form-control" placeholder="Mon–Sat 10am–6pm" maxlength="200">
+                </div>
+                <div class="full">
+                    <label class="form-label">Instructions</label>
+                    <input type="text" id="p-instructions" class="form-control" placeholder="Enter through the rear door" maxlength="300">
+                </div>
+                <div style="display:flex;align-items:center;gap:.5rem" class="full">
+                    <input type="checkbox" id="p-active" style="width:auto" checked>
+                    <label for="p-active" style="margin:0;font-size:.88rem">Active (visible to buyers)</label>
+                </div>
+            </div>
+            <div style="display:flex;gap:.5rem;margin-top:1rem">
+                <button class="btn btn-sm btn-primary" onclick="savePickupLocation()">Save</button>
+                <button class="btn btn-sm btn-ghost" onclick="closePickupForm()">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const TOKEN  = localStorage.getItem('authToken') || localStorage.getItem('token') || '';
+const HDRS   = { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` };
+let _storeId = null;
+let _deliveryAddresses = [];
+let _pickupLocations   = [];
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+(async () => {
+    try {
+        const r = await fetch('/api/users/me', { headers: HDRS });
+        if (!r.ok) return;
+        const p = await r.json();
+        _storeId = p.storeId || null;
+        if (_storeId) document.getElementById('pickup-section').style.display = '';
+    } catch (_) {}
+    await loadDelivery();
+    if (_storeId) await loadPickup();
+})();
+
+// ── Delivery Addresses ───────────────────────────────────────────────────────
+async function loadDelivery() {
+    const list = document.getElementById('delivery-list');
+    try {
+        const r = await fetch('/api/users/me/addresses', { headers: HDRS });
+        _deliveryAddresses = r.ok ? await r.json() : [];
+    } catch (_) { _deliveryAddresses = []; }
+    renderDelivery();
+}
+
+function renderDelivery() {
+    const list = document.getElementById('delivery-list');
+    if (!_deliveryAddresses.length) {
+        list.innerHTML = '<p style="color:var(--muted);font-size:.85rem">No delivery addresses saved yet.</p>';
+        return;
+    }
+    list.innerHTML = _deliveryAddresses.map((a, i) => {
+        const line2 = [a.city, a.province, a.postalCode].filter(Boolean).join(', ');
+        return `
+        <div class="addr-item${a.isDefault ? ' default' : ''}">
+            <div class="addr-item-top">
+                <div>
+                    <div class="addr-label">${a.label || 'Address'}${a.isDefault ? ' <span class="addr-badge">Default</span>' : ''}</div>
+                    <div class="addr-street">${esc(a.street)}</div>
+                    ${line2 ? `<div class="addr-line2">${esc(line2)}</div>` : ''}
+                    ${a.country ? `<div class="addr-country">${esc(a.country)}</div>` : ''}
+                </div>
+                <div class="addr-actions">
+                    ${!a.isDefault ? `<button class="btn btn-xs btn-ghost" onclick="setDefaultDelivery('${a._id}')">Set Default</button>` : ''}
+                    <button class="btn btn-xs btn-ghost" onclick="openDeliveryForm(${i})"><i class="fa fa-pen"></i></button>
+                    <button class="btn btn-xs btn-danger" onclick="deleteDelivery('${a._id}')"><i class="fa fa-trash"></i></button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function openDeliveryForm(idx) {
+    const wrap = document.getElementById('delivery-form-wrap');
+    const title = document.getElementById('delivery-form-title');
+    if (idx === null) {
+        title.textContent = 'Add Address';
+        document.getElementById('delivery-edit-id').value = '';
+        ['d-label','d-street','d-city','d-province','d-postalCode'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('d-country').value = 'Canada';
+        document.getElementById('d-isDefault').checked = false;
+    } else {
+        const a = _deliveryAddresses[idx];
+        title.textContent = 'Edit Address';
+        document.getElementById('delivery-edit-id').value = a._id;
+        document.getElementById('d-label').value      = a.label      || 'Home';
+        document.getElementById('d-street').value     = a.street     || '';
+        document.getElementById('d-city').value       = a.city       || '';
+        document.getElementById('d-province').value   = a.province   || '';
+        document.getElementById('d-postalCode').value = a.postalCode || '';
+        document.getElementById('d-country').value    = a.country    || 'Canada';
+        document.getElementById('d-isDefault').checked = !!a.isDefault;
+    }
+    wrap.classList.add('open');
+    wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeDeliveryForm() { document.getElementById('delivery-form-wrap').classList.remove('open'); }
+
+async function saveDeliveryAddress() {
+    const id = document.getElementById('delivery-edit-id').value;
+    const body = {
+        label:      document.getElementById('d-label').value,
+        street:     document.getElementById('d-street').value.trim(),
+        city:       document.getElementById('d-city').value.trim(),
+        province:   document.getElementById('d-province').value.trim(),
+        postalCode: document.getElementById('d-postalCode').value.trim(),
+        country:    document.getElementById('d-country').value.trim() || 'Canada',
+        isDefault:  document.getElementById('d-isDefault').checked
+    };
+    if (!body.street) { toast('Street address is required', 'error'); return; }
+    if (!body.city)   { toast('City is required', 'error'); return; }
+    if (!body.postalCode) { toast('Postal code is required', 'error'); return; }
+    try {
+        const url    = id ? `/api/users/me/addresses/${id}` : '/api/users/me/addresses';
+        const method = id ? 'PUT' : 'POST';
+        const r = await fetch(url, { method, headers: HDRS, body: JSON.stringify(body) });
+        const data = await r.json();
+        if (!r.ok) { toast(data.error || 'Save failed', 'error'); return; }
+        _deliveryAddresses = data;
+        renderDelivery();
+        closeDeliveryForm();
+        toast(id ? 'Address updated' : 'Address added', 'success');
+    } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function deleteDelivery(id) {
+    const { confirmed } = await new Promise(res => showConfirm('Delete this address?', () => res({ confirmed: true }), () => res({ confirmed: false }), { confirmText: 'Delete', type: 'danger' }));
+    if (!confirmed) return;
+    try {
+        const r = await fetch(`/api/users/me/addresses/${id}`, { method: 'DELETE', headers: HDRS });
+        if (!r.ok) { toast('Delete failed', 'error'); return; }
+        _deliveryAddresses = await r.json();
+        renderDelivery();
+        toast('Address removed', 'warn');
+    } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function setDefaultDelivery(id) {
+    try {
+        const r = await fetch(`/api/users/me/addresses/${id}/set-default`, { method: 'PATCH', headers: HDRS });
+        if (!r.ok) { toast('Could not set default', 'error'); return; }
+        _deliveryAddresses = await r.json();
+        renderDelivery();
+        toast('Default address updated', 'success');
+    } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+// ── Pickup Locations ─────────────────────────────────────────────────────────
+async function loadPickup() {
+    try {
+        const r = await fetch(`/api/seller/${_storeId}/pickup-locations`, { headers: HDRS });
+        _pickupLocations = r.ok ? await r.json() : [];
+    } catch (_) { _pickupLocations = []; }
+    renderPickup();
+}
+
+function renderPickup() {
+    const list = document.getElementById('pickup-list');
+    if (!_pickupLocations.length) {
+        list.innerHTML = '<p style="color:var(--muted);font-size:.85rem">No pickup locations saved yet.</p>';
+        return;
+    }
+    list.innerHTML = _pickupLocations.map((l, i) => {
+        const line2 = [l.city, l.province, l.postalCode].filter(Boolean).join(', ');
+        return `
+        <div class="addr-item${l.active === false ? '' : ''}">
+            <div class="addr-item-top">
+                <div>
+                    <div class="addr-label">${esc(l.label)}${l.active === false ? ' <span style="color:var(--muted);font-size:.68rem">(inactive)</span>' : ''}</div>
+                    <div class="addr-street">${esc(l.street)}</div>
+                    ${line2 ? `<div class="addr-line2">${esc(line2)}</div>` : ''}
+                    ${l.country ? `<div class="addr-country">${esc(l.country)}</div>` : ''}
+                    ${l.hours ? `<div class="addr-meta"><i class="fas fa-clock"></i> ${esc(l.hours)}</div>` : ''}
+                    ${l.instructions ? `<div class="addr-meta">${esc(l.instructions)}</div>` : ''}
+                </div>
+                <div class="addr-actions">
+                    <button class="btn btn-xs btn-ghost" onclick="openPickupForm(${i})"><i class="fa fa-pen"></i></button>
+                    <button class="btn btn-xs btn-danger" onclick="deletePickup('${l._id}')"><i class="fa fa-trash"></i></button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function openPickupForm(idx) {
+    const wrap  = document.getElementById('pickup-form-wrap');
+    const title = document.getElementById('pickup-form-title');
+    if (idx === null) {
+        title.textContent = 'Add Pickup Location';
+        document.getElementById('pickup-edit-id').value = '';
+        ['p-label','p-street','p-city','p-province','p-postalCode','p-hours','p-instructions'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('p-country').value = 'Canada';
+        document.getElementById('p-active').checked = true;
+    } else {
+        const l = _pickupLocations[idx];
+        title.textContent = 'Edit Pickup Location';
+        document.getElementById('pickup-edit-id').value = l._id;
+        document.getElementById('p-label').value        = l.label        || '';
+        document.getElementById('p-street').value       = l.street       || '';
+        document.getElementById('p-city').value         = l.city         || '';
+        document.getElementById('p-province').value     = l.province     || '';
+        document.getElementById('p-postalCode').value   = l.postalCode   || '';
+        document.getElementById('p-country').value      = l.country      || 'Canada';
+        document.getElementById('p-hours').value        = l.hours        || '';
+        document.getElementById('p-instructions').value = l.instructions || '';
+        document.getElementById('p-active').checked     = l.active !== false;
+    }
+    wrap.classList.add('open');
+    wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closePickupForm() { document.getElementById('pickup-form-wrap').classList.remove('open'); }
+
+async function savePickupLocation() {
+    const id = document.getElementById('pickup-edit-id').value;
+    const body = {
+        label:        document.getElementById('p-label').value.trim(),
+        street:       document.getElementById('p-street').value.trim(),
+        city:         document.getElementById('p-city').value.trim(),
+        province:     document.getElementById('p-province').value.trim(),
+        postalCode:   document.getElementById('p-postalCode').value.trim(),
+        country:      document.getElementById('p-country').value.trim() || 'Canada',
+        hours:        document.getElementById('p-hours').value.trim(),
+        instructions: document.getElementById('p-instructions').value.trim(),
+        active:       document.getElementById('p-active').checked
+    };
+    if (!body.label)  { toast('Location name is required', 'error'); return; }
+    if (!body.street) { toast('Street address is required', 'error'); return; }
+    if (!body.city)   { toast('City is required', 'error'); return; }
+    try {
+        const url    = id ? `/api/seller/${_storeId}/pickup-locations/${id}` : `/api/seller/${_storeId}/pickup-locations`;
+        const method = id ? 'PUT' : 'POST';
+        const r = await fetch(url, { method, headers: HDRS, body: JSON.stringify(body) });
+        const data = await r.json();
+        if (!r.ok) { toast(data.error || 'Save failed', 'error'); return; }
+        _pickupLocations = data;
+        renderPickup();
+        closePickupForm();
+        toast(id ? 'Location updated' : 'Location added', 'success');
+    } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function deletePickup(id) {
+    const { confirmed } = await new Promise(res => showConfirm('Delete this pickup location?', () => res({ confirmed: true }), () => res({ confirmed: false }), { confirmText: 'Delete', type: 'danger' }));
+    if (!confirmed) return;
+    try {
+        const r = await fetch(`/api/seller/${_storeId}/pickup-locations/${id}`, { method: 'DELETE', headers: HDRS });
+        if (!r.ok) { toast('Delete failed', 'error'); return; }
+        _pickupLocations = await r.json();
+        renderPickup();
+        toast('Location removed', 'warn');
+    } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

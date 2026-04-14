@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="/js/toast.js"></script>
     <script src="/js/confirm.js"></script>
+    <script src="/js/address-selector.js"></script>
     <script src="/js/cart.js"></script>
     <style>
         /* ── Status badge ─────────────────────────────────────────────────── */
@@ -564,8 +565,20 @@
                             <label class="check-label">
                                 <input type="checkbox" id="fo-shipping" value="shipping" onchange="syncFulfillmentOptions()">
                                 <i class="fa fa-truck" style="width:16px;"></i> <span style="font-weight:600;">Courier Delivery</span>
-                                <span class="text-muted small" style="margin-left:0.25rem;">— ship via UPS, FedEx, USPS, DHL</span>
+                                <span class="text-muted small" style="margin-left:0.25rem;">— ship via carrier to buyer's address</span>
                             </label>
+                            <!-- Carrier selection sub-section (shown when Courier Delivery is enabled) -->
+                            <div id="carrier-selection-section" style="display:none; margin-left:1.75rem; padding:0.65rem 0.85rem; border:1px solid var(--border-light); border-radius:8px; background:var(--bg-secondary);">
+                                <div style="font-size:0.78rem; font-weight:600; color:var(--text-muted); margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:0.03em;">Carriers you offer</div>
+                                <div style="display:flex; flex-wrap:wrap; gap:0.5rem 1.25rem;">
+                                    <label class="check-label" style="margin:0;"><input type="checkbox" class="carrier-cb" value="canada_post"> Canada Post</label>
+                                    <label class="check-label" style="margin:0;"><input type="checkbox" class="carrier-cb" value="ups"> UPS</label>
+                                    <label class="check-label" style="margin:0;"><input type="checkbox" class="carrier-cb" value="fedex"> FedEx</label>
+                                    <label class="check-label" style="margin:0;"><input type="checkbox" class="carrier-cb" value="purolator"> Purolator</label>
+                                    <label class="check-label" style="margin:0;"><input type="checkbox" class="carrier-cb" value="dhl"> DHL</label>
+                                    <label class="check-label" style="margin:0;"><input type="checkbox" class="carrier-cb" value="other"> Other</label>
+                                </div>
+                            </div>
                             <label class="check-label">
                                 <input type="checkbox" id="fo-pickup" value="pickup" onchange="syncFulfillmentOptions()">
                                 <i class="fa fa-map-marker-alt" style="width:16px;"></i> <span style="font-weight:600;">Local Pickup</span>
@@ -588,7 +601,7 @@
                         </button>
                         <div id="add-pickup-form" style="display:none; margin-top:0.75rem; padding:0.85rem; border:1px solid var(--border-light); border-radius:8px; background:var(--bg-secondary);">
                             <div class="form-group mb-2"><label style="font-size:0.8rem;">Label (e.g. "Main Store")</label><input type="text" id="pkl-label" placeholder="Main Store"></div>
-                            <div class="form-group mb-2"><label style="font-size:0.8rem;">Street Address</label><input type="text" id="pkl-address" placeholder="123 Queen St W"></div>
+                            <div class="form-group mb-2"><label style="font-size:0.8rem;">Street Address</label><input type="text" id="pkl-street" placeholder="123 Queen St W"></div>
                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-bottom:0.5rem;">
                                 <div class="form-group mb-0"><label style="font-size:0.8rem;">City</label><input type="text" id="pkl-city" placeholder="Toronto"></div>
                                 <div class="form-group mb-0"><label style="font-size:0.8rem;">Province</label><input type="text" id="pkl-province" placeholder="ON"></div>
@@ -1164,13 +1177,30 @@
             </div>
 
             <div class="form-group mb-3">
-                <label for="listing-fo-select">Fulfillment Options <span class="text-muted" style="font-weight:400; font-size:0.8rem;">(leave as default to inherit store settings)</span></label>
-                <select id="listing-fo-select">
-                    <option value="">Use store defaults</option>
-                    <option value="shipping">Courier Delivery</option>
-                    <option value="pickup">Local Pickup</option>
-                    <option value="self_fulfilled">Seller Fulfillment</option>
+                <label>Fulfillment Options <span class="text-muted" style="font-weight:400; font-size:0.8rem;">(leave all unchecked to inherit store defaults)</span></label>
+                <div style="display:flex; flex-direction:column; gap:0.4rem; margin-top:0.4rem;" id="listing-fo-checkboxes">
+                    <label class="check-label" style="margin:0;">
+                        <input type="checkbox" class="listing-fo-cb" value="shipping" onchange="onListingFulfillmentChange()">
+                        <i class="fa fa-truck" style="width:14px; font-size:0.85rem;"></i> Courier Delivery
+                    </label>
+                    <label class="check-label" style="margin:0;">
+                        <input type="checkbox" class="listing-fo-cb" value="pickup" onchange="onListingFulfillmentChange()">
+                        <i class="fa fa-map-marker-alt" style="width:14px; font-size:0.85rem;"></i> Local Pickup
+                    </label>
+                    <label class="check-label" style="margin:0;">
+                        <input type="checkbox" class="listing-fo-cb" value="self_fulfilled" onchange="onListingFulfillmentChange()">
+                        <i class="fa fa-box-open" style="width:14px; font-size:0.85rem;"></i> Seller Fulfillment
+                    </label>
+                </div>
+            </div>
+
+            <!-- Pickup location selector (shown when Local Pickup is checked above) -->
+            <div id="listing-pickup-location-section" class="form-group mb-3" style="display:none;">
+                <label for="listing-pickup-location-select">Pickup Location</label>
+                <select id="listing-pickup-location-select" style="width:100%;">
+                    <option value="">— Select a pickup location —</option>
                 </select>
+                <p class="text-muted small" style="margin:0.25rem 0 0;">Set up pickup locations in Store Settings.</p>
             </div>
 
             <div class="form-group mb-4">
@@ -2134,7 +2164,7 @@
                             <div style="font-weight:600; font-size:0.875rem;">Order ${shortId}
                                 <span style="font-size:0.75rem; color:#15803d; margin-left:0.4rem;">$${(myRevCents/100).toFixed(2)}</span>
                             </div>
-                            <div class="text-muted small">${date} · ${itemCount} item${itemCount !== 1 ? 's' : ''}</div>
+                            <div class="text-muted small">${date} · ${itemCount} item${itemCount !== 1 ? 's' : ''} · ${{shipping:'Courier',pickup:'Pickup',self_fulfilled:'Self-Fulfil'}[shipMode]||'Courier'}</div>
                         </div>
                     </div>
                     <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
@@ -2161,11 +2191,11 @@
                         <div class="form-group" style="margin:0;">
                             <label for="carrier-${o._id}" style="font-size:0.78rem;">Carrier</label>
                             <select id="carrier-${o._id}">
-                                <option value="UPS">UPS</option>
-                                <option value="FedEx">FedEx</option>
-                                <option value="USPS">USPS</option>
-                                <option value="DHL">DHL</option>
-                                <option value="Other">Other</option>
+                                <option value="canada_post" ${o.selectedCarrier === 'canada_post' ? 'selected' : ''}>Canada Post</option>
+                                <option value="ups" ${o.selectedCarrier === 'ups' ? 'selected' : ''}>UPS</option>
+                                <option value="fedex" ${o.selectedCarrier === 'fedex' ? 'selected' : ''}>FedEx</option>
+                                <option value="purolator" ${o.selectedCarrier === 'purolator' ? 'selected' : ''}>Purolator</option>
+                                <option value="dhl" ${o.selectedCarrier === 'dhl' ? 'selected' : ''}>DHL</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin:0;">
@@ -2191,6 +2221,16 @@
                     </button>
                     ` : `
                     <p class="text-muted small" style="margin-bottom:0.6rem;"><i class="fa fa-box-open" style="margin-right:0.3rem;"></i> Upload proof of fulfillment, then mark as fulfilled.</p>
+                    ${o.selfFulfillmentAddress?.street ? `
+                    <div style="margin-bottom:0.6rem; padding:0.55rem 0.75rem; background:var(--bg-secondary); border-radius:7px; font-size:0.8rem; line-height:1.5;">
+                        <strong style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em;">Delivery Address</strong><br>
+                        ${o.selfFulfillmentAddress.street}, ${o.selfFulfillmentAddress.city || ''}${o.selfFulfillmentAddress.postalCode ? ' ' + o.selfFulfillmentAddress.postalCode : ''}
+                    </div>` : ''}
+                    ${o.selfFulfillmentInstructions ? `
+                    <div style="margin-bottom:0.6rem; padding:0.55rem 0.75rem; background:#fefce8; border:1px solid #fde68a; border-radius:7px; font-size:0.8rem; line-height:1.5;">
+                        <strong style="font-size:0.75rem; color:#92400e; text-transform:uppercase; letter-spacing:0.04em;">Buyer Instructions</strong><br>
+                        ${o.selfFulfillmentInstructions.replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+                    </div>` : ''}
                     <div class="form-group" style="margin-bottom:0.5rem;">
                         <label style="font-size:0.78rem;">Proof of Fulfillment (required)</label>
                         <input type="file" id="proof-${o._id}" accept="image/*" style="font-size:0.78rem;">
@@ -2600,6 +2640,25 @@
         handleFileSelect(e.dataTransfer.files);
     }
 
+    // ── Listing fulfillment conditional reveal ────────────────────────────────
+    function onListingFulfillmentChange() {
+        const checked = [...document.querySelectorAll('.listing-fo-cb:checked')].map(cb => cb.value);
+        const section = document.getElementById('listing-pickup-location-section');
+        const select  = document.getElementById('listing-pickup-location-select');
+        if (!section || !select) return;
+
+        if (checked.includes('pickup')) {
+            section.style.display = 'block';
+            // Populate from seller's saved pickup locations
+            const locs = (currentStoreOps?.pickupLocations || []).filter(l => l.active !== false);
+            select.innerHTML = '<option value="">— Select a pickup location —</option>' +
+                locs.map(l => `<option value="${l._id}">${l.label || l.street || l.address}</option>`).join('');
+        } else {
+            section.style.display = 'none';
+            select.value = '';
+        }
+    }
+
     // ── Modal open/close ──────────────────────────────────────────────────────
     function openNewListingModal() {
         _pendingImages = [];
@@ -2608,8 +2667,13 @@
         document.getElementById('listing-form').reset();
         const fastFeeEl = document.getElementById('listing-fast-fee');
         if (fastFeeEl) fastFeeEl.value = '';
-        const foSelect = document.getElementById('listing-fo-select');
-        if (foSelect) foSelect.value = '';
+        // Clear fulfillment checkboxes
+        document.querySelectorAll('.listing-fo-cb').forEach(cb => { cb.checked = false; });
+        // Reset pickup location section
+        const pickupSection = document.getElementById('listing-pickup-location-section');
+        const pickupLocSel  = document.getElementById('listing-pickup-location-select');
+        if (pickupSection) pickupSection.style.display = 'none';
+        if (pickupLocSel)  pickupLocSel.value = '';
         renderPreview();
         document.getElementById('submit-btn').textContent = 'Post Listing';
         document.getElementById('modal-backdrop').style.display = 'flex';
@@ -2628,10 +2692,15 @@
         // Fast delivery fee (cents → dollars)
         const fastFeeEl = document.getElementById('listing-fast-fee');
         if (fastFeeEl) fastFeeEl.value = p.fastDeliveryFee ? (p.fastDeliveryFee / 100).toFixed(2) : '';
-        // Fulfillment options
+        // Fulfillment options — check each checkbox that matches saved options
         const productFO = p.fulfillmentOptions || [];
-        const foSelectEl = document.getElementById('listing-fo-select');
-        if (foSelectEl) foSelectEl.value = productFO.length ? productFO[0] : '';
+        document.querySelectorAll('.listing-fo-cb').forEach(cb => {
+            cb.checked = productFO.includes(cb.value);
+        });
+        // Reveal/populate pickup section, then restore saved pickupLocationId
+        onListingFulfillmentChange();
+        const pickupLocSel = document.getElementById('listing-pickup-location-select');
+        if (pickupLocSel && p.pickupLocationId) pickupLocSel.value = p.pickupLocationId;
         renderPreview();
         document.getElementById('submit-btn').textContent = 'Save Changes';
         document.getElementById('modal-backdrop').style.display = 'flex';
@@ -2660,8 +2729,12 @@
         const fastDeliveryFee = fastFeeInput?.value ? Math.round(parseFloat(fastFeeInput.value) * 100) : 0;
 
         // Per-product fulfillment options (empty array = inherit from store)
-        const foVal = document.getElementById('listing-fo-select')?.value;
-        const fulfillmentOptions = foVal ? [foVal] : [];
+        const fulfillmentOptions = [...document.querySelectorAll('.listing-fo-cb:checked')].map(cb => cb.value);
+
+        // Pickup location — only relevant when fulfillmentOptions includes 'pickup'
+        const pickupLocationId = fulfillmentOptions.includes('pickup')
+            ? (document.getElementById('listing-pickup-location-select')?.value || null)
+            : null;
 
         const product = {
             title:              document.getElementById('f-title').value.trim(),
@@ -2671,6 +2744,7 @@
             description:        document.getElementById('f-description').value.trim(),
             fastDeliveryFee,
             fulfillmentOptions,
+            pickupLocationId,
         };
         if (!editId) product.status = 'active';
 
@@ -3081,9 +3155,18 @@ async function loadOpsPanel() {
 
         // Populate fulfillment options checkboxes
         const fo = data.fulfillmentOptions || ['shipping'];
-        if (document.getElementById('fo-shipping'))      document.getElementById('fo-shipping').checked = fo.includes('shipping');
-        if (document.getElementById('fo-pickup'))        document.getElementById('fo-pickup').checked = fo.includes('pickup');
+        if (document.getElementById('fo-shipping'))       document.getElementById('fo-shipping').checked       = fo.includes('shipping');
+        if (document.getElementById('fo-pickup'))         document.getElementById('fo-pickup').checked         = fo.includes('pickup');
         if (document.getElementById('fo-self-fulfilled')) document.getElementById('fo-self-fulfilled').checked = fo.includes('self_fulfilled');
+
+        // Populate carrier checkboxes
+        const carriers = data.enabledCarriers && data.enabledCarriers.length
+            ? data.enabledCarriers
+            : ['canada_post','ups','fedex','purolator','dhl','other'];
+        document.querySelectorAll('.carrier-cb').forEach(cb => {
+            cb.checked = carriers.includes(cb.value);
+        });
+
         syncFulfillmentOptions();
         renderPickupLocationsList();
 
@@ -3306,6 +3389,7 @@ async function saveOpsSettings(evt) {
                 const id = v === 'self_fulfilled' ? 'fo-self-fulfilled' : `fo-${v}`;
                 return document.getElementById(id)?.checked;
             }),
+            enabledCarriers: [...document.querySelectorAll('.carrier-cb:checked')].map(cb => cb.value),
             pickupLocations: (typeof currentStoreOps !== 'undefined' && currentStoreOps?.pickupLocations) ? currentStoreOps.pickupLocations : []
         };
 
@@ -3331,14 +3415,16 @@ function resetOpsForm() {
     loadOpsPanel();
 }
 
-// ── Fulfillment Options (Phase 3a) ────────────────────────────────────────────
+// ── Fulfillment Options (Phase 3a / Phase 4) ─────────────────────────────────
 function syncFulfillmentOptions() {
     const opts = ['shipping','pickup','self_fulfilled'].filter(v => {
         const el = document.getElementById(`fo-${v === 'self_fulfilled' ? 'self-fulfilled' : v}`);
         return el && el.checked;
     });
-    const pickupSection = document.getElementById('pickup-locations-section');
-    if (pickupSection) pickupSection.style.display = opts.includes('pickup') ? 'block' : 'none';
+    const pickupSection  = document.getElementById('pickup-locations-section');
+    const carrierSection = document.getElementById('carrier-selection-section');
+    if (pickupSection)  pickupSection.style.display  = opts.includes('pickup')   ? 'block' : 'none';
+    if (carrierSection) carrierSection.style.display = opts.includes('shipping') ? 'block' : 'none';
 }
 
 function toggleAddPickupForm() {
@@ -3360,7 +3446,7 @@ function renderPickupLocationsList() {
         <div style="display:flex; align-items:center; gap:0.6rem; padding:0.6rem 0.75rem; border:1px solid var(--border-light); border-radius:8px; margin-bottom:0.4rem; background:var(--bg-main);">
             <div style="flex:1; min-width:0;">
                 <div style="font-weight:600; font-size:0.85rem;">${loc.label}</div>
-                <div style="font-size:0.78rem; color:var(--text-muted);">${[loc.address, loc.city, loc.province].filter(Boolean).join(', ')}</div>
+                <div style="font-size:0.78rem; color:var(--text-muted);">${[loc.street || loc.address, loc.city, loc.province].filter(Boolean).join(', ')}</div>
                 ${loc.hours ? `<div style="font-size:0.75rem; color:var(--text-muted);">${loc.hours}</div>` : ''}
             </div>
             <button class="act-btn danger" onclick="removePickupLocation(${idx})" title="Remove"><i class="fa fa-trash"></i></button>
@@ -3369,24 +3455,24 @@ function renderPickupLocationsList() {
 }
 
 async function addPickupLocation() {
-    const label   = document.getElementById('pkl-label')?.value.trim();
-    const address = document.getElementById('pkl-address')?.value.trim();
-    if (!label || !address) { showToast('Label and address are required.', 'warning'); return; }
+    const label  = document.getElementById('pkl-label')?.value.trim();
+    const street = document.getElementById('pkl-street')?.value.trim();
+    if (!label || !street) { showToast('Label and street address are required.', 'warning'); return; }
     const loc = {
-        label, address,
-        city:        document.getElementById('pkl-city')?.value.trim()    || '',
-        province:    document.getElementById('pkl-province')?.value.trim() || '',
-        postalCode:  document.getElementById('pkl-postal')?.value.trim()   || '',
-        country:     document.getElementById('pkl-country')?.value.trim()  || 'Canada',
-        hours:       document.getElementById('pkl-hours')?.value.trim()    || '',
-        instructions:document.getElementById('pkl-instructions')?.value.trim() || '',
+        label, street,
+        city:        document.getElementById('pkl-city')?.value.trim()         || '',
+        province:    document.getElementById('pkl-province')?.value.trim()      || '',
+        postalCode:  document.getElementById('pkl-postal')?.value.trim()        || '',
+        country:     document.getElementById('pkl-country')?.value.trim()       || 'Canada',
+        hours:       document.getElementById('pkl-hours')?.value.trim()         || '',
+        instructions:document.getElementById('pkl-instructions')?.value.trim()  || '',
         active: true
     };
     if (!currentStoreOps) currentStoreOps = {};
     if (!currentStoreOps.pickupLocations) currentStoreOps.pickupLocations = [];
     currentStoreOps.pickupLocations.push(loc);
     renderPickupLocationsList();
-    ['pkl-label','pkl-address','pkl-city','pkl-province','pkl-postal','pkl-hours','pkl-instructions'].forEach(id => {
+    ['pkl-label','pkl-street','pkl-city','pkl-province','pkl-postal','pkl-hours','pkl-instructions'].forEach(id => {
         const el = document.getElementById(id); if (el) el.value = '';
     });
     const cc = document.getElementById('pkl-country');

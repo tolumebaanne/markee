@@ -102,9 +102,10 @@ const StoreSchema = new mongoose.Schema({
         default: ['shipping']
     },
 
+    // Canonical address fields: street, city, province, postalCode, country, label, isDefault
     pickupLocations: [{
         label:        { type: String, required: true },
-        address:      { type: String, required: true },
+        street:       { type: String, required: true },
         city:         { type: String, default: '' },
         province:     { type: String, default: '' },
         postalCode:   { type: String, default: '' },
@@ -113,6 +114,12 @@ const StoreSchema = new mongoose.Schema({
         instructions: { type: String, default: '' },
         active:       { type: Boolean, default: true }
     }],
+
+    enabledCarriers: {
+        type:    [String],
+        enum:    ['canada_post', 'ups', 'fedex', 'purolator', 'dhl', 'other'],
+        default: ['canada_post', 'ups', 'fedex', 'purolator', 'dhl', 'other']
+    },
 
     // S4/R-S4 — Verification badge
     verified:    { type: Boolean, default: false },
@@ -519,12 +526,78 @@ app.get('/by-seller/:id', async (req, res) => {
             minCodBuyerScore:   store.minCodBuyerScore  || 0,             // R-S3
             publicStats:        store.publicStats || {},                    // C-S4
             pickupLocations:    store.pickupLocations   || [],
+            enabledCarriers:    store.enabledCarriers   || [],
             // S29 — expose vacation info to buyers
             vacationMode: store.vacationMode?.active
                 ? { active: true, message: store.vacationMode.message || '', resumesAt: store.vacationMode.resumesAt }
                 : { active: false }
         });
     } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// ── Pickup Locations CRUD ─────────────────────────────────────────────────────
+// Canonical address: street, city, province, postalCode, country, label, isDefault
+
+const PICKUP_ALLOWED = ['label', 'street', 'city', 'province', 'postalCode', 'country', 'hours', 'instructions', 'active'];
+
+function validatePickup(body) {
+    if (!body.label?.trim())  return 'label is required';
+    if (!body.street?.trim()) return 'street is required';
+    if (!body.city?.trim())   return 'city is required';
+    return null;
+}
+
+// GET /:storeId/pickup-locations
+app.get('/:storeId/pickup-locations', async (req, res) => {
+    try {
+        const store = await Store.findById(req.params.storeId);
+        if (!store) return errorResponse(res, 404, 'Store not found');
+        res.json(store.pickupLocations || []);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// POST /:storeId/pickup-locations
+app.post('/:storeId/pickup-locations', async (req, res) => {
+    if (!req.user || req.user.storeId !== req.params.storeId) return errorResponse(res, 403, 'Forbidden');
+    const err = validatePickup(req.body);
+    if (err) return errorResponse(res, 400, err);
+    try {
+        const store = await Store.findById(req.params.storeId);
+        if (!store) return errorResponse(res, 404, 'Store not found');
+        const data = {};
+        for (const k of PICKUP_ALLOWED) if (req.body[k] !== undefined) data[k] = req.body[k];
+        store.pickupLocations.push(data);
+        await store.save();
+        res.status(201).json(store.pickupLocations);
+    } catch (e) { errorResponse(res, 500, e.message); }
+});
+
+// PUT /:storeId/pickup-locations/:locationId
+app.put('/:storeId/pickup-locations/:locationId', async (req, res) => {
+    if (!req.user || req.user.storeId !== req.params.storeId) return errorResponse(res, 403, 'Forbidden');
+    const err = validatePickup(req.body);
+    if (err) return errorResponse(res, 400, err);
+    try {
+        const store = await Store.findById(req.params.storeId);
+        if (!store) return errorResponse(res, 404, 'Store not found');
+        const loc = store.pickupLocations.id(req.params.locationId);
+        if (!loc) return errorResponse(res, 404, 'Pickup location not found');
+        for (const k of PICKUP_ALLOWED) if (req.body[k] !== undefined) loc[k] = req.body[k];
+        await store.save();
+        res.json(store.pickupLocations);
+    } catch (e) { errorResponse(res, 500, e.message); }
+});
+
+// DELETE /:storeId/pickup-locations/:locationId
+app.delete('/:storeId/pickup-locations/:locationId', async (req, res) => {
+    if (!req.user || req.user.storeId !== req.params.storeId) return errorResponse(res, 403, 'Forbidden');
+    try {
+        const store = await Store.findById(req.params.storeId);
+        if (!store) return errorResponse(res, 404, 'Store not found');
+        store.pickupLocations.pull(req.params.locationId);
+        await store.save();
+        res.json(store.pickupLocations);
+    } catch (e) { errorResponse(res, 500, e.message); }
 });
 
 app.get('/:storeId', async (req, res) => {
