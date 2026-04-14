@@ -68,10 +68,16 @@
             }
 
             if (!addresses.length) {
-                const link = type === 'delivery'
-                    ? '<a href="/account/addresses">Add one in Account Settings</a>'
-                    : '<a href="/account/addresses">Add a pickup location in Account Settings</a>';
-                body.innerHTML = `<div class="address-selector-empty"><p>No addresses saved.</p><p>${link}</p></div>`;
+                const msg  = type === 'delivery'
+                    ? 'No saved addresses yet.'
+                    : 'No pickup locations saved yet.';
+                const href = '/account/addresses';
+                const cta  = type === 'delivery' ? 'Add Address' : 'Add Pickup Location';
+                body.innerHTML = `
+                    <div class="address-selector-empty">
+                        <p>${msg}</p>
+                        <a href="${href}" class="address-selector-add-btn">${cta}</a>
+                    </div>`;
                 return;
             }
 
@@ -100,7 +106,11 @@
             });
 
         } catch (err) {
-            body.innerHTML = `<div class="address-selector-empty"><p>Could not load addresses: ${err.message}</p></div>`;
+            body.innerHTML = `
+                <div class="address-selector-empty">
+                    <p>Couldn't load your addresses.</p>
+                    <a href="/account/addresses" class="address-selector-add-btn">Add Address</a>
+                </div>`;
         }
     };
 })();

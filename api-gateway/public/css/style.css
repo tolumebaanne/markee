@@ -1308,6 +1308,18 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 .address-selector-loading { padding: 2rem; text-align: center; color: var(--muted, #64748b); }
 .address-selector-empty { padding: 2rem; text-align: center; color: var(--muted, #64748b); }
 .address-selector-empty a { color: var(--primary, #2563eb); }
+.address-selector-add-btn {
+    display: inline-block;
+    margin-top: 0.75rem;
+    padding: 0.5rem 1.25rem;
+    background: var(--primary, #2563eb);
+    color: #fff;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+.address-selector-add-btn:hover { background: var(--primary-dark, #1d4ed8); color: #fff; }
 .address-selector-card {
     border: 1.5px solid var(--border, #e2e8f0);
     border-radius: 8px; padding: 0.875rem 1rem;
