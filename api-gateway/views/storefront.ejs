@@ -606,7 +606,10 @@
         const safeTitle = (p.title || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const productData = JSON.stringify({
             _id: p._id, title: p.title, price: p.price, images: p.images || [],
-            sellerId: STORE_ID, fastDeliveryFee: p.fastDeliveryFee || 0
+            sellerId: STORE_ID, fastDeliveryFee: p.fastDeliveryFee || 0,
+            fulfillmentOptions: p.fulfillmentOptions || [],
+            enabledCarriers:    p.enabledCarriers   || [],
+            pickupLocationId:   p.pickupLocationId  || null
         }).replace(/"/g, '&quot;');
 
         const priceHtml = di
@@ -645,7 +648,7 @@
     function addToCartFromCard(product, event) {
         if (event) event.stopPropagation();
         if (window.MarkeeCart) {
-            MarkeeCart.add(product);
+            MarkeeCart.addItem(product);
             if (window.showToast) showToast(`Added "${(product.title || '').slice(0,30)}..." to cart`, 'success');
         }
     }
