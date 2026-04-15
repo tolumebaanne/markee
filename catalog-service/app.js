@@ -408,6 +408,7 @@ app.post('/products', async (req, res) => {
         const product = await Product.create({
             ...req.body,
             sellerId:      req.user.storeId,
+            status:        'active',
             reviewStatus:  REVIEW_ENABLED ? 'pending_review' : 'published',
             displayStatus: REVIEW_ENABLED ? 'hidden'          : 'visible',
         });
@@ -443,25 +444,40 @@ app.get('/products', async (req, res) => {
 
         if (shuffle === 'true') {
             // Listing Review: displayStatus 'visible' OR absent (legacy products pre-review feature)
-            const pipeline = [{ $match: { status: 'active', $or: [{ displayStatus: 'visible' }, { displayStatus: { $exists: false } }] } }];
-            if (category)    pipeline[0].$match.category    = category;
-            if (subcategory) pipeline[0].$match.subcategory = subcategory; // S10
-            if (search)      pipeline[0].$match.$or = [
-                { title: { $regex: search, $options: 'i' } },
-                { description: { $regex: search, $options: 'i' } }
+            const visibilityFilter = { $or: [{ displayStatus: 'visible' }, { displayStatus: { $exists: false } }] };
+            const matchStage = { status: 'active', ...visibilityFilter };
+            if (category)    matchStage.category    = category;
+            if (subcategory) matchStage.subcategory = subcategory; // S10
+            // Use $and to combine visibility gate with search — never overwrite $or
+            if (search) matchStage.$and = [
+                visibilityFilter,
+                { $or: [
+                    { title: { $regex: search, $options: 'i' } },
+                    { description: { $regex: search, $options: 'i' } }
+                ]}
             ];
+            if (search) delete matchStage.$or; // $and carries the visibility filter now
+            const pipeline = [{ $match: matchStage }];
             pipeline.push({ $sample: { size: lim } });
             return res.json(await Product.aggregate(pipeline));
         }
 
         // Listing Review: 'visible' OR absent (legacy products pre-review feature) reach buyers
-        let query = { status: 'active', $or: [{ displayStatus: 'visible' }, { displayStatus: { $exists: false } }] };
+        const visibilityOr = [{ displayStatus: 'visible' }, { displayStatus: { $exists: false } }];
+        let query = { status: 'active', $or: visibilityOr };
         if (category)    query.category    = category;
         if (subcategory) query.subcategory = subcategory; // S10
-        if (search)      query.$or = [
-            { title: { $regex: search, $options: 'i' } },
-            { description: { $regex: search, $options: 'i' } }
-        ];
+        // Use $and to combine visibility gate with search — never overwrite $or
+        if (search) {
+            query.$and = [
+                { $or: visibilityOr },
+                { $or: [
+                    { title: { $regex: search, $options: 'i' } },
+                    { description: { $regex: search, $options: 'i' } }
+                ]}
+            ];
+            delete query.$or;
+        }
         res.json(await Product.find(query).sort({ createdAt: -1 }).skip(skip).limit(lim));
     } catch (err) { errorResponse(res, 500, err.message); }
 });
@@ -907,6 +923,12 @@ app.post('/products/:id/submit', async (req, res) => {
         appendReviewEvent(p, { fromStatus: prev, toStatus: 'pending_review', reviewerId: req.user.sub });
         await p.save();
         bus.emit('product.updated', { productId: p._id, sellerId: p.sellerId, displayStatus: 'hidden' });
+        bus.emit('listing.submitted_for_review', {
+            productId:   p._id.toString(),
+            sellerId:    p.sellerId.toString(),
+            title:       p.title || 'Untitled',
+            submittedAt: p.reviewSubmittedAt
+        });
         res.json(p);
     } catch (err) { errorResponse(res, 500, err.message); }
 });

@@ -1694,6 +1694,29 @@ bus.on('listing.review_permission_revoked', async (payload) => {
     } catch (err) { console.error('[NOTIFY] listing.review_permission_revoked handler error:', err.message); }
 });
 
+// listing.submitted_for_review → notify all super admins and canReview admins
+bus.on('listing.submitted_for_review', async (payload) => {
+    try {
+        const adminRes = await fetch('http://localhost:5014/internal/reviewers').catch(() => null);
+        if (!adminRes?.ok) return;
+        const reviewers = await adminRes.json().catch(() => []);
+        if (!Array.isArray(reviewers) || !reviewers.length) return;
+        const title = payload.title || 'Untitled';
+        for (const reviewer of reviewers) {
+            const adminId = reviewer.userId?.toString();
+            if (!adminId) continue;
+            await sendNotification(
+                'LISTING_SUBMITTED_FOR_REVIEW',
+                `admin-${adminId}@markee.local`,
+                `New listing awaiting review — ${title}`,
+                `A seller has submitted "${title}" for review. It is now waiting in the unassigned review queue.\n\nOpen the Listing Review tab to assign and start reviewing.`,
+                payload,
+                { userId: adminId, link: `/admin#moderation`, icon: 'fa-clipboard-list', priority: 'medium' }
+            );
+        }
+    } catch (err) { console.error('[NOTIFY] listing.submitted_for_review handler error:', err.message); }
+});
+
 // listing.reviewer_override → notify Admin when a superuser overrides their decision
 bus.on('listing.reviewer_override', async (payload) => {
     try {

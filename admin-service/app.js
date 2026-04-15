@@ -54,6 +54,27 @@ app.get('/internal/status', async (req, res) => {
   }
 });
 
+// ── Internal: list accounts that can review listings (for notification fan-out) ─
+app.get('/internal/reviewers', async (req, res) => {
+  const isLocal = ['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(req.ip);
+  if (!isLocal && process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ error: 'Internal only' });
+  }
+  try {
+    const AdminAccount = require('./models/AdminAccount');
+    const reviewers = await AdminAccount.model.find({
+      $or: [
+        { isSuperuser: true },
+        { 'permissions.listingReview.canReview': true }
+      ],
+      status: { $ne: 'suspended' }
+    }).select('userId email').lean();
+    res.json(reviewers);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 // Gateway mounts at /api/admin and strips that prefix before forwarding,
 // so routes here are relative (no /admin prefix needed).
