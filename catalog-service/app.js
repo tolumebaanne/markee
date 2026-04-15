@@ -143,7 +143,7 @@ const ProductSchema = new mongoose.Schema({
     reviewHistory: [{
         fromStatus:     { type: String },
         toStatus:       { type: String },
-        reviewerId:     { type: mongoose.Schema.Types.ObjectId },
+        reviewerId:     { type: String },   // admin userId (string, not ObjectId)
         comment:        { type: String, default: '' },
         templateId:     { type: mongoose.Schema.Types.ObjectId, default: null },
         timestamp:      { type: Date, default: Date.now }
