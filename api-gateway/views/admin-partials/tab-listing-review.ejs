@@ -121,7 +121,7 @@ function loadListingReview() {
 async function loadLrReviewers() {
   try {
     const data = await adminApi('GET', '/accounts?status=active&limit=100');
-    _lrReviewers = (data.accounts || []).filter(a => a.permissions?.listingReview?.canReview);
+    _lrReviewers = (data.accounts || []).filter(a => a.isSuperuser || a.permissions?.listingReview?.canReview);
     const sel = document.getElementById('lr-assign-reviewer');
     if (!sel) return;
     sel.innerHTML = '<option value="">— Assign to reviewer —</option>' +

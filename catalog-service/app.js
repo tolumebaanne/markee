@@ -409,8 +409,8 @@ app.post('/products', async (req, res) => {
             ...req.body,
             sellerId:      req.user.storeId,
             status:        'active',
-            reviewStatus:  REVIEW_ENABLED ? 'pending_review' : 'published',
-            displayStatus: REVIEW_ENABLED ? 'hidden'          : 'visible',
+            reviewStatus:  'pending_review', // always require review; no env-var shortcut
+            displayStatus: 'hidden',         // always hidden until explicitly approved
         });
         // Best-effort storeName lookup — search index uses it for seller name matching
         let storeName = '';
@@ -662,10 +662,42 @@ app.put('/products/:id', async (req, res) => {
             p.priceHistory.unshift({ price: p.price, changedAt: new Date() });
             if (p.priceHistory.length > 10) p.priceHistory = p.priceHistory.slice(0, 10);
         }
-        Object.assign(p, req.body);
+        // Strip review/visibility control fields — only the review system sets these
+        const { displayStatus: _ds, reviewStatus: _rs, ...safeBody } = req.body;
+        // Only allow seller-controlled status values (pause/unpause); block arbitrary overrides
+        if (safeBody.status && !['active', 'paused'].includes(safeBody.status)) delete safeBody.status;
+
+        // Detect content edits (not just a pause/status toggle)
+        const _CONTENT_FIELDS = ['title', 'description', 'price', 'images', 'category', 'subcategory',
+                                  'fastDeliveryFee', 'fulfillmentOptions', 'enabledCarriers', 'pickupLocationId'];
+        const _isContentEdit = _CONTENT_FIELDS.some(f => safeBody[f] !== undefined);
+
+        Object.assign(p, safeBody);
+
+        // Content edits re-enter the review queue regardless of current state
+        if (_isContentEdit) {
+            const _prev = p.reviewStatus;
+            p.reviewStatus      = 'pending_review';
+            p.displayStatus     = 'hidden';
+            p.reviewSubmittedAt = new Date();
+            p.assignedTo        = null;
+            appendReviewEvent(p, { fromStatus: _prev, toStatus: 'pending_review' });
+        }
+
         await p.save();
-        
-        if (req.body.price !== undefined && req.body.price < oldPrice) {
+
+        // Re-notify reviewers when content changed
+        if (_isContentEdit) {
+            bus.emit('listing.submitted_for_review', {
+                productId:   p._id.toString(),
+                sellerId:    p.sellerId.toString(),
+                title:       p.title || 'Untitled',
+                submittedAt: p.reviewSubmittedAt,
+                isEdit:      true
+            });
+        }
+
+        if (safeBody.price !== undefined && safeBody.price < oldPrice) {
             bus.emit('catalog.price_dropped', {
                 productId: p._id,
                 oldPrice,
