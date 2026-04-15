@@ -377,7 +377,7 @@ async function lrAssignSelected() {
   if (!r.confirmed) return;
 
   try {
-    await adminApi('POST', '/proxy/catalog/products/review/assign', { listings, assignedTo: reviewerId });
+    await adminApi('POST', '/proxy/catalog/products/review/assign', { listingIds: listings, assignedTo: reviewerId });
     // Log to assignment log
     await adminApi('POST', '/listing-review/assignment-log', {
       type: 'assign', assignedTo: reviewerId, listings, note: r.reason || ''

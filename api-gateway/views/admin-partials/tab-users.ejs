@@ -27,6 +27,55 @@
   <div id="u-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
   <div id="u-table"><div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading users...</div></div>
   <div class="pagination" id="u-pagination"></div>
+
+  <!-- ── Deleted Accounts Section (Superuser only — hidden until _isSuperuser flag set) ── -->
+  <div id="deleted-accounts-section" style="margin-top:2rem;border:1px solid var(--border);border-radius:8px;overflow:hidden;display:none">
+    <div
+      style="display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.25rem;background:var(--surface2);cursor:pointer;user-select:none"
+      onclick="toggleDeletedUsers()"
+    >
+      <div style="display:flex;align-items:center;gap:.6rem">
+        <i class="fas fa-user-slash" style="color:var(--danger)"></i>
+        <span style="font-weight:600;color:var(--danger)">Deleted Accounts</span>
+        <span id="deleted-users-header" style="color:var(--muted);font-size:.8rem"></span>
+      </div>
+      <i id="deleted-toggle-icon" class="fas fa-chevron-down" style="color:var(--muted)"></i>
+    </div>
+    <div id="deleted-users-panel" style="display:none;padding:1rem">
+      <p style="color:var(--muted);font-size:.8rem;margin:0 0 .75rem">
+        These users self-deleted their accounts. Their original email is preserved here for investigation.
+        Use <b>Hard Delete</b> to permanently erase all their data — blocked if active escrows or open orders exist.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Original Email</th>
+              <th>Display Name</th>
+              <th>User ID</th>
+              <th>Store ID</th>
+              <th>Deleted At</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="deleted-users-body">
+            <tr><td colspan="6" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Reveal deleted-accounts section once superuser status is confirmed (window._isSuperuser set by admin.ejs)
+    (function revealIfSuper() {
+      if (window._isSuperuser) {
+        const s = document.getElementById('deleted-accounts-section');
+        if (s) s.style.display = 'block';
+      } else {
+        setTimeout(revealIfSuper, 150);
+      }
+    })();
+  </script>
 </div>
 
 <script>
@@ -280,51 +329,3 @@ async function hardDeleteDeletedUser(id, email) {
   </div>
 </div>
 
-<!-- ── Deleted Accounts Section (Superuser only — hidden until _isSuperuser flag set) ── -->
-<div id="deleted-accounts-section" style="margin-top:2rem;border:1px solid var(--border);border-radius:8px;overflow:hidden;display:none">
-  <div
-    style="display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.25rem;background:var(--surface2);cursor:pointer;user-select:none"
-    onclick="toggleDeletedUsers()"
-  >
-    <div style="display:flex;align-items:center;gap:.6rem">
-      <i class="fas fa-user-slash" style="color:var(--danger)"></i>
-      <span style="font-weight:600;color:var(--danger)">Deleted Accounts</span>
-      <span id="deleted-users-header" style="color:var(--muted);font-size:.8rem"></span>
-    </div>
-    <i id="deleted-toggle-icon" class="fas fa-chevron-down" style="color:var(--muted)"></i>
-  </div>
-  <div id="deleted-users-panel" style="display:none;padding:1rem">
-    <p style="color:var(--muted);font-size:.8rem;margin:0 0 .75rem">
-      These users self-deleted their accounts. Their original email is preserved here for investigation.
-      Use <b>Hard Delete</b> to permanently erase all their data — blocked if active escrows or open orders exist.
-    </p>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Original Email</th>
-            <th>Display Name</th>
-            <th>User ID</th>
-            <th>Store ID</th>
-            <th>Deleted At</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="deleted-users-body">
-          <tr><td colspan="6" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-<script>
-  // Reveal deleted-accounts section once superuser status is confirmed (window._isSuperuser set by admin.ejs)
-  (function revealIfSuper() {
-    if (window._isSuperuser) {
-      const s = document.getElementById('deleted-accounts-section');
-      if (s) s.style.display = 'block';
-    } else {
-      setTimeout(revealIfSuper, 150);
-    }
-  })();
-</script>

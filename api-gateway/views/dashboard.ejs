@@ -1020,6 +1020,9 @@
                             <button class="tab-btn"         id="ltab-active"        onclick="setListingTab('active', this)">Active <span id="ltab-count-active" class="tab-count"></span></button>
                             <button class="tab-btn"         id="ltab-paused"        onclick="setListingTab('paused', this)">Paused <span id="ltab-count-paused" class="tab-count"></span></button>
                             <button class="tab-btn"         id="ltab-pending_review" onclick="setListingTab('pending_review', this)">Pending Review <span id="ltab-count-pending_review" class="tab-count"></span></button>
+                            <button class="tab-btn"         id="ltab-needs_changes" onclick="setListingTab('needs_changes', this)" style="color:var(--warning,#f59e0b)">Needs Changes <span id="ltab-count-needs_changes" class="tab-count"></span></button>
+                            <button class="tab-btn"         id="ltab-rejected"      onclick="setListingTab('rejected', this)" style="color:var(--danger,#ef4444)">Rejected <span id="ltab-count-rejected" class="tab-count"></span></button>
+                            <button class="tab-btn"         id="ltab-offline"       onclick="setListingTab('offline', this)">Offline <span id="ltab-count-offline" class="tab-count"></span></button>
                         </div>
                     </div>
                     <!-- Search bar -->
@@ -2120,8 +2123,11 @@
         const counts = {
             '':               all.length,
             active:           all.filter(p => p.reviewStatus === 'published' || (!p.reviewStatus && p.status === 'active')).length,
-            paused:           all.filter(p => p.status === 'paused').length,
-            pending_review:   all.filter(p => ['pending_review','in_review','needs_changes','approved'].includes(p.reviewStatus)).length,
+            paused:           all.filter(p => p.status === 'paused' || p.reviewStatus === 'offline').length,
+            pending_review:   all.filter(p => ['pending_review','in_review','approved'].includes(p.reviewStatus)).length,
+            needs_changes:    all.filter(p => p.reviewStatus === 'needs_changes').length,
+            rejected:         all.filter(p => p.reviewStatus === 'rejected').length,
+            offline:          all.filter(p => p.reviewStatus === 'offline').length,
         };
         Object.entries(counts).forEach(([key, n]) => {
             const id = key === '' ? 'ltab-count-all' : `ltab-count-${key}`;
@@ -2189,9 +2195,15 @@
             if (tab === 'active') {
                 matchTab = p.reviewStatus === 'published' || (!p.reviewStatus && p.status === 'active');
             } else if (tab === 'paused') {
-                matchTab = p.status === 'paused';
+                matchTab = p.status === 'paused' || p.reviewStatus === 'offline';
             } else if (tab === 'pending_review') {
-                matchTab = ['pending_review', 'in_review', 'needs_changes', 'approved'].includes(p.reviewStatus);
+                matchTab = ['pending_review', 'in_review', 'approved'].includes(p.reviewStatus);
+            } else if (tab === 'needs_changes') {
+                matchTab = p.reviewStatus === 'needs_changes';
+            } else if (tab === 'rejected') {
+                matchTab = p.reviewStatus === 'rejected';
+            } else if (tab === 'offline') {
+                matchTab = p.reviewStatus === 'offline';
             }
             const matchQ = !q || p.title.toLowerCase().includes(q)
                                || (p.description || '').toLowerCase().includes(q)
