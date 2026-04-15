@@ -129,15 +129,29 @@ async function loadLrReviewers() {
   } catch { /* non-fatal */ }
 }
 
-// ── Queue (assigned to this reviewer) ────────────────────────────────────────
+// ── Queue (assigned to this reviewer; super admins also see all unassigned) ───
 async function loadLrQueue() {
   hideErr('lr-queue-error');
   const el = document.getElementById('lr-queue-table');
   el.innerHTML = `<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
   try {
     const adminId = parseJwt(localStorage.getItem('admin_access_token'))?.sub || '';
-    const data    = await adminApi('GET', `/proxy/catalog/products/review/assigned/${adminId}`);
-    const products = Array.isArray(data) ? data : (data.products || []);
+    let products;
+
+    if (window._isSuperuser) {
+      // Super admins see their assigned items PLUS every unassigned item
+      const [assignedData, unassignedData] = await Promise.all([
+        adminApi('GET', `/proxy/catalog/products/review/assigned/${adminId}`),
+        adminApi('GET', '/proxy/catalog/products/review/unassigned')
+      ]);
+      const assigned   = Array.isArray(assignedData)   ? assignedData   : (assignedData.products   || []);
+      const unassigned = Array.isArray(unassignedData) ? unassignedData : (unassignedData.products || []);
+      const seen = new Set(assigned.map(p => p._id));
+      products = [...assigned, ...unassigned.filter(p => !seen.has(p._id))];
+    } else {
+      const data = await adminApi('GET', `/proxy/catalog/products/review/assigned/${adminId}`);
+      products = Array.isArray(data) ? data : (data.products || []);
+    }
 
     const countEl = document.getElementById('lr-queue-count');
     if (countEl) {
@@ -244,7 +258,7 @@ function applyLrTemplate(templateId) {
 // ── Shared table renderer ─────────────────────────────────────────────────────
 // mode: 'queue' | 'unassigned'
 function lrRenderTable(products, mode) {
-  const showApprove  = mode === 'queue';
+  const showApprove  = mode === 'queue' || window._isSuperuser;
   const showCheckbox = mode === 'unassigned' && window._isSuperuser;
   const showPullback = mode === 'queue'      && window._isSuperuser;
 
