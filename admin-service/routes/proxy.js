@@ -141,6 +141,15 @@ router.post('/catalog/products/review/pullback',
   }
 );
 
+// GET /catalog/products/:id — reviewer detail view (after all specific routes so :id doesn't shadow them)
+router.get('/catalog/products/:id',
+  requireReviewPermission('canReview'),
+  async (req, res) => {
+    const r = await callService('GET', `${catalogUrl()}/products/${req.params.id}`, null, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
 // ── Orders ─────────────────────────────────────────────────────────────────────
 const orderUrl = () => process.env.ORDER_SERVICE_URL || 'http://localhost:5003';
 

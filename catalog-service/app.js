@@ -1171,7 +1171,8 @@ async function resolveSellerNames(products) {
         try {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), 2000);
-            const r = await fetch(`http://localhost:5007/by-seller/${id}`, { signal: controller.signal });
+            // sellerId on product = Store _id → use GET /:storeId (findById), not /by-seller/:id (findOne by sellerId field)
+            const r = await fetch(`http://localhost:5005/${id}`, { signal: controller.signal });
             clearTimeout(timer);
             if (r.ok) { const d = await r.json(); nameMap[id] = d.name || null; }
         } catch { /* best-effort — fall back to ID */ }

@@ -291,7 +291,7 @@ function lrRenderTable(products, mode) {
       const cbTd = showCheckbox
         ? `<td><input type="checkbox" class="lr-unassigned-cb" value="${p._id}" onchange="lrUpdateSelectBar()"></td>`
         : '';
-      return `<tr id="lr-row-${p._id}">
+      return `<tr id="lr-row-${p._id}" style="cursor:pointer" onclick="openLrDetailModal('${p._id}')">
         ${cbTd}
         <td>
           <div style="font-weight:600">${trunc(p.title, 30)}</div>
@@ -302,8 +302,7 @@ function lrRenderTable(products, mode) {
         <td style="font-size:0.75rem">${p.sellerName ? escHtml(p.sellerName) : `<span class="mono" style="font-size:0.68rem">${trunc(p.sellerId || p.storeId, 14)}</span>`}</td>
         <td style="color:var(--muted);font-size:0.72rem">${fmtDate(p.reviewSubmittedAt || p.createdAt)}</td>
         <td style="text-align:center;color:${(p.rejectionCount||0)>0?'var(--warn)':'var(--muted)'};font-weight:${(p.rejectionCount||0)>0?700:400}">${p.rejectionCount||0}</td>
-        <td><div class="btn-gap">
-          <button class="btn btn-ghost btn-xs" onclick="openLrDetailModal('${p._id}')"><i class="fas fa-eye"></i> Details</button>
+        <td onclick="event.stopPropagation()"><div class="btn-gap">
           ${showApprove    ? `<button class="btn btn-success btn-xs" onclick="lrApprove('${p._id}')"><i class="fas fa-check"></i> Approve</button>` : ''}
           <button class="btn btn-warn btn-xs" onclick="openLrDisapproveModal('${p._id}')"><i class="fas fa-comment-dots"></i> Changes</button>
           <button class="btn btn-danger btn-xs" onclick="lrReject('${p._id}')"><i class="fas fa-times"></i> Reject</button>
