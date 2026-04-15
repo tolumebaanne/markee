@@ -33,7 +33,7 @@ module.exports = function createAdminRoutes(services) {
         try {
             const threads = await Thread.find({
                 $or: [{ 'admin.flagged': true }, { priority: 'urgent' }]
-            }).sort({ lastAt: -1 });
+            }).sort({ lastAt: -1 }).lean();
             res.json({ threads });
         } catch (err) {
             logger.error('GET /admin/threads/flagged error:', err.message);
@@ -44,7 +44,7 @@ module.exports = function createAdminRoutes(services) {
     // GET /admin/threads/disputes — Urgent threads only
     router.get('/admin/threads/disputes', async (req, res) => {
         try {
-            const threads = await Thread.find({ priority: 'urgent' }).sort({ lastAt: -1 });
+            const threads = await Thread.find({ priority: 'urgent' }).sort({ lastAt: -1 }).lean();
             res.json({ threads });
         } catch (err) {
             logger.error('GET /admin/threads/disputes error:', err.message);

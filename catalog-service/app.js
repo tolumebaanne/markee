@@ -854,9 +854,7 @@ setInterval(async () => {
 }, 60 * 60 * 1000); // every hour
 
 // ── Listing Review System — State Transition Routes ──────────────────────────
-// These routes implement the new reviewStatus / displayStatus state machine.
-// The old S5 approve/reject/resubmit routes still function for backward compat
-// but are superseded by these for the review pipeline.
+// These routes implement the reviewStatus / displayStatus state machine.
 
 // Helper: append a review history event to a product document.
 function appendReviewEvent(product, { fromStatus, toStatus, reviewerId, comment, templateId } = {}) {
@@ -1035,6 +1033,7 @@ app.post('/products/:id/resubmit', async (req, res) => {
         p.displayStatus     = 'hidden';
         p.reviewSubmittedAt = new Date();
         p.rejectionReason   = ''; // cleared on resubmit
+        p.assignedTo        = null; // return to unassigned queue
         appendReviewEvent(p, { fromStatus: prev, toStatus: 'pending_review', reviewerId: req.user.sub });
         await p.save();
         bus.emit('listing.review_status_changed', {
