@@ -18,7 +18,7 @@ module.exports = function createAdminRoutes(services) {
             if (req.query.priority) query.priority = req.query.priority;
 
             const [threads, total] = await Promise.all([
-                Thread.find(query).sort({ lastAt: -1 }).skip(skip).limit(limit),
+                Thread.find(query).sort({ lastAt: -1 }).skip(skip).limit(limit).lean(),
                 Thread.countDocuments(query)
             ]);
             res.json({ threads, total, page });

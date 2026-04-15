@@ -757,71 +757,6 @@ app.post('/products/:id/flag', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// S5 — Admin: approve a product in 'pending_review' — moves it to 'active' and notifies seller
-app.post('/products/:id/approve', async (req, res) => {
-    if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
-    try {
-        const p = await Product.findById(req.params.id);
-        if (!p) return errorResponse(res, 404, 'Not found');
-        if (p.status !== 'pending_review') return errorResponse(res, 400, `Cannot approve a product with status '${p.status}'`);
-        p.status = 'active';
-        await p.save();
-        bus.emit('product.approved', {
-            productId: p._id,
-            sellerId:  p.sellerId,
-            title:     p.title
-        });
-        res.json(p);
-    } catch (err) { errorResponse(res, 500, err.message); }
-});
-
-// S5 — Admin: reject a product in 'pending_review' — stores reason, increments rejectionCount
-app.post('/products/:id/reject', async (req, res) => {
-    if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
-    const { reason } = req.body;
-    if (!reason || !reason.trim()) return errorResponse(res, 400, 'Rejection reason is required');
-    try {
-        const p = await Product.findById(req.params.id);
-        if (!p) return errorResponse(res, 404, 'Not found');
-        if (p.status !== 'pending_review') return errorResponse(res, 400, `Cannot reject a product with status '${p.status}'`);
-        p.status = 'rejected';
-        p.rejectionReason = reason.trim();
-        p.rejectionCount  = (p.rejectionCount || 0) + 1;
-        await p.save();
-        bus.emit('product.rejected', {
-            productId:  p._id,
-            sellerId:   p.sellerId,
-            title:      p.title,
-            reason:     p.rejectionReason,
-            rejectionCount: p.rejectionCount
-        });
-        // C-C5 — third consecutive rejection: alert seller with policy guidance
-        if (p.rejectionCount >= 3) {
-            bus.emit('seller.repeated_rejections', {
-                sellerId: p.sellerId,
-                count:    p.rejectionCount
-            });
-        }
-        res.json(p);
-    } catch (err) { errorResponse(res, 500, err.message); }
-});
-
-// S5 — Seller: resubmit a rejected product for re-review (status: 'rejected' → 'pending_review')
-// Seller must edit the product via PUT /products/:id first, then resubmit.
-app.post('/products/:id/resubmit', async (req, res) => {
-    if (!req.user || !req.user.storeId) return errorResponse(res, 401, 'Unauthorized');
-    try {
-        const p = await Product.findById(req.params.id);
-        if (!p) return errorResponse(res, 404, 'Not found');
-        if (p.sellerId.toString() !== req.user.storeId) return errorResponse(res, 403, 'Not owned by you');
-        if (p.status !== 'rejected') return errorResponse(res, 400, `Only rejected products can be resubmitted (current status: '${p.status}')`);
-        p.status = 'pending_review';
-        p.rejectionReason = ''; // cleared on resubmit
-        await p.save();
-        res.json(p);
-    } catch (err) { errorResponse(res, 500, err.message); }
-});
-
 // Seller: feature/unfeature their own product — boosts browse ranking
 app.post('/products/:id/feature', async (req, res) => {
     try {
@@ -1100,7 +1035,6 @@ app.post('/products/:id/resubmit', async (req, res) => {
         p.displayStatus     = 'hidden';
         p.reviewSubmittedAt = new Date();
         p.rejectionReason   = ''; // cleared on resubmit
-        p.status            = 'pending_review'; // keep legacy field in sync
         appendReviewEvent(p, { fromStatus: prev, toStatus: 'pending_review', reviewerId: req.user.sub });
         await p.save();
         bus.emit('listing.review_status_changed', {
@@ -1162,6 +1096,31 @@ app.post('/products/:id/restore', async (req, res) => {
 
 // ── Review Queue Routes (Super / authorized Admin) ────────────────────────────
 // MUST be defined before /products/:id to avoid 'review' matching as :id.
+
+// Helper: batch-resolve reviewer admin emails from admin-service
+async function resolveReviewerNames(products) {
+    const nameMap = {};
+    try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 2000);
+        const r = await fetch('http://localhost:5014/internal/reviewers', { signal: controller.signal });
+        clearTimeout(timer);
+        if (r.ok) {
+            const reviewers = await r.json();
+            reviewers.forEach(rv => { nameMap[rv.userId?.toString()] = rv.email; });
+        }
+    } catch { /* best-effort */ }
+    return products.map(p => {
+        const base = p.toObject ? p.toObject() : p;
+        return {
+            ...base,
+            reviewHistory: (base.reviewHistory || []).map(h => ({
+                ...h,
+                reviewerEmail: nameMap[h.reviewerId?.toString()] || null
+            }))
+        };
+    });
+}
 
 // Helper: batch-resolve seller store names from seller-service
 async function resolveSellerNames(products) {
@@ -1299,11 +1258,13 @@ app.get('/products/review/history', async (req, res) => {
         }
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const lim  = Math.min(parseInt(limit), 100);
-        const [products, total] = await Promise.all([
+        const [raw, total] = await Promise.all([
             Product.find(query).sort({ reviewCompletedAt: -1 }).skip(skip).limit(lim)
                 .select('_id title sellerId reviewStatus displayStatus reviewHistory reviewCompletedAt'),
             Product.countDocuments(query)
         ]);
+        let products = await resolveSellerNames(raw);
+        products = await resolveReviewerNames(products);
         res.json({ products, total, page: parseInt(page), hasMore: skip + lim < total });
     } catch (err) { errorResponse(res, 500, err.message); }
 });

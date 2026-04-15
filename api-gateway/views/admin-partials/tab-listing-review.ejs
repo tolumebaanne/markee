@@ -233,10 +233,10 @@ async function loadLrHistory(page = 1) {
         const last = (p.reviewHistory || []).slice(-1)[0] || {};
         return `<tr>
           <td><div style="font-weight:600">${trunc(p.title, 28)}</div><div class="mono" style="font-size:0.67rem;margin-top:0.1rem">${trunc(p._id, 18)}</div></td>
-          <td class="mono" style="font-size:0.68rem">${trunc(p.sellerId || p.storeId, 16)}</td>
+          <td style="font-size:0.78rem">${p.sellerName ? escHtml(p.sellerName) : `<span class="mono" style="font-size:0.68rem" title="${p.sellerId || p.storeId || ''}">${trunc(String(p.sellerId || p.storeId || ''), 14)}</span>`}</td>
           <td style="color:var(--muted2);font-size:0.78rem">${p.category || '—'}</td>
           <td>${lrReviewBadge(p.reviewStatus)}</td>
-          <td class="mono" style="font-size:0.68rem">${last.reviewerId ? trunc(last.reviewerId, 14) : '—'}</td>
+          <td style="font-size:0.78rem">${last.reviewerEmail ? escHtml(last.reviewerEmail.split('@')[0]) : (last.reviewerId ? `<span class="mono" style="font-size:0.68rem" title="${last.reviewerId}">${trunc(String(last.reviewerId), 14)}</span>` : '—')}</td>
           <td style="color:var(--muted);font-size:0.72rem">${last.timestamp ? fmtDate(last.timestamp) : '—'}</td>
         </tr>`;
       }).join('')}
