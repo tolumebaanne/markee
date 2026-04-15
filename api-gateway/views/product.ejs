@@ -495,7 +495,9 @@
     // ── Load product ──────────────────────────────────────────────────────────
     async function loadProduct() {
         try {
-            const res = await fetch(`/api/catalog/products/${PRODUCT_ID}`);
+            const res = await fetch(`/api/catalog/products/${PRODUCT_ID}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
 

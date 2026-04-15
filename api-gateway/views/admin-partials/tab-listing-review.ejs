@@ -135,7 +135,7 @@ async function loadLrQueue() {
   const el = document.getElementById('lr-queue-table');
   el.innerHTML = `<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
   try {
-    const adminId = parseJwt(localStorage.getItem('admin_access_token'))?.id || '';
+    const adminId = parseJwt(localStorage.getItem('admin_access_token'))?.sub || '';
     const data    = await adminApi('GET', `/proxy/catalog/products/review/assigned/${adminId}`);
     const products = Array.isArray(data) ? data : (data.products || []);
 

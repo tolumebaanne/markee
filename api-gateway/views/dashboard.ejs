@@ -55,6 +55,18 @@
 
         .tab-btn.active { background: white; color: var(--text-main); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 
+        .tab-count {
+            display: inline;
+            font-size: 0.7rem;
+            font-weight: 700;
+            background: var(--accent-red, #e53e3e);
+            color: #fff;
+            border-radius: 10px;
+            padding: 0.05rem 0.38rem;
+            margin-left: 0.3rem;
+            vertical-align: middle;
+        }
+
         /* ── Ship inline form ─────────────────────────────────────────────── */
         .ship-form-inline {
             background: var(--bg-secondary);
@@ -1001,24 +1013,23 @@
                             <a href="/inventory" style="font-size:0.8rem; color:var(--accent-red);">Full Inventory →</a>
                         </div>
                     </div>
-                    <!-- Search + filter bar -->
-                    <div style="padding:0.75rem 1rem; border-bottom:1px solid var(--border-light); display:flex; gap:0.6rem; align-items:center;">
-                        <div style="position:relative; flex:1;">
+                    <!-- Listings tab bar -->
+                    <div style="padding:0.6rem 1rem 0; border-bottom:1px solid var(--border-light);">
+                        <div class="tab-bar" style="margin-bottom:0; width:100%; background:transparent; gap:0; padding:0; border-radius:0; border-bottom:none;">
+                            <button class="tab-btn active" id="ltab-all"            onclick="setListingTab('', this)">All <span id="ltab-count-all"    class="tab-count"></span></button>
+                            <button class="tab-btn"         id="ltab-active"        onclick="setListingTab('active', this)">Active <span id="ltab-count-active" class="tab-count"></span></button>
+                            <button class="tab-btn"         id="ltab-paused"        onclick="setListingTab('paused', this)">Paused <span id="ltab-count-paused" class="tab-count"></span></button>
+                            <button class="tab-btn"         id="ltab-pending_review" onclick="setListingTab('pending_review', this)">Pending Review <span id="ltab-count-pending_review" class="tab-count"></span></button>
+                        </div>
+                    </div>
+                    <!-- Search bar -->
+                    <div style="padding:0.6rem 1rem; border-bottom:1px solid var(--border-light);">
+                        <div style="position:relative;">
                             <i class="fa fa-search" style="position:absolute; left:0.65rem; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:0.78rem;"></i>
                             <input type="text" id="listing-search" placeholder="Search your listings..."
                                    style="padding-left:2rem; font-size:0.82rem; height:34px;"
                                    oninput="filterListings()">
                         </div>
-                        <select id="listing-status-filter" style="font-size:0.82rem; height:34px; width:auto; padding:0 0.6rem;" onchange="filterListings()">
-                            <option value="">All</option>
-                            <option value="active">Active</option>
-                            <option value="paused">Paused</option>
-                            <option value="pending_review">Pending Review</option>
-                            <option value="in_review">In Review</option>
-                            <option value="needs_changes">Needs Changes</option>
-                            <option value="rejected">Rejected</option>
-                            <option value="offline">Offline</option>
-                        </select>
                     </div>
                     <div id="seller-products-list" class="list-group">
                         <p class="text-muted p-4">Loading your listings...</p>
@@ -2011,6 +2022,7 @@
             in_review:      '<span style="font-size:0.65rem; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem;">🔍 In Review</span>',
             needs_changes:  '<span style="font-size:0.65rem; background:#fefce8; color:#a16207; border:1px solid #fde047; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem;">⚠ Needs Changes</span>',
             approved:       '<span style="font-size:0.65rem; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem;">✓ Approved</span>',
+            published:      '<span style="font-size:0.65rem; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem;">✓ Live</span>',
             rejected:       '<span style="font-size:0.65rem; background:#fef2f2; color:#991b1b; border:1px solid #fecaca; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem;">✕ Rejected</span>',
             offline:        '<span style="font-size:0.65rem; background:#f3f4f6; color:#6b7280; border:1px solid #e5e7eb; border-radius:4px; padding:0.1rem 0.35rem; margin-left:0.3rem;">◌ Offline</span>',
         };
@@ -2030,7 +2042,8 @@
         // ── Status label (legacy status field) ────────────────────────────
         const isPaused = p.status === 'paused';
         const statusColor = isPaused ? '#a16207' : (rs === 'published' || (!rs && p.status === 'active') ? '#15803d' : '#6b7280');
-        const statusLabel = `<span id="status-label-${p._id}" style="color:${statusColor};">${p.status}</span>`;
+        const statusText  = rs === 'published' ? 'Live' : (!rs && p.status === 'active') ? 'Live' : p.status;
+        const statusLabel = `<span id="status-label-${p._id}" style="color:${statusColor};">${statusText}</span>`;
 
         // ── Context-aware action buttons ──────────────────────────────────
         let actionBtn = '';
@@ -2092,6 +2105,33 @@
         </div>`;
     }
 
+    // ── Listing tab state ─────────────────────────────────────────────────────
+    let _currentListingTab = ''; // '' = All, 'active', 'paused', 'pending_review'
+
+    function setListingTab(status, btn) {
+        _currentListingTab = status;
+        document.querySelectorAll('#panel-listings .tab-btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        filterListings();
+    }
+
+    function updateListingTabCounts() {
+        const all = Object.values(_productsMap);
+        const counts = {
+            '':               all.length,
+            active:           all.filter(p => p.reviewStatus === 'published' || (!p.reviewStatus && p.status === 'active')).length,
+            paused:           all.filter(p => p.status === 'paused').length,
+            pending_review:   all.filter(p => ['pending_review','in_review','needs_changes','approved'].includes(p.reviewStatus)).length,
+        };
+        Object.entries(counts).forEach(([key, n]) => {
+            const id = key === '' ? 'ltab-count-all' : `ltab-count-${key}`;
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (n > 0) { el.textContent = n; el.style.display = 'inline'; }
+            else       { el.textContent = ''; el.style.display = 'none'; }
+        });
+    }
+
     // ── Load seller product listings ──────────────────────────────────────────
     const _productsMap = {}; // keyed by product _id — safe lookup for edit modal
 
@@ -2124,6 +2164,8 @@
             // Expose health metrics for analytics panel
             window._storeHealthMetrics = { totalCartCount, avgQuality, topVelocity, products };
 
+            updateListingTabCounts();
+
             if (!products.length) {
                 list.innerHTML = '<p class="text-muted p-4">No active listings. <a href="#" onclick="openNewListingModal(); return false;" style="color:var(--accent-red);">Post your first listing →</a></p>';
                 return;
@@ -2138,16 +2180,23 @@
     // ── Filter listings (client-side, operates on _productsMap) ──────────────
     function filterListings() {
         const q      = (document.getElementById('listing-search').value || '').toLowerCase().trim();
-        const status = document.getElementById('listing-status-filter').value;
+        const tab    = _currentListingTab;
         const list   = document.getElementById('seller-products-list');
 
         const allProducts = Object.values(_productsMap);
         const filtered = allProducts.filter(p => {
-            const matchStatus = !status || p.status === status || p.reviewStatus === status;
-            const matchQ      = !q || p.title.toLowerCase().includes(q)
-                                   || (p.description || '').toLowerCase().includes(q)
-                                   || (p.category || '').toLowerCase().includes(q);
-            return matchStatus && matchQ;
+            let matchTab = true;
+            if (tab === 'active') {
+                matchTab = p.reviewStatus === 'published' || (!p.reviewStatus && p.status === 'active');
+            } else if (tab === 'paused') {
+                matchTab = p.status === 'paused';
+            } else if (tab === 'pending_review') {
+                matchTab = ['pending_review', 'in_review', 'needs_changes', 'approved'].includes(p.reviewStatus);
+            }
+            const matchQ = !q || p.title.toLowerCase().includes(q)
+                               || (p.description || '').toLowerCase().includes(q)
+                               || (p.category || '').toLowerCase().includes(q);
+            return matchTab && matchQ;
         });
 
         const heading = document.getElementById('listings-heading');

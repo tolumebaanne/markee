@@ -405,7 +405,12 @@ app.post('/products', async (req, res) => {
             if (components.some(c => c.type === 'bundle')) return errorResponse(res, 400, 'Bundles cannot contain other bundles');
             if (components.length !== items.length) return errorResponse(res, 400, 'One or more bundleItem productIds do not exist');
         }
-        const product = await Product.create({ ...req.body, sellerId: req.user.storeId });
+        const product = await Product.create({
+            ...req.body,
+            sellerId:      req.user.storeId,
+            reviewStatus:  REVIEW_ENABLED ? 'pending_review' : 'published',
+            displayStatus: REVIEW_ENABLED ? 'hidden'          : 'visible',
+        });
         // Best-effort storeName lookup — search index uses it for seller name matching
         let storeName = '';
         try {
@@ -437,8 +442,8 @@ app.get('/products', async (req, res) => {
         const lim  = Math.min(parseInt(limit), 50);
 
         if (shuffle === 'true') {
-            // Listing Review: only return buyer-visible, active products
-            const pipeline = [{ $match: { status: 'active', displayStatus: 'visible' } }];
+            // Listing Review: displayStatus 'visible' OR absent (legacy products pre-review feature)
+            const pipeline = [{ $match: { status: 'active', $or: [{ displayStatus: 'visible' }, { displayStatus: { $exists: false } }] } }];
             if (category)    pipeline[0].$match.category    = category;
             if (subcategory) pipeline[0].$match.subcategory = subcategory; // S10
             if (search)      pipeline[0].$match.$or = [
@@ -449,8 +454,8 @@ app.get('/products', async (req, res) => {
             return res.json(await Product.aggregate(pipeline));
         }
 
-        // Listing Review: displayStatus: 'visible' ensures only published listings reach buyers
-        let query = { status: 'active', displayStatus: 'visible' };
+        // Listing Review: 'visible' OR absent (legacy products pre-review feature) reach buyers
+        let query = { status: 'active', $or: [{ displayStatus: 'visible' }, { displayStatus: { $exists: false } }] };
         if (category)    query.category    = category;
         if (subcategory) query.subcategory = subcategory; // S10
         if (search)      query.$or = [
