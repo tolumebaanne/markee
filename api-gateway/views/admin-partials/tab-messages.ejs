@@ -220,14 +220,20 @@ function _threadRow(t, showFlagCol, flagged) {
     <button class="btn btn-xs btn-info" onclick="openInjectModal('${t._id}')"><i class="fas fa-paper-plane"></i> Inject</button>
   </div>`;
   const flagStyle = flagged ? 'border-left:3px solid #f59e0b;' : '';
-  const p0 = t.participants?.[0] || '—';
-  const p1 = t.participants?.[1] || '—';
+  // Resolve display name from participantMeta if available, fall back to truncated ID
+  function _pDisplay(rawId) {
+    const meta = (t.participantMeta || []).find(m => m.userId?.toString() === rawId?.toString());
+    if (meta?.displayName) return `<span title="${rawId}">${meta.displayName}</span>`;
+    return `<span style="font-family:monospace;font-size:.7rem" title="${rawId}">${trunc(String(rawId||''),14)}</span>`;
+  }
+  const p0 = t.participants?.[0];
+  const p1 = t.participants?.[1];
   const subject = t.context?.refTitle || '(no subject)';
   const statusLabel = isSuspended ? 'suspended' : 'active';
   return `<tr style="${flagStyle}">
     <td style="font-family:monospace;font-size:.72rem">${trunc(t._id,16)}</td>
-    <td style="font-family:monospace;font-size:.72rem">${trunc(p0,14)}</td>
-    <td style="font-family:monospace;font-size:.72rem">${trunc(p1,14)}</td>
+    <td style="font-size:.78rem">${p0 ? _pDisplay(p0) : '—'}</td>
+    <td style="font-size:.78rem">${p1 ? _pDisplay(p1) : '—'}</td>
     <td title="${subject}">${trunc(subject,26)}</td>
     <td>${_priorityBadge(t.priority)}</td>
     ${showFlagCol ? `<td>${t.admin?.flagged ? '<span style="color:#f59e0b">⚑</span>' : '—'}</td>` : ''}

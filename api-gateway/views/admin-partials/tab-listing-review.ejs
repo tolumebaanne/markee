@@ -97,6 +97,25 @@
   </div>
 </div>
 
+<!-- Detail Modal -->
+<div id="lr-detail-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeLrDetailModal()">
+  <div class="modal-box" style="max-width:780px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3><i class="fas fa-magnifying-glass"></i> Listing Details</h3>
+      <button class="modal-close" onclick="closeLrDetailModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" id="lr-detail-body">
+      <div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+    </div>
+    <div class="modal-footer" id="lr-detail-footer" style="display:none">
+      <button class="btn btn-ghost btn-sm" onclick="closeLrDetailModal()">Close</button>
+      <button class="btn btn-warn btn-sm" id="lr-detail-changes-btn" onclick=""><i class="fas fa-comment-dots"></i> Request Changes</button>
+      <button class="btn btn-danger btn-sm" id="lr-detail-reject-btn" onclick=""><i class="fas fa-times"></i> Reject</button>
+      <button class="btn btn-success btn-sm" id="lr-detail-approve-btn" style="display:none" onclick=""><i class="fas fa-check"></i> Approve</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
 let _lrPendingProductId = null;
@@ -280,10 +299,11 @@ function lrRenderTable(products, mode) {
         </td>
         <td><span style="background:var(--bg2);color:var(--muted2);padding:0.1rem 0.45rem;border-radius:5px;font-size:0.7rem">${p.category || '—'}</span></td>
         <td style="font-weight:700;color:var(--success)">${fmt$(p.price)}</td>
-        <td class="mono" style="font-size:0.68rem">${trunc(p.sellerId || p.storeId, 16)}</td>
+        <td style="font-size:0.75rem">${p.sellerName ? escHtml(p.sellerName) : `<span class="mono" style="font-size:0.68rem">${trunc(p.sellerId || p.storeId, 14)}</span>`}</td>
         <td style="color:var(--muted);font-size:0.72rem">${fmtDate(p.reviewSubmittedAt || p.createdAt)}</td>
         <td style="text-align:center;color:${(p.rejectionCount||0)>0?'var(--warn)':'var(--muted)'};font-weight:${(p.rejectionCount||0)>0?700:400}">${p.rejectionCount||0}</td>
         <td><div class="btn-gap">
+          <button class="btn btn-ghost btn-xs" onclick="openLrDetailModal('${p._id}')"><i class="fas fa-eye"></i> Details</button>
           ${showApprove    ? `<button class="btn btn-success btn-xs" onclick="lrApprove('${p._id}')"><i class="fas fa-check"></i> Approve</button>` : ''}
           <button class="btn btn-warn btn-xs" onclick="openLrDisapproveModal('${p._id}')"><i class="fas fa-comment-dots"></i> Changes</button>
           <button class="btn btn-danger btn-xs" onclick="lrReject('${p._id}')"><i class="fas fa-times"></i> Reject</button>
@@ -328,6 +348,98 @@ function openLrDisapproveModal(id) {
 function closeLrModal() {
   document.getElementById('lr-disapprove-modal').style.display = 'none';
   _lrPendingProductId = null;
+}
+
+// ── Detail Modal ──────────────────────────────────────────────────────────────
+async function openLrDetailModal(id) {
+  const modal  = document.getElementById('lr-detail-modal');
+  const body   = document.getElementById('lr-detail-body');
+  const footer = document.getElementById('lr-detail-footer');
+  footer.style.display = 'none';
+  body.innerHTML = `<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>`;
+  modal.style.display = 'flex';
+  try {
+    const p = await adminApi('GET', `/proxy/catalog/products/${id}`);
+
+    // Images carousel
+    const imgs = (p.images || []).slice(0, 6);
+    const imgsHtml = imgs.length
+      ? `<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem">
+           ${imgs.map(img => `<img src="${escHtml(img)}" style="width:120px;height:120px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">`).join('')}
+         </div>`
+      : `<div style="color:var(--muted);font-size:0.8rem;margin-bottom:0.75rem"><i class="fas fa-image"></i> No images</div>`;
+
+    // Review history
+    const hist = (p.reviewHistory || []);
+    const histHtml = hist.length
+      ? `<div style="margin-top:1rem">
+           <div style="font-size:0.8rem;font-weight:700;color:var(--muted2);margin-bottom:0.5rem">Review History (${hist.length})</div>
+           ${hist.map(h => `<div style="background:var(--bg2);border-radius:6px;padding:0.6rem 0.75rem;margin-bottom:0.4rem;font-size:0.76rem">
+             <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem">
+               <span style="font-weight:600;color:var(--text)">${h.action || '—'}</span>
+               <span style="color:var(--muted)">${h.timestamp ? fmtDate(h.timestamp) : '—'}</span>
+             </div>
+             ${h.comment ? `<div style="color:var(--muted2);white-space:pre-wrap">${escHtml(h.comment)}</div>` : ''}
+           </div>`).join('')}
+         </div>`
+      : `<div style="color:var(--muted);font-size:0.78rem;margin-top:0.75rem">No review history yet.</div>`;
+
+    const rejCount = p.rejectionCount || 0;
+
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr auto;gap:0.5rem;align-items:start;margin-bottom:0.75rem">
+        <div>
+          <div style="font-size:1.05rem;font-weight:700;color:var(--text);margin-bottom:0.15rem">${escHtml(p.title || '(no title)')}</div>
+          <div style="font-size:0.72rem;color:var(--muted);font-family:monospace">${escHtml(String(p._id))}</div>
+        </div>
+        <div style="text-align:right">
+          ${lrReviewBadge(p.reviewStatus)}
+          ${rejCount > 0 ? `<div style="font-size:0.72rem;color:var(--warn);margin-top:0.25rem;font-weight:700">${rejCount} rejection${rejCount!==1?'s':''}</div>` : ''}
+        </div>
+      </div>
+      ${imgsHtml}
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.6rem;margin-bottom:0.75rem">
+        <div style="background:var(--bg2);border-radius:6px;padding:0.5rem 0.75rem">
+          <div style="font-size:0.67rem;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.05em">Category</div>
+          <div style="font-size:0.85rem;margin-top:0.2rem">${escHtml(p.category || '—')}${p.subcategory ? ` / ${escHtml(p.subcategory)}` : ''}</div>
+        </div>
+        <div style="background:var(--bg2);border-radius:6px;padding:0.5rem 0.75rem">
+          <div style="font-size:0.67rem;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.05em">Price</div>
+          <div style="font-size:0.85rem;font-weight:700;color:var(--success);margin-top:0.2rem">${fmt$(p.price)}</div>
+        </div>
+        <div style="background:var(--bg2);border-radius:6px;padding:0.5rem 0.75rem">
+          <div style="font-size:0.67rem;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.05em">Seller</div>
+          <div style="font-size:0.82rem;margin-top:0.2rem">${p.sellerName ? escHtml(p.sellerName) : `<span style="font-family:monospace;font-size:0.7rem">${escHtml(String(p.sellerId||'—'))}</span>`}</div>
+        </div>
+      </div>
+      ${p.description ? `<div style="margin-bottom:0.75rem">
+        <div style="font-size:0.72rem;font-weight:700;color:var(--muted2);margin-bottom:0.35rem">Description</div>
+        <div style="font-size:0.83rem;white-space:pre-wrap;color:var(--text2);background:var(--bg2);border-radius:6px;padding:0.6rem 0.75rem;max-height:180px;overflow-y:auto">${escHtml(p.description)}</div>
+      </div>` : ''}
+      ${histHtml}`;
+
+    // Wire footer action buttons to this product id
+    const showApprove = window._isSuperuser ||
+      (p.reviewStatus === 'pending_review' || p.reviewStatus === 'in_review');
+    const approveBtn = document.getElementById('lr-detail-approve-btn');
+    const changesBtn = document.getElementById('lr-detail-changes-btn');
+    const rejectBtn  = document.getElementById('lr-detail-reject-btn');
+    approveBtn.style.display = (showApprove || window._isSuperuser) ? 'inline-flex' : 'none';
+    approveBtn.onclick = () => { closeLrDetailModal(); lrApprove(id); };
+    changesBtn.onclick = () => { closeLrDetailModal(); openLrDisapproveModal(id); };
+    rejectBtn.onclick  = () => { closeLrDetailModal(); lrReject(id); };
+    footer.style.display = 'flex';
+  } catch (err) {
+    body.innerHTML = `<div class="error-banner"><i class="fas fa-triangle-exclamation"></i> ${escHtml(err.message)}</div>`;
+  }
+}
+
+function closeLrDetailModal() {
+  document.getElementById('lr-detail-modal').style.display = 'none';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 async function submitLrDisapprove() {

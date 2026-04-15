@@ -1163,6 +1163,25 @@ app.post('/products/:id/restore', async (req, res) => {
 // ── Review Queue Routes (Super / authorized Admin) ────────────────────────────
 // MUST be defined before /products/:id to avoid 'review' matching as :id.
 
+// Helper: batch-resolve seller store names from seller-service
+async function resolveSellerNames(products) {
+    const uniqueIds = [...new Set(products.map(p => p.sellerId?.toString()).filter(Boolean))];
+    const nameMap   = {};
+    await Promise.allSettled(uniqueIds.map(async id => {
+        try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 2000);
+            const r = await fetch(`http://localhost:5007/by-seller/${id}`, { signal: controller.signal });
+            clearTimeout(timer);
+            if (r.ok) { const d = await r.json(); nameMap[id] = d.name || null; }
+        } catch { /* best-effort — fall back to ID */ }
+    }));
+    return products.map(p => ({
+        ...p.toObject ? p.toObject() : p,
+        sellerName: nameMap[p.sellerId?.toString()] || null
+    }));
+}
+
 // GET /products/review/unassigned — Super: unassigned pending_review queue
 app.get('/products/review/unassigned', async (req, res) => {
     if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
@@ -1170,13 +1189,15 @@ app.get('/products/review/unassigned', async (req, res) => {
         const { page = 1, limit = 50 } = req.query;
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const lim  = Math.min(parseInt(limit), 100);
-        const [products, total] = await Promise.all([
-            Product.find({ reviewStatus: 'pending_review', assignedTo: null })
+        const baseQuery = { reviewStatus: 'pending_review', assignedTo: null, status: { $ne: 'deleted' } };
+        const [rawProducts, total] = await Promise.all([
+            Product.find(baseQuery)
                 .sort({ reviewSubmittedAt: 1 })  // oldest first — fair queue
                 .skip(skip).limit(lim)
-                .select('_id title category sellerId reviewStatus reviewSubmittedAt reviewHistory images'),
-            Product.countDocuments({ reviewStatus: 'pending_review', assignedTo: null })
+                .select('_id title category sellerId reviewStatus reviewSubmittedAt reviewHistory images rejectionCount'),
+            Product.countDocuments(baseQuery)
         ]);
+        const products = await resolveSellerNames(rawProducts);
         res.json({ products, total, page: parseInt(page), hasMore: skip + lim < total });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
@@ -1188,17 +1209,18 @@ app.get('/products/review/assigned/:reviewerId', async (req, res) => {
         const { page = 1, limit = 50 } = req.query;
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const lim  = Math.min(parseInt(limit), 100);
-        const [products, total] = await Promise.all([
-            Product.find({
-                reviewStatus: { $in: ['pending_review', 'in_review'] },
-                assignedTo:   req.params.reviewerId
-            }).sort({ assignedAt: 1 }).skip(skip).limit(lim)
-             .select('_id title category sellerId reviewStatus assignedAt reviewSubmittedAt images'),
-            Product.countDocuments({
-                reviewStatus: { $in: ['pending_review', 'in_review'] },
-                assignedTo:   req.params.reviewerId
-            })
+        const baseQuery = {
+            reviewStatus: { $in: ['pending_review', 'in_review'] },
+            assignedTo:   req.params.reviewerId,
+            status:       { $ne: 'deleted' }
+        };
+        const [rawProducts, total] = await Promise.all([
+            Product.find(baseQuery)
+                .sort({ assignedAt: 1 }).skip(skip).limit(lim)
+                .select('_id title category sellerId reviewStatus assignedAt reviewSubmittedAt images rejectionCount'),
+            Product.countDocuments(baseQuery)
         ]);
+        const products = await resolveSellerNames(rawProducts);
         res.json({ products, total, page: parseInt(page), hasMore: skip + lim < total });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
