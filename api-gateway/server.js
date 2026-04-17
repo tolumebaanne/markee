@@ -117,11 +117,11 @@ app.use('/api/orders', verifyToken, proxy(process.env.ORDER_SERVICE_URL || 'http
 
 // ── Payments ──────────────────────────────────────────────────────────────────
 // Stripe webhook — raw body MUST reach payment-service unchanged for signature verification.
-// express.raw() prevents any body parser from consuming it. pathRewrite maps to /webhook/stripe.
-// This route is intentionally unauthenticated — security via Stripe signature only.
+// No body parser here: there is no global express.json() on this gateway, so the body
+// passes through the proxy as a raw stream. The payment-service reads it with its own
+// express.raw() before its own body parsers. Security via Stripe signature only.
 app.post(
     '/api/payments/webhook',
-    express.raw({ type: 'application/json' }),
     proxy(process.env.PAYMENT_SERVICE_URL || 'http://localhost:5004', {
         pathRewrite: { '^/api/payments/webhook': '/webhook/stripe' },
     })
