@@ -652,11 +652,13 @@ router.delete('/users/:userId',
     // Delete User record + refresh tokens from auth-service (the record the user list is sourced from)
     const authDel = await callService('DELETE', `${authUrl()}/admin/users/${uid}`, {}, req.admin.email);
     console.log(`[PROXY] auth-service delete — ok=${authDel.ok} status=${authDel.status}`, JSON.stringify(authDel.data));
-    if (!authDel.ok) {
+    if (!authDel.ok && authDel.status !== 404) {
       // Profile already gone; log the partial state but still surface the error
       console.error(`[PROXY] hard-delete partial: profile deleted but auth record removal failed for uid=${uid}`);
       return res.status(502).json({ error: 'Profile deleted but auth record removal failed — contact support', uid });
     }
+    // 404 from auth-service = user record was never there (data inconsistency, or already cleaned up)
+    // Nothing to remove — treat as success
 
     res.status(200).json({ userId: uid, deleted: true });
   }
