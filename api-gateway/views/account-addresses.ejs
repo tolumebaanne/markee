@@ -160,7 +160,7 @@
 </div>
 
 <script>
-const TOKEN  = localStorage.getItem('authToken') || localStorage.getItem('token') || '';
+const TOKEN  = localStorage.getItem('access_token') || localStorage.getItem('authToken') || localStorage.getItem('token') || '';
 const HDRS   = { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` };
 let _storeId = null;
 let _deliveryAddresses = [];
@@ -262,7 +262,7 @@ async function saveDeliveryAddress() {
         const method = id ? 'PUT' : 'POST';
         const r = await fetch(url, { method, headers: HDRS, body: JSON.stringify(body) });
         const data = await r.json();
-        if (!r.ok) { toast(data.error || 'Save failed', 'error'); return; }
+        if (!r.ok) { toast(data.message || data.error || 'Save failed', 'error'); return; }
         _deliveryAddresses = data;
         renderDelivery();
         closeDeliveryForm();
@@ -379,7 +379,7 @@ async function savePickupLocation() {
         const method = id ? 'PUT' : 'POST';
         const r = await fetch(url, { method, headers: HDRS, body: JSON.stringify(body) });
         const data = await r.json();
-        if (!r.ok) { toast(data.error || 'Save failed', 'error'); return; }
+        if (!r.ok) { toast(data.message || data.error || 'Save failed', 'error'); return; }
         _pickupLocations = data;
         renderPickup();
         closePickupForm();
