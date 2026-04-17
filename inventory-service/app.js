@@ -103,7 +103,7 @@ async function getBundleItems(productId) {
 
 bus.on('product.created', async (payload) => {
     try {
-        await Inventory.create({ productId: payload.productId, sellerId: payload.sellerId, quantity: 0 });
+        await Inventory.create({ productId: payload.productId, sellerId: payload.sellerId, quantity: payload.initialQuantity || 0 });
         console.log(`[INVENTORY] Record created for product ${payload.productId}`);
     } catch (err) { console.error('[INVENTORY] product.created error:', err.message); }
 });

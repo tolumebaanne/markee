@@ -450,16 +450,18 @@ app.post('/products', async (req, res) => {
         const disc = product.discount?.enabled
             ? { enabled: true, percent: product.discount.percent, discountedPrice: Math.round(product.price * (1 - product.discount.percent / 100)) }
             : { enabled: false, percent: 0, discountedPrice: product.price };
+        const initialQuantity = parseInt(req.body.initialQuantity) || 0;
         bus.emit('product.created', {
-            productId:   product._id,
-            sellerId:    product.sellerId,
-            title:       product.title,
-            category:    product.category,
-            price:       product.price,
-            description: product.description || '',
-            createdAt:   product.createdAt,
-            discount:    disc,
-            storeName
+            productId:       product._id,
+            sellerId:        product.sellerId,
+            title:           product.title,
+            category:        product.category,
+            price:           product.price,
+            description:     product.description || '',
+            createdAt:       product.createdAt,
+            discount:        disc,
+            storeName,
+            initialQuantity,
         });
         res.status(201).json(product);
     } catch (err) { errorResponse(res, 500, err.message); }

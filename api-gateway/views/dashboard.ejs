@@ -1209,6 +1209,15 @@
                 </div>
             </div>
 
+            <div class="form-group mb-3" id="listing-stock-section" style="display:none;">
+                <label for="f-stock">Stock — Units Available <span style="color:var(--accent-red)">*</span></label>
+                <input type="number" id="f-stock" placeholder="How many do you have?" min="1">
+                <p class="text-muted small" style="margin:0.35rem 0 0; color:#b45309;">
+                    <i class="fa fa-exclamation-triangle" style="margin-right:0.3rem;"></i>
+                    Orders are auto-cancelled when stock is 0. Set your actual stock now — you can adjust it later in Inventory.
+                </p>
+            </div>
+
             <div class="form-group mb-3">
                 <label for="f-images">Photos <span style="font-weight:400; color:var(--text-muted);">(up to 4)</span></label>
                 <div class="upload-drop-zone" id="drop-zone" onclick="document.getElementById('f-images').click()"
@@ -2950,6 +2959,10 @@
         if (pickupSection) pickupSection.style.display = 'none';
         if (pickupLocSel)  pickupLocSel.value = '';
         renderPreview();
+        const stockSection = document.getElementById('listing-stock-section');
+        const stockInput   = document.getElementById('f-stock');
+        if (stockSection) stockSection.style.display = '';
+        if (stockInput)   stockInput.value = '';
         document.getElementById('submit-btn').textContent = 'Post Listing';
         document.getElementById('modal-backdrop').style.display = 'flex';
     }
@@ -2959,6 +2972,8 @@
         if (!p) { showToast('Product data not found. Refresh and try again.', 'error'); return; }
         _pendingImages = (p.images || []).filter(Boolean);
         document.getElementById('edit-id').value = p._id;
+        const stockSectionEdit = document.getElementById('listing-stock-section');
+        if (stockSectionEdit) stockSectionEdit.style.display = 'none';
         document.getElementById('modal-title').textContent = 'Edit Listing';
         document.getElementById('f-title').value = p.title || '';
         document.getElementById('f-category').value = p.category || 'Electronics';
@@ -3030,7 +3045,16 @@
             enabledCarriers,
             pickupLocationId,
         };
-        if (!editId) product.status = 'active';
+        if (!editId) {
+            product.status = 'active';
+            const stockVal = parseInt(document.getElementById('f-stock')?.value || '');
+            if (isNaN(stockVal) || stockVal < 1) {
+                btn.disabled = false;
+                btn.textContent = 'Post Listing';
+                return showInlineError('listing-error-container', 'Please enter the number of units available (minimum 1).');
+            }
+            product.initialQuantity = stockVal;
+        }
 
         const url    = editId ? `/api/catalog/products/${editId}` : '/api/catalog/products';
         const method = editId ? 'PUT' : 'POST';
@@ -3517,21 +3541,88 @@ async function loadOpsNeedsReply() {
             const date = new Date(r.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric' });
             const body = (r.body || '').slice(0, 100) + (r.body?.length > 100 ? '…' : '');
             return `
-            <div style="padding:0.75rem 0; border-bottom:1px solid var(--border-light); display:flex; justify-content:space-between; align-items:flex-start; gap:0.75rem; flex-wrap:wrap;">
-                <div style="flex:1; min-width:0;">
-                    <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.2rem;">
-                        <span style="font-size:0.72rem; font-weight:600; color:var(--text-muted);">${date}</span>
-                        <span>${starsHtml}</span>
+            <div id="replyCard-${r._id}" style="padding:0.75rem 0; border-bottom:1px solid var(--border-light); display:flex; flex-direction:column; gap:0.5rem;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.75rem; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:0;">
+                        <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.2rem;">
+                            <span style="font-size:0.72rem; font-weight:600; color:var(--text-muted);">${date}</span>
+                            <span>${starsHtml}</span>
+                        </div>
+                        <div style="font-size:0.82rem; color:var(--text-main); line-height:1.5;">${escHtml(body)}</div>
                     </div>
-                    <div style="font-size:0.82rem; color:var(--text-main); line-height:1.5;">${escHtml(body)}</div>
+                    <div style="display:flex; gap:0.5rem; align-items:center;">
+                        <button class="act-btn" onclick="toggleReplyBox('${r._id}')" style="font-size:0.75rem; font-weight:700; color:#1e40af; text-decoration:none; border:none; background:none; cursor:pointer;">Reply</button>
+                        <a href="/product/${r.productId}" style="font-size:0.75rem; font-weight:700; color:var(--accent-red); text-decoration:none; white-space:nowrap;">View →</a>
+                    </div>
                 </div>
-                <a href="/product/${r.productId}" style="font-size:0.75rem; font-weight:700; color:var(--accent-red); text-decoration:none; white-space:nowrap;">Reply →</a>
+                <div class="reply-inline" id="replyBox-${r._id}" style="display:none; margin-top:0.2rem; background:var(--bg-secondary); padding:0.75rem; border-radius:6px; border:1px solid var(--border-light);">
+                    <textarea class="reply-textarea" placeholder="Write your public reply..." maxlength="1000" style="width:100%; min-height:60px; font-size:0.8rem; padding:0.5rem; border:1px solid var(--border-light); border-radius:4px; margin-bottom:0.5rem; resize:vertical; background:var(--bg-main); color:var(--text-main); font-family:inherit;"></textarea>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button class="btn btn-red" style="padding:0.4rem 0.8rem; font-size:0.75rem; width:auto;" onclick="submitDashboardReply('${r._id}')">Post Reply</button>
+                        <button class="btn" style="padding:0.4rem 0.8rem; font-size:0.75rem; width:auto;" onclick="toggleReplyBox('${r._id}')">Cancel</button>
+                    </div>
+                </div>
             </div>`;
         }).join('');
         if (reviews.length > 5) {
             list.innerHTML += `<p class="text-muted small" style="margin-top:0.5rem;">${reviews.length - 5} more not shown. Visit each product page to reply.</p>`;
         }
     } catch {}
+}
+
+function toggleReplyBox(reviewId) {
+    const box = document.getElementById(`replyBox-${reviewId}`);
+    if (box) {
+        box.style.display = box.style.display === 'none' ? 'block' : 'none';
+        if (box.style.display === 'block') {
+            box.querySelector('textarea').focus();
+        }
+    }
+}
+
+async function submitDashboardReply(reviewId) {
+    const box = document.getElementById(`replyBox-${reviewId}`);
+    const rx = box.querySelector('textarea');
+    const reply = rx.value.trim();
+    if (!reply) return;
+    
+    if (!token) return;
+
+    // Use a loading state
+    const btn = box.querySelector('.btn-red');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch(`/api/reviews/${reviewId}/reply`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ reply })
+        });
+        
+        if (res.ok) {
+            document.getElementById(`replyCard-${reviewId}`)?.remove();
+            const countEl = document.getElementById('ops-needs-reply-count');
+            const currentCount = parseInt(countEl.textContent, 10);
+            if (!isNaN(currentCount) && currentCount > 0) {
+                countEl.textContent = `${currentCount - 1} unanswered`;
+                if (currentCount - 1 === 0) {
+                    document.getElementById('ops-needs-reply-list').innerHTML = '<p class="text-muted small" style="margin:0;">All reviews have been replied to. Great job!</p>';
+                    countEl.textContent = '';
+                }
+            }
+            showToast('Reply posted successfully', 'success');
+        } else {
+            showToast('Failed to post reply', 'error');
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    } catch {
+        showToast('Error posting reply', 'error');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
 }
 
 function escHtml(str) {
