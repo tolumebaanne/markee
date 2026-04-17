@@ -184,7 +184,21 @@ async function loadProducts(append = false) {
         const data = await res.json();
         
         // search-service returns { results, suggestions, totalCount, ... }
-        const products = data.results || [];
+        // Normalize to the shape renderProductCard expects (_id, images, etc.)
+        const products = (data.results || []).map(r => ({
+            _id:    r.productId || r._id,
+            title:  r.title,
+            price:  r.price,
+            images: r.images || (r.imageUrl ? [r.imageUrl] : []),
+            category:      r.category,
+            sellerId:      r.sellerId,
+            rating:        r.rating,
+            reviewCount:   r.reviewCount,
+            fastDeliveryFee:    r.fastDeliveryFee    || 0,
+            fulfillmentOptions: r.fulfillmentOptions || [],
+            enabledCarriers:    r.enabledCarriers    || [],
+            pickupLocationId:   r.pickupLocationId   || null
+        }));
         const suggestions = data.suggestions || null;
 
         if (!append) grid.innerHTML = '';
