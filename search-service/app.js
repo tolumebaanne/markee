@@ -524,7 +524,7 @@ bus.on('store.updated', async (payload) => {
         const products = await SearchIndex.find({ sellerId: payload.sellerId }).lean();
         for (const p of products) {
             const newText = buildTextComposite(p.title, p.category, p.description, payload.storeName || p.storeName);
-            await SearchIndex.updateOne({ productId: p.productId }, { ...update, text: newText });
+            await SearchIndex.updateOne({ productId: p.productId }, { $set: { ...update, text: newText } });
         }
         console.log(`[SEARCH] store.updated: storeName synced for ${products.length} products of seller ${payload.sellerId}`);
     } catch (err) { console.error('[SEARCH] store.updated error:', err.message); }
@@ -538,8 +538,8 @@ bus.on('inventory.updated', async (payload) => {
             ? payload.available
             : (payload.quantity || 0) - (payload.reserved || 0);
         await SearchIndex.updateOne(
-            { productId: payload.productId },
-            { inventoryLevel: available, inventoryAvailable: available > 0 }
+            { productId: new (require('mongoose').Types.ObjectId)(payload.productId) },
+            { $set: { inventoryLevel: available, inventoryAvailable: available > 0 } }
         );
         // Per-product invalidation — inStock filter results may change
         lru.evictByProductId(payload.productId);

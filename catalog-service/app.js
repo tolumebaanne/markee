@@ -529,7 +529,7 @@ app.get('/my-products', async (req, res) => {
 // S5 — Admin: list products awaiting approval.
 // MUST be defined before GET /products/:id so 'pending-review' is not captured as :id.
 app.get('/products/pending-review', async (req, res) => {
-    if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const { page = 1, limit = 50 } = req.query;
         const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -550,7 +550,7 @@ app.get('/products/:id', async (req, res) => {
         // Sellers may view their own listings; admins may view any listing.
         if (p.displayStatus && p.displayStatus !== 'visible') {
             const isOwner = req.user?.storeId && req.user.storeId.toString() === p.sellerId?.toString();
-            const isAdmin = req.user?.role === 'admin' || req.user?.role === 'super';
+            const isAdmin = !!req.headers['x-admin-email'];
             if (!isOwner && !isAdmin) return errorResponse(res, 404, 'Not found');
         }
         const doc = p.toObject();
@@ -586,7 +586,7 @@ app.get('/products/:id/price-history', async (req, res) => {
         // Listing Review: don't leak price history existence for non-visible listings
         if (p.displayStatus && p.displayStatus !== 'visible') {
             const isOwner = req.user?.storeId && req.user.storeId.toString() === p.sellerId?.toString();
-            const isAdmin = req.user?.role === 'admin' || req.user?.role === 'super';
+            const isAdmin = !!req.headers['x-admin-email'];
             if (!isOwner && !isAdmin) return errorResponse(res, 404, 'Not found');
         }
         // Return newest-first; current price not in array but returned for context
@@ -699,9 +699,11 @@ app.put('/products/:id', async (req, res) => {
         if (safeBody.status && !['active', 'paused'].includes(safeBody.status)) delete safeBody.status;
 
         // Detect content edits (not just a pause/status toggle)
-        const _CONTENT_FIELDS = ['title', 'description', 'price', 'images', 'category', 'subcategory',
-                                  'fastDeliveryFee', 'fulfillmentOptions', 'enabledCarriers', 'pickupLocationId'];
-        const _isContentEdit = _CONTENT_FIELDS.some(f => safeBody[f] !== undefined);
+        // Only title, description, and images changes require admin review.
+        // Price, stock, category, and all other editable fields update immediately.
+        // Admin edits (x-admin-email) bypass review entirely.
+        const _CONTENT_FIELDS = ['title', 'description', 'images'];
+        const _isContentEdit = !req.headers['x-admin-email'] && _CONTENT_FIELDS.some(f => safeBody[f] !== undefined);
 
         Object.assign(p, safeBody);
 
@@ -775,7 +777,7 @@ app.delete('/products/:id', async (req, res) => {
 
 // Admin: flag a product as policy-violating — hides it from search and browse
 app.post('/products/:id/flag', async (req, res) => {
-    if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const p = await Product.findByIdAndUpdate(
             req.params.id,
@@ -932,7 +934,7 @@ app.post('/products/:id/submit', async (req, res) => {
 // POST /products/:id/approve — Super or authorized Admin: approve listing in review
 // Supersedes the old S5 route; also sets new review fields.
 app.post('/products/:id/approve', async (req, res) => {
-    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const p = await Product.findById(req.params.id);
         if (!p) return errorResponse(res, 404, 'Not found');
@@ -970,7 +972,7 @@ app.post('/products/:id/approve', async (req, res) => {
 
 // POST /products/:id/disapprove — Super or authorized Admin: request changes (listing stays accessible to seller)
 app.post('/products/:id/disapprove', async (req, res) => {
-    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     const { comment, templateId } = req.body;
     if (!comment || !comment.trim()) return errorResponse(res, 400, 'A reviewer comment is required when requesting changes.');
     try {
@@ -1005,7 +1007,7 @@ app.post('/products/:id/disapprove', async (req, res) => {
 
 // POST /products/:id/reject — Super: permanently reject a listing (terminal state)
 app.post('/products/:id/reject', async (req, res) => {
-    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     const { reason, comment } = req.body;
     const rejectionNote = (reason || comment || '').trim();
     if (!rejectionNote) return errorResponse(res, 400, 'Rejection reason is required.');
@@ -1080,14 +1082,14 @@ app.post('/products/:id/resubmit', async (req, res) => {
 
 // POST /products/:id/offline — Seller: take a published listing temporarily offline
 app.post('/products/:id/offline', async (req, res) => {
-    if (!req.user?.storeId && req.user?.role !== 'admin' && req.user?.role !== 'super') {
+    if (!req.user?.storeId && !req.headers['x-admin-email']) {
         return errorResponse(res, 401, 'Unauthorized');
     }
     try {
         const p = await Product.findById(req.params.id);
         if (!p) return errorResponse(res, 404, 'Not found');
         const isSeller = req.user?.storeId && p.sellerId.toString() === req.user.storeId;
-        const isAdmin  = req.user?.role === 'admin' || req.user?.role === 'super';
+        const isAdmin  = !!req.headers['x-admin-email'];
         if (!isSeller && !isAdmin) return errorResponse(res, 403, 'Not authorized');
         if (p.reviewStatus !== 'published') {
             return errorResponse(res, 400, `Only published listings can be taken offline (current: '${p.reviewStatus}').`);
@@ -1174,7 +1176,7 @@ async function resolveSellerNames(products) {
 
 // GET /products/review/unassigned — Super: unassigned pending_review queue
 app.get('/products/review/unassigned', async (req, res) => {
-    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const { page = 1, limit = 50 } = req.query;
         const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -1194,7 +1196,7 @@ app.get('/products/review/unassigned', async (req, res) => {
 
 // GET /products/review/assigned/:reviewerId — Super: assigned queue for a specific reviewer
 app.get('/products/review/assigned/:reviewerId', async (req, res) => {
-    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const { page = 1, limit = 50 } = req.query;
         const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -1217,7 +1219,7 @@ app.get('/products/review/assigned/:reviewerId', async (req, res) => {
 
 // POST /products/review/assign — Super: assign listings to a reviewer
 app.post('/products/review/assign', async (req, res) => {
-    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     const { listingIds, assignedTo, note } = req.body;
     if (!listingIds?.length) return errorResponse(res, 400, 'listingIds is required.');
     if (!assignedTo)         return errorResponse(res, 400, 'assignedTo is required.');
@@ -1238,7 +1240,7 @@ app.post('/products/review/assign', async (req, res) => {
 
 // POST /products/review/reassign — Super: reassign listings from one reviewer to another
 app.post('/products/review/reassign', async (req, res) => {
-    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     const { listingIds, assignedTo, note } = req.body;
     if (!listingIds?.length) return errorResponse(res, 400, 'listingIds is required.');
     if (!assignedTo)         return errorResponse(res, 400, 'assignedTo is required.');
@@ -1260,7 +1262,7 @@ app.post('/products/review/reassign', async (req, res) => {
 
 // POST /products/review/pullback — Super: return assigned listings to unassigned queue
 app.post('/products/review/pullback', async (req, res) => {
-    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     const { listingIds } = req.body;
     if (!listingIds?.length) return errorResponse(res, 400, 'listingIds is required.');
     try {
@@ -1274,7 +1276,7 @@ app.post('/products/review/pullback', async (req, res) => {
 
 // GET /products/review/history — Super: full review history with filters
 app.get('/products/review/history', async (req, res) => {
-    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super')) return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const { sellerId, reviewStatus, reviewerId, from, to, page = 1, limit = 50 } = req.query;
         const query = { reviewHistory: { $exists: true, $ne: [] } };
@@ -1303,7 +1305,7 @@ app.get('/products/review/history', async (req, res) => {
 
 // PATCH /admin/products/:id/force-status — set any product status
 app.patch('/admin/products/:id/force-status', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     const VALID = ['active', 'paused', 'archived', 'deleted', 'pending_review', 'rejected'];
     const { status, reason } = req.body;
     if (!VALID.includes(status)) return errorResponse(res, 400, `status must be one of: ${VALID.join(', ')}`);
@@ -1331,7 +1333,7 @@ app.patch('/admin/products/:id/force-status', async (req, res) => {
 // Query: sellerId, status, category, page=1, limit=50
 // NOTE: GET /products/pending-review already exists — this is the broader admin list
 app.get('/admin/products', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const { sellerId, status, category, page = 1, limit = 50 } = req.query;
         const query = {};
@@ -1350,7 +1352,7 @@ app.get('/admin/products', async (req, res) => {
 
 // GET /admin/products/stale — active products with no orders in 90 days (updatedAt as proxy)
 app.get('/admin/products/stale', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
         const products = await Product.find({ status: 'active', createdAt: { $lt: cutoff } });
@@ -1412,7 +1414,7 @@ app.post('/coupons/validate', async (req, res) => {
 
 // POST /admin/coupons — admin creates a new coupon
 app.post('/admin/coupons', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const { code, type, value, currency, minOrderCents, maxUsesTotal, maxUsesPerUser, expiresAt, sellerId } = req.body;
         if (!code || !type || value === undefined) return errorResponse(res, 400, 'code, type, and value are required');
@@ -1436,7 +1438,7 @@ app.post('/admin/coupons', async (req, res) => {
 
 // GET /admin/coupons — paginated coupon list
 app.get('/admin/coupons', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const page  = Math.max(1, parseInt(req.query.page)  || 1);
         const limit = Math.min(100, parseInt(req.query.limit) || 50);
@@ -1451,7 +1453,7 @@ app.get('/admin/coupons', async (req, res) => {
 
 // PATCH /admin/coupons/:code/deactivate — set active:false
 app.patch('/admin/coupons/:code/deactivate', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const coupon = await Coupon.findOneAndUpdate(
             { code: req.params.code.toUpperCase() },
@@ -1465,7 +1467,7 @@ app.patch('/admin/coupons/:code/deactivate', async (req, res) => {
 
 // DELETE /admin/coupons/:code — permanently delete coupon and its usage records
 app.delete('/admin/coupons/:code', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const code = req.params.code.toUpperCase();
         const coupon = await Coupon.findOneAndDelete({ code });
@@ -1477,7 +1479,7 @@ app.delete('/admin/coupons/:code', async (req, res) => {
 
 // GET /admin/coupons/:code/usages — S17: paginated usage records for a coupon
 app.get('/admin/coupons/:code/usages', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const code  = req.params.code.toUpperCase();
         const page  = Math.max(1, parseInt(req.query.page) || 1);

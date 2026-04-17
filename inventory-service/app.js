@@ -511,18 +511,25 @@ app.get('/restock-requests/:productId', async (req, res) => {
 });
 
 // POST /admin/adjust/:productId — admin override quantity
+// Body: { delta: N } (relative, +add/-subtract) or { quantity: N } (absolute set)
 app.post('/admin/adjust/:productId', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
-        const { quantity, reason } = req.body;
-        if (quantity === undefined) return errorResponse(res, 400, 'quantity required');
+        const { delta, quantity, reason } = req.body;
         const inv = await Inventory.findOne({ productId: req.params.productId });
         if (!inv) return errorResponse(res, 404, 'Inventory record not found');
         const oldQty = inv.quantity;
-        inv.quantity  = quantity;
+        if (delta !== undefined) {
+            inv.quantity = Math.max(0, inv.quantity + parseInt(delta));
+        } else if (quantity !== undefined) {
+            inv.quantity = Math.max(0, parseInt(quantity));
+        } else {
+            return errorResponse(res, 400, 'delta or quantity required');
+        }
         inv.updatedAt = new Date();
         await inv.save();
-        await writeAuditEntry(req.params.productId, 'quantity', oldQty, quantity, reason || 'admin_adjust', req.user.sub || req.user.email);
+        const adminEmail = req.headers['x-admin-email'];
+        await writeAuditEntry(req.params.productId, 'quantity', oldQty, inv.quantity, reason || 'admin_adjust', adminEmail);
         bus.emit('inventory.updated', { productId: inv.productId.toString(), available: inv.quantity - inv.reserved, reserved: inv.reserved, total: inv.quantity });
         res.json({ success: true, productId: req.params.productId, quantity });
     } catch (err) { errorResponse(res, 500, err.message); }
@@ -530,7 +537,7 @@ app.post('/admin/adjust/:productId', async (req, res) => {
 
 // POST /admin/freeze/:productId — admin set inventory to 0 (freeze sales)
 app.post('/admin/freeze/:productId', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const { reason } = req.body;
         const inv = await Inventory.findOne({ productId: req.params.productId });
@@ -539,7 +546,7 @@ app.post('/admin/freeze/:productId', async (req, res) => {
         inv.quantity  = 0;
         inv.updatedAt = new Date();
         await inv.save();
-        await writeAuditEntry(req.params.productId, 'quantity', oldQty, 0, reason || 'admin_freeze', req.user.sub || req.user.email);
+        await writeAuditEntry(req.params.productId, 'quantity', oldQty, 0, reason || 'admin_freeze', req.headers['x-admin-email']);
         bus.emit('inventory.updated', { productId: inv.productId.toString(), available: 0, reserved: inv.reserved, total: 0 });
         res.json({ success: true, productId: req.params.productId, frozen: true });
     } catch (err) { errorResponse(res, 500, err.message); }
