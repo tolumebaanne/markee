@@ -20,7 +20,8 @@ module.exports = function auditLog(action, resource = null) {
     // Intercept res.json to capture response status
     const originalJson = res.json.bind(res);
     res.json = function (body) {
-      // Write audit log entry (fire-and-forget)
+      // Write audit log entry (fire-and-forget) — guard against model not yet initialised
+      if (!AdminActionLog.model) { return originalJson(body); }
       AdminActionLog.model.create({
         adminId:    req.admin.id,
         isSuperuser:req.admin.isSuperuser,

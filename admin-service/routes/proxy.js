@@ -603,9 +603,11 @@ router.delete('/users/:userId',
   auditLog('user.hardDelete', 'User'),
   async (req, res) => {
     const uid = req.params.userId;
+    console.log(`[PROXY] hard-delete start — uid=${uid} admin=${req.admin.email}`);
 
     // Gate 1: block if user has active/held escrows
     const escrowCheck = await callService('GET', `${paymentUrl()}/admin/escrows/active-check?userId=${uid}`, null, req.admin.email);
+    console.log(`[PROXY] gate1 escrow — ok=${escrowCheck.ok} status=${escrowCheck.status}`, JSON.stringify(escrowCheck.data));
     if (!escrowCheck.ok) return errorResponse(res, 502, 'Could not verify escrow state — delete blocked for safety');
     if (escrowCheck.data?.hasActive) {
       return errorResponse(res, 400, `User has ${escrowCheck.data.count} active escrow(s). Resolve all financial obligations before deleting.`);
@@ -614,8 +616,10 @@ router.delete('/users/:userId',
     // Gate 2: block if user has open seller orders — look up storeId from profile first
     const profileLookup = await callService('GET', `${userUrl()}/admin/users/lookup?ids=${uid}`, null, req.admin.email);
     const storeId = profileLookup.data?.[uid]?.storeId;
+    console.log(`[PROXY] gate2 profile — ok=${profileLookup.ok} storeId=${storeId || 'none'}`);
     if (storeId) {
       const orderCheck = await callService('GET', `${orderUrl()}/seller-orders-check?storeId=${storeId}`, null, req.admin.email);
+      console.log(`[PROXY] gate2 orders — ok=${orderCheck.ok} status=${orderCheck.status}`, JSON.stringify(orderCheck.data));
       if (!orderCheck.ok) return errorResponse(res, 502, 'Could not verify seller orders — delete blocked for safety');
       if (orderCheck.data?.hasOpen) {
         return errorResponse(res, 400, `User has ${orderCheck.data.count} open seller order(s). Resolve them before deleting.`);
@@ -623,6 +627,7 @@ router.delete('/users/:userId',
     }
 
     const r = await callService('DELETE', `${userUrl()}/admin/users/${uid}`, req.body, req.admin.email);
+    console.log(`[PROXY] user-service delete — ok=${r.ok} status=${r.status}`, JSON.stringify(r.data));
     res.status(r.status).json(r.data);
   }
 );
