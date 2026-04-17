@@ -469,7 +469,7 @@ app.post('/products', async (req, res) => {
 
 app.get('/products', async (req, res) => {
     try {
-        const { category, subcategory, search, page = 1, limit = 20, shuffle } = req.query;
+        const { category, subcategory, search, page = 1, limit = 20, shuffle, sort } = req.query;
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const lim  = Math.min(parseInt(limit), 50);
 
@@ -509,7 +509,9 @@ app.get('/products', async (req, res) => {
             ];
             delete query.$or;
         }
-        res.json(await Product.find(query).sort({ createdAt: -1 }).skip(skip).limit(lim));
+        const sortMap = { price_asc: { price: 1 }, price_desc: { price: -1 }, rating: { rating: -1 } };
+        const sortOrder = sortMap[sort] || { createdAt: -1 };
+        res.json(await Product.find(query).sort(sortOrder).skip(skip).limit(lim));
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
