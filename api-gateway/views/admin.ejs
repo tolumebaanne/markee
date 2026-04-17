@@ -522,7 +522,7 @@ function hideErr(id) { const el=document.getElementById(id); if(el) el.style.dis
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-function showConfirm({ title, body='', withReason=false, withSelect=null, selectLabel='Select', withInput=false, inputLabel='', danger=false }) {
+function showConfirm({ title, body='', withReason=false, withSelect=null, selectLabel='Select', withInput=false, inputLabel='', inputType='text', danger=false }) {
   document.getElementById('confirmTitle').textContent = title;
   document.getElementById('confirmBody').textContent  = body;
   document.getElementById('confirmReasonWrap').style.display = withReason ? 'block' : 'none';
@@ -537,7 +537,7 @@ function showConfirm({ title, body='', withReason=false, withSelect=null, select
   if (withInput) {
     iw.style.display='block';
     document.getElementById('confirmInputLabel').textContent=inputLabel;
-    document.getElementById('confirmInput').value='';
+    const ci=document.getElementById('confirmInput'); ci.value=''; ci.type=inputType||'text';
   } else iw.style.display='none';
   const btn=document.getElementById('confirmBtn');
   btn.className='btn '+(danger?'btn-danger':'btn-primary');

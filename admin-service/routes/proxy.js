@@ -380,6 +380,45 @@ router.delete('/reviews/:id',
   }
 );
 
+// Segment 6: BuyerReview admin moderation
+router.get('/reviews/buyer-all',
+  requirePermission('reviews', 'read'),
+  async (req, res) => {
+    const r = await callService('GET', `${reviewUrl()}/admin/buyer-review/all`, null, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+router.delete('/reviews/buyer/:id',
+  requirePermission('reviews', 'delete'),
+  auditLog('buyerReview.delete', 'BuyerReview'),
+  async (req, res) => {
+    const r = await callService('DELETE', `${reviewUrl()}/admin/buyer-review/${req.params.id}`, { reason: req.body?.reason }, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+// Segment 6: Platform-wide review health stats (superuser only)
+router.get('/reviews/stats/platform',
+  (req, res, next) => {
+    if (!req.admin.isSuperuser) return errorResponse(res, 403, 'Superuser only');
+    next();
+  },
+  async (req, res) => {
+    const r = await callService('GET', `${reviewUrl()}/stats/platform`, null, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+// Segment 6: Seller store rating for admin seller cards
+router.get('/reviews/seller/:storeId/stats',
+  requirePermission('sellers', 'read'),
+  async (req, res) => {
+    const r = await callService('GET', `${reviewUrl()}/seller/${req.params.storeId}/stats`, null, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
 // ── Search ─────────────────────────────────────────────────────────────────────
 const searchUrl = () => process.env.SEARCH_SERVICE_URL || 'http://localhost:5012';
 
@@ -584,6 +623,26 @@ router.delete('/users/:userId',
     }
 
     const r = await callService('DELETE', `${userUrl()}/admin/users/${uid}`, req.body, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+// Force password reset — superuser only, no old password required
+router.post('/users/:userId/force-password',
+  (req, res, next) => { if (!req.admin.isSuperuser) return errorResponse(res, 403, 'Superuser only'); next(); },
+  auditLog('user.forcePassword', 'User'),
+  async (req, res) => {
+    const r = await callService('POST', `${authUrl()}/admin/users/${req.params.userId}/force-password`, req.body, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+// Force logout — revoke all refresh tokens (auth:ban permission)
+router.post('/users/:userId/revoke-sessions',
+  requirePermission('auth', 'ban'),
+  auditLog('user.revokeSessions', 'User'),
+  async (req, res) => {
+    const r = await callService('POST', `${authUrl()}/admin/users/${req.params.userId}/revoke-sessions`, {}, req.admin.email);
     res.status(r.status).json(r.data);
   }
 );

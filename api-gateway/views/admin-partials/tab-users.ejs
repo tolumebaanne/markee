@@ -157,30 +157,64 @@ async function loadUsers(page) {
 }
 
 async function viewUserDetail(id) {
-  const modal = document.getElementById('userDetailModal');
-  const body  = document.getElementById('userDetailBody');
-  if (!modal || !body) return;
-  body.innerHTML = `<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading profile…</div>`;
+  const body = document.getElementById('userDetailBody');
+  if (!body) return;
+  body.innerHTML = `<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>`;
   openModal('userDetailModal');
+
   try {
-    const profile = await adminApi('GET', `/proxy/users/${id}/profile`);
-    const p = profile.profile || profile.user || profile;
+    // Parallel fetches — orders and escrows degrade gracefully on failure
+    const [profileRes, ordersRes, escrowsRes] = await Promise.allSettled([
+      adminApi('GET', `/proxy/users/${id}/profile`),
+      adminApi('GET', `/proxy/orders?buyerId=${id}&limit=5&page=1`),
+      window._isSuperuser ? adminApi('GET', `/proxy/payments/admin?buyerId=${id}&limit=5`) : Promise.resolve(null)
+    ]);
+
+    const p        = profileRes.status === 'fulfilled' ? (profileRes.value.profile || profileRes.value.user || profileRes.value) : {};
+    const orders   = ordersRes.status  === 'fulfilled' ? (ordersRes.value.orders   || ordersRes.value   || []) : [];
+    const escrows  = (escrowsRes.status === 'fulfilled' && escrowsRes.value)
+                       ? (escrowsRes.value.escrows || escrowsRes.value.data || escrowsRes.value || []) : [];
+
     const addresses = p.addresses || [];
-    const addrCount = addresses.length;
-    const defaultAddr = addresses.find(a => a.isDefault) || addresses[0];
-    body.innerHTML = `<div class="grid-2">
-      <div>${[
-        ['Display Name', p.displayName || '—'],
-        ['Email',        p.email       || '—'],
-        ['User ID',      `<span class="mono" style="font-size:.75rem">${trunc(id, 22)}</span>`],
-        ['Role',         badge(p.role || 'user')],
-        ['Status',       badge(p.moderationStatus || p.status || 'active')],
-        ['Joined',       fmtDate(p.createdAt)],
-      ].map(([l,v]) => `<div class="order-detail-row"><div class="order-detail-label" style="min-width:110px">${l}</div><div style="font-size:.83rem">${v}</div></div>`).join('')}
+    const modStatus = p.moderationStatus || 'active';
+    const userEmail = p.email || '';
+    const isSuspended = modStatus === 'suspended';
+    const isBanned    = modStatus === 'banned';
+
+    // ── Action buttons ──────────────────────────────────────────────────────────
+    const actions = `<div class="btn-gap" style="flex-wrap:wrap;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
+      ${(!isSuspended && !isBanned)
+        ? `<button class="btn btn-warn btn-sm" onclick="closeModal('userDetailModal');suspendUser('${id}')"><i class="fas fa-pause"></i> Suspend</button>`
+        : `<button class="btn btn-success btn-sm" onclick="closeModal('userDetailModal');unbanUser('${id}')"><i class="fas fa-rotate-right"></i> Restore</button>`}
+      ${!isBanned
+        ? `<button class="btn btn-danger btn-sm" onclick="closeModal('userDetailModal');banUser('${id}')"><i class="fas fa-ban"></i> Ban</button>`
+        : ''}
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('userDetailModal');changeUserRole('${id}','${p.role||'user'}')"><i class="fas fa-user-gear"></i> Role</button>
+      <button class="btn btn-ghost btn-sm" onclick="forceLogoutUser('${id}')"><i class="fas fa-right-from-bracket"></i> Force Logout</button>
+      ${window._isSuperuser ? `<button class="btn btn-warn btn-sm" onclick="forcePasswordReset('${id}')"><i class="fas fa-key"></i> Reset Password</button>` : ''}
+      ${window._isSuperuser ? `<button class="btn btn-danger btn-sm" onclick="closeModal('userDetailModal');deleteUser('${id}','${userEmail.replace(/\\/g,'\\\\').replace(/'/g,'\\x27')}')"><i class="fas fa-trash"></i> Hard Delete</button>` : ''}
+    </div>`;
+
+    // ── Profile section ─────────────────────────────────────────────────────────
+    const profileSection = `<div class="grid-2">
+      <div>
+        ${[
+          ['Display Name', p.displayName || '—'],
+          ['Email',        p.email       || '—'],
+          ['Phone',        p.phone       || '—'],
+          ['User ID',      `<span class="mono" style="font-size:.73rem">${id}</span>`],
+          ['Store ID',     p.storeId ? `<span class="mono" style="font-size:.73rem">${p.storeId}</span>` : '—'],
+          ['Role',         badge(p.role || 'user')],
+          ['Account',      badge(modStatus)],
+          ['Joined',       fmtDate(p.createdAt)],
+          ['Buyer Score',  p.buyerScore != null ? p.buyerScore + '/100' : '—'],
+          ['Trading Score',p.buyerTradingScore != null ? p.buyerTradingScore + '/5' : '—'],
+        ].map(([l,v]) => `<div class="order-detail-row"><div class="order-detail-label" style="min-width:120px">${l}</div><div style="font-size:.83rem">${v}</div></div>`).join('')}
+        ${actions}
       </div>
       <div>
-        <div style="font-weight:600;margin-bottom:.5rem">Saved Addresses <span style="font-weight:400;color:var(--muted)">(${addrCount})</span></div>
-        ${addrCount
+        <div style="font-weight:600;margin-bottom:.5rem">Saved Addresses <span style="font-weight:400;color:var(--muted)">(${addresses.length})</span></div>
+        ${addresses.length
           ? addresses.map(a => `<div style="font-size:.8rem;margin-bottom:.4rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;background:var(--bg2)">
               ${a.isDefault ? '<span style="color:var(--success);font-weight:700;font-size:.68rem;margin-right:.3rem">DEFAULT</span>' : ''}
               ${[a.label,a.street,a.city,a.province,a.postalCode,a.country].filter(Boolean).join(', ')}
@@ -188,6 +222,41 @@ async function viewUserDetail(id) {
           : '<p style="color:var(--muted);font-size:.8rem">No saved addresses.</p>'}
       </div>
     </div>`;
+
+    // ── Recent orders ───────────────────────────────────────────────────────────
+    const ordersSection = `<div style="margin-top:1.5rem">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:.5rem">Recent Orders <span style="font-weight:400;color:var(--muted);font-size:.8rem">(last 5)</span></div>
+      ${Array.isArray(orders) && orders.length
+        ? `<div class="table-wrap"><table>
+            <thead><tr><th>Order ID</th><th>Items</th><th>Total</th><th>Status</th><th>Date</th></tr></thead>
+            <tbody>${orders.map(o => `<tr>
+              <td class="mono" style="font-size:.7rem">${trunc(o._id||o.orderId||'',14)}</td>
+              <td style="font-size:.78rem">${(o.items||[]).length} item(s)</td>
+              <td style="font-size:.78rem">${o.currency||''}${o.total!=null?Number(o.total).toFixed(2):'—'}</td>
+              <td>${badge(o.status||'—')}</td>
+              <td style="font-size:.7rem;color:var(--muted)">${fmtDate(o.createdAt)}</td>
+            </tr>`).join('')}</tbody>
+          </table></div>`
+        : '<p style="color:var(--muted);font-size:.82rem;margin:0">No orders found.</p>'}
+    </div>`;
+
+    // ── Escrows (superuser) ─────────────────────────────────────────────────────
+    const escrowsSection = window._isSuperuser ? `<div style="margin-top:1.5rem">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:.5rem">Escrows <span style="font-weight:400;color:var(--muted);font-size:.8rem">(superuser)</span></div>
+      ${Array.isArray(escrows) && escrows.length
+        ? `<div class="table-wrap"><table>
+            <thead><tr><th>Order ID</th><th>Amount</th><th>State</th><th>Date</th></tr></thead>
+            <tbody>${escrows.slice(0,5).map(e => `<tr>
+              <td class="mono" style="font-size:.7rem">${trunc(e.orderId||e._id||'',14)}</td>
+              <td style="font-size:.78rem">${e.currency||''}${e.amount!=null?Number(e.amount).toFixed(2):'—'}</td>
+              <td>${badge(e.state||e.status||'—')}</td>
+              <td style="font-size:.7rem;color:var(--muted)">${fmtDate(e.createdAt)}</td>
+            </tr>`).join('')}</tbody>
+          </table></div>`
+        : '<p style="color:var(--muted);font-size:.82rem;margin:0">No escrows found.</p>'}
+    </div>` : '';
+
+    body.innerHTML = profileSection + ordersSection + escrowsSection;
   } catch(err) {
     body.innerHTML = `<div class="error-banner"><i class="fas fa-triangle-exclamation"></i> ${err.message}</div>`;
   }
@@ -302,6 +371,40 @@ async function loadDeletedUsers() {
   }
 }
 
+// ── Force password reset (superuser) ─────────────────────────────────────────
+
+async function forcePasswordReset(id) {
+  const r = await showConfirm({
+    title: 'Force Password Reset',
+    body: 'Set a new password for this account. All existing sessions will be revoked immediately.',
+    withInput: true,
+    inputLabel: 'New Password (min 8 characters)',
+    inputType: 'password',
+    danger: true
+  });
+  if (!r.confirmed) return;
+  if (!r.input || r.input.length < 8) { toast('Password must be at least 8 characters.', 'error'); return; }
+  try {
+    await adminApi('POST', `/proxy/users/${id}/force-password`, { newPassword: r.input });
+    toast('Password reset. All sessions revoked.', 'success');
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+
+// ── Force logout — revoke all sessions ───────────────────────────────────────
+
+async function forceLogoutUser(id) {
+  const r = await showConfirm({
+    title: 'Force Logout',
+    body: 'Revoke all active sessions for this account? They will be logged out on their next request. Password is not changed.',
+    danger: true
+  });
+  if (!r.confirmed) return;
+  try {
+    const d = await adminApi('POST', `/proxy/users/${id}/revoke-sessions`, {});
+    toast(`Sessions revoked${d.revokedCount != null ? ' (' + d.revokedCount + ' token' + (d.revokedCount === 1 ? '' : 's') + ')' : ''}.`, 'success');
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+
 async function hardDeleteDeletedUser(id, email) {
   const r = await showConfirm({
     title: 'Hard Delete Deleted Account',
@@ -321,7 +424,7 @@ async function hardDeleteDeletedUser(id, email) {
 <div class="modal-overlay" id="userDetailModal">
   <div class="modal modal-xl">
     <div class="modal-header">
-      <h3>User Profile</h3>
+      <h3>User Details</h3>
       <button class="modal-close" onclick="closeModal('userDetailModal')"><i class="fas fa-times"></i></button>
     </div>
     <div id="userDetailBody"></div>

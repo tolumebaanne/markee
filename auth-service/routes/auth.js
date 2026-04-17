@@ -343,4 +343,36 @@ router.patch('/password', async (req, res) => {
     }
 });
 
+// ── Admin: force-set a user's password (superuser only) ──────────────────────
+// Called by admin-service proxy. No old-password required.
+// All refresh tokens for the user are revoked immediately after the change.
+router.post('/admin/users/:id/force-password', async (req, res) => {
+  if (!req.headers['x-admin-email']) return res.status(403).json({ error: 'Admin only' });
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 8)
+    return res.status(400).json({ error: 'newPassword must be at least 8 characters' });
+  try {
+    const bcrypt = require('bcrypt');
+    const user = await User.findById(req.params.id);
+    if (!user || user.status === 'deleted') return res.status(404).json({ error: 'User not found' });
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await user.save();
+    await RefreshToken.updateMany({ userId: user._id }, { revoked: true });
+    console.log(`[AUTH] Admin ${req.headers['x-admin-email']} force-reset password for user ${user.email}`);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Admin: revoke all sessions (force logout) for a user ─────────────────────
+router.post('/admin/users/:id/revoke-sessions', async (req, res) => {
+  if (!req.headers['x-admin-email']) return res.status(403).json({ error: 'Admin only' });
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const result = await RefreshToken.updateMany({ userId: user._id }, { revoked: true });
+    console.log(`[AUTH] Admin ${req.headers['x-admin-email']} revoked ${result.modifiedCount} sessions for user ${user.email}`);
+    res.json({ success: true, revokedCount: result.modifiedCount });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;
