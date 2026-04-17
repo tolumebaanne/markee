@@ -966,7 +966,7 @@ app.post('/dispute/:orderId', async (req, res) => {
 // S10 — POST /refund/:orderId — full refund (R5)
 app.post('/refund/:orderId', async (req, res) => {
     try {
-        const isAdmin = req.user?.role === 'admin';
+        const isAdmin = req.user?.role === 'admin' || !!req.headers['x-admin-email'];
         const reason  = req.body.reason || (isAdmin ? 'admin_action' : '');
         if (!reason) return errorResponse(res, 400, 'reason is required');
 
@@ -1031,7 +1031,7 @@ app.post('/refund/:orderId', async (req, res) => {
 // S9 — POST /partial-refund/:orderId — partial refund (R6)
 app.post('/partial-refund/:orderId', async (req, res) => {
     try {
-        if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+        if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
 
         // S9 — buyerPercent (0–100) determines the partial refund amount from total escrow
         const { buyerPercent, reason, sellerId } = req.body;
@@ -1108,7 +1108,7 @@ app.post('/cancel-intent/:orderId', async (req, res) => {
             return errorResponse(res, 400, 'Payment has already been captured — use POST /refund instead');
         }
 
-        const isAdmin = req.user?.role === 'admin';
+        const isAdmin = req.user?.role === 'admin' || !!req.headers['x-admin-email'];
         const userId  = req.user?.sub;
         const isBuyer = userId && esc.buyerId?.toString() === userId;
         if (!isAdmin && !isBuyer) {
@@ -1142,7 +1142,7 @@ app.post('/cancel-intent/:orderId', async (req, res) => {
 // S15 — PATCH /release/:orderId — admin manual release (C2)
 app.patch('/release/:orderId', async (req, res) => {
     try {
-        if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+        if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
 
         const { reason } = req.body;
         const esc = await Escrow.findOne({ orderId: req.params.orderId });
@@ -1158,7 +1158,7 @@ app.patch('/release/:orderId', async (req, res) => {
         esc.sellerPayouts.forEach(p => { p.released = true; });
         await esc.save();
 
-        await logEvent(esc.orderId, 'admin_released', req.user.sub || req.user.email, 'admin', { reason, releasedAt: now });
+        await logEvent(esc.orderId, 'admin_released', req.headers['x-admin-email'] || req.user?.sub || req.user?.email, 'admin', { reason, releasedAt: now });
 
         const sellerIds = esc.sellerPayouts.map(p => p.sellerId?.toString()).filter(Boolean);
         bus.emit('payment.released', {
@@ -1177,7 +1177,7 @@ app.patch('/release/:orderId', async (req, res) => {
 // S16 — GET /analytics — admin payment analytics (C4)
 app.get('/analytics', async (req, res) => {
     try {
-        if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+        if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
 
         const escrows = await Escrow.find();
         let gmvCents = 0, totalHeldCents = 0, totalReleasedCents = 0,
@@ -1217,7 +1217,7 @@ app.get('/analytics', async (req, res) => {
 // GET /admin/disputes — all disputed escrows
 app.get('/admin/disputes', async (req, res) => {
     try {
-        if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+        if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
         const disputes = await Escrow.find({ status: 'disputed' }).sort({ 'disputeInfo.filedAt': 1 });
         res.json({ disputes, total: disputes.length });
     } catch (err) { errorResponse(res, 500, err.message); }
@@ -1226,7 +1226,7 @@ app.get('/admin/disputes', async (req, res) => {
 // GET /admin/summary — platform payment summary
 app.get('/admin/summary', async (req, res) => {
     try {
-        if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+        if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
         const escrows = await Escrow.find();
         let totalHeld = 0, totalReleased = 0, totalRefunded = 0, platformRevenue = 0, disputeCount = 0;
         for (const esc of escrows) {
@@ -1253,10 +1253,10 @@ app.get('/admin/summary', async (req, res) => {
 // PATCH /admin/escrows/:orderId/freeze — freeze escrow (admin)
 app.patch('/admin/escrows/:orderId/freeze', async (req, res) => {
     try {
-        if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+        if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
         const escrow = await Escrow.findOneAndUpdate(
             { orderId: req.params.orderId },
-            { frozen: true, frozenAt: new Date(), frozenBy: req.user.sub || req.user.email, frozenReason: req.body.reason || 'Admin hold' },
+            { frozen: true, frozenAt: new Date(), frozenBy: req.headers['x-admin-email'] || req.user?.sub || req.user?.email, frozenReason: req.body.reason || 'Admin hold' },
             { new: true }
         );
         if (!escrow) return errorResponse(res, 404, 'Escrow not found');
@@ -1267,14 +1267,14 @@ app.patch('/admin/escrows/:orderId/freeze', async (req, res) => {
 // PATCH /admin/escrows/:orderId/unfreeze — unfreeze escrow (admin)
 app.patch('/admin/escrows/:orderId/unfreeze', async (req, res) => {
     try {
-        if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+        if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
         const escrow = await Escrow.findOneAndUpdate(
             { orderId: req.params.orderId },
             { frozen: false, frozenAt: null, frozenBy: null, frozenReason: '' },
             { new: true }
         );
         if (!escrow) return errorResponse(res, 404, 'Escrow not found');
-        await logEvent(escrow.orderId, 'admin_unfrozen', req.user.sub || req.user.email, 'admin', { reason: req.body.reason || 'Admin unfroze' });
+        await logEvent(escrow.orderId, 'admin_unfrozen', req.headers['x-admin-email'] || req.user?.sub || req.user?.email, 'admin', { reason: req.body.reason || 'Admin unfroze' });
         res.json(escrow);
     } catch (err) { errorResponse(res, 500, err.message); }
 });
@@ -1282,7 +1282,7 @@ app.patch('/admin/escrows/:orderId/unfreeze', async (req, res) => {
 // POST /admin/escrows/:orderId/force-release — admin force release escrow
 app.post('/admin/escrows/:orderId/force-release', async (req, res) => {
     try {
-        if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+        if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
         const { reason } = req.body;
         const escrow = await Escrow.findOne({ orderId: req.params.orderId });
         if (!escrow) return errorResponse(res, 404, 'Escrow not found');
@@ -1291,7 +1291,7 @@ app.post('/admin/escrows/:orderId/force-release', async (req, res) => {
         escrow.releasedAt = now;
         escrow.sellerPayouts.forEach(p => { p.released = true; });
         await escrow.save();
-        await logEvent(escrow.orderId, 'admin_force_released', req.user.sub || req.user.email, 'admin', { reason: reason || 'admin_action', releasedAt: now });
+        await logEvent(escrow.orderId, 'admin_force_released', req.headers['x-admin-email'] || req.user?.sub || req.user?.email, 'admin', { reason: reason || 'admin_action', releasedAt: now });
         const sellerIds = escrow.sellerPayouts.map(p => p.sellerId?.toString()).filter(Boolean);
         bus.emit('payment.released', { orderId: req.params.orderId, sellerIds, adminForce: true, reason: reason || 'admin_action' });
         res.json(escrow);
@@ -1326,6 +1326,7 @@ app.get('/admin/escrows/active-check', async (req, res) => {
     try {
         const { userId } = req.query;
         if (!userId) return errorResponse(res, 400, 'userId required');
+        if (!mongoose.Types.ObjectId.isValid(userId)) return errorResponse(res, 400, 'Invalid userId format');
         const count = await Escrow.countDocuments({
             buyerId: new mongoose.Types.ObjectId(userId),
             status:  { $in: ['held', 'disputed'] }
@@ -1336,7 +1337,7 @@ app.get('/admin/escrows/active-check', async (req, res) => {
 
 app.get('/admin/escrows', async (req, res) => {
     try {
-        if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+        if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
 
         const { status, paymentMethod, buyerId, sellerId, from, to } = req.query;
         const page  = Math.max(1, parseInt(req.query.page  || '1'));
@@ -1366,7 +1367,7 @@ app.get('/admin/escrows', async (req, res) => {
 // S18 — GET /admin/escrows/:orderId/log — audit log (C3)
 app.get('/admin/escrows/:orderId/log', async (req, res) => {
     try {
-        if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+        if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
         const logs = await EventLog.find({ orderId: req.params.orderId }).sort({ timestamp: 1 });
         res.json(logs);
     } catch (err) { errorResponse(res, 500, err.message); }
@@ -1384,7 +1385,7 @@ const PayoutHold = db.model('PayoutHold', new mongoose.Schema({
 
 // PATCH /admin/escrows/:orderId/split-refund — split escrow between buyer and seller
 app.patch('/admin/escrows/:orderId/split-refund', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     const { buyerPercent, reason } = req.body;
     if (buyerPercent === undefined || buyerPercent < 0 || buyerPercent > 100) {
         return errorResponse(res, 400, 'buyerPercent must be between 0 and 100');
@@ -1397,7 +1398,7 @@ app.patch('/admin/escrows/:orderId/split-refund', async (req, res) => {
         const sellerAmount = amountCents - refundAmount;
         esc.status = 'split_resolved';
         await esc.save();
-        await logEvent(esc.orderId, 'split_refund', req.user.sub || req.user.email, 'admin', {
+        await logEvent(esc.orderId, 'split_refund', req.headers['x-admin-email'] || req.user?.sub || req.user?.email, 'admin', {
             buyerPercent, refundAmount, sellerAmount, reason: reason || ''
         });
         bus.emit('payment.split_resolved', {
@@ -1409,7 +1410,7 @@ app.patch('/admin/escrows/:orderId/split-refund', async (req, res) => {
 
 // PATCH /admin/escrows/:orderId/extend-dispute-window — extend dispute window
 app.patch('/admin/escrows/:orderId/extend-dispute-window', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     const { hours, reason } = req.body;
     if (!hours || hours <= 0) return errorResponse(res, 400, 'hours must be a positive number');
     try {
@@ -1418,7 +1419,7 @@ app.patch('/admin/escrows/:orderId/extend-dispute-window', async (req, res) => {
         const current = esc.disputeWindowExpiresAt ? new Date(esc.disputeWindowExpiresAt).getTime() : Date.now();
         esc.disputeWindowExpiresAt = new Date(current + hours * 3600000);
         await esc.save();
-        await logEvent(esc.orderId, 'dispute_window_extended', req.user.sub || req.user.email, 'admin', {
+        await logEvent(esc.orderId, 'dispute_window_extended', req.headers['x-admin-email'] || req.user?.sub || req.user?.email, 'admin', {
             hours, newExpiresAt: esc.disputeWindowExpiresAt, reason: reason || ''
         });
         res.json({ orderId: esc.orderId, disputeWindowExpiresAt: esc.disputeWindowExpiresAt });
@@ -1427,7 +1428,7 @@ app.patch('/admin/escrows/:orderId/extend-dispute-window', async (req, res) => {
 
 // POST /admin/payments/hold-payouts/:sellerId — place payout hold on seller
 app.post('/admin/payments/hold-payouts/:sellerId', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     const { reason } = req.body;
     try {
         const hold = await PayoutHold.findOneAndUpdate(
@@ -1441,7 +1442,7 @@ app.post('/admin/payments/hold-payouts/:sellerId', async (req, res) => {
 
 // DELETE /admin/payments/hold-payouts/:sellerId — lift payout hold
 app.delete('/admin/payments/hold-payouts/:sellerId', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
         await PayoutHold.deleteOne({ sellerId: req.params.sellerId });
         res.json({ ok: true, sellerId: req.params.sellerId });
@@ -1450,7 +1451,7 @@ app.delete('/admin/payments/hold-payouts/:sellerId', async (req, res) => {
 
 // GET /admin/payments/payout-holds — list all sellers under payout hold
 app.get('/admin/payments/payout-holds', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
         const holds = await PayoutHold.find().sort({ heldAt: -1 });
         res.json(holds);

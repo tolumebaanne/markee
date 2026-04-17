@@ -406,7 +406,7 @@ app.post('/register', async (req, res) => {
 
 // S26 — Admin: verify/unverify a store (MUST be before /:storeId to avoid param capture)
 app.post('/admin/:storeId/verify', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
         const store = await Store.findByIdAndUpdate(req.params.storeId, { verified: true }, { new: true });
         if (!store) return errorResponse(res, 404, 'Store not found');
@@ -416,7 +416,7 @@ app.post('/admin/:storeId/verify', async (req, res) => {
 });
 
 app.post('/admin/:storeId/unverify', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
         const store = await Store.findByIdAndUpdate(req.params.storeId, { verified: false }, { new: true });
         if (!store) return errorResponse(res, 404, 'Store not found');
@@ -427,7 +427,7 @@ app.post('/admin/:storeId/unverify', async (req, res) => {
 
 // POST /admin/:storeId/suspend — suspend a store
 app.post('/admin/:storeId/suspend', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
         const { reason } = req.body;
         const store = await Store.findByIdAndUpdate(
@@ -443,7 +443,7 @@ app.post('/admin/:storeId/suspend', async (req, res) => {
 
 // POST /admin/:storeId/restore — restore a suspended store
 app.post('/admin/:storeId/restore', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
         const store = await Store.findByIdAndUpdate(
             req.params.storeId,
@@ -458,7 +458,7 @@ app.post('/admin/:storeId/restore', async (req, res) => {
 
 // S30 — Admin: list all stores with filters
 app.get('/admin/stores', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
         const { verified, tier, active, from, to, page = 1, limit = 50 } = req.query;
         const query = {};
@@ -745,7 +745,7 @@ setInterval(async () => {
 
 // PATCH /admin/:storeId/tier — override seller tier
 app.patch('/admin/:storeId/tier', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     const { tier, reason } = req.body;
     if (!['standard', 'rising', 'top'].includes(tier)) return errorResponse(res, 400, 'tier must be standard, rising, or top');
     try {
@@ -760,7 +760,7 @@ app.patch('/admin/:storeId/tier', async (req, res) => {
 // NOTE: must be registered before /admin/stores to avoid storeId capture, but /admin/stores is already
 // defined above as a GET. Express will match /admin/stores/dormant correctly since it is more specific.
 app.get('/admin/stores/dormant', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
         const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
         const query = { active: true, lastActive: { $lt: cutoff } };
@@ -801,7 +801,7 @@ app.get('/analytics', async (req, res) => {
 
 // GET /admin/stores/:storeId/profile — full admin profile of a store
 app.get('/admin/stores/:storeId/profile', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
         const store = await Store.findById(req.params.storeId);
         if (!store) return errorResponse(res, 404, 'Store not found');
@@ -825,7 +825,7 @@ app.get('/connect-status', async (req, res) => {
 
 // S20 — PATCH /admin/stores/:storeId/connect-status — admin update of seller connect status
 app.patch('/admin/stores/:storeId/connect-status', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     const VALID_STATUSES = ['not_connected', 'pending', 'active'];
     const { stripeConnectStatus, stripeConnectAccountId } = req.body;
     if (!stripeConnectStatus || !VALID_STATUSES.includes(stripeConnectStatus)) {

@@ -974,7 +974,7 @@ app.get('/admin/health', async (req, res) => {
 
 // GET /admin/index-health — index stats
 app.get('/admin/index-health', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
         const pipeline = [
             { $group: { _id: '$status', count: { $sum: 1 } } }
@@ -995,7 +995,7 @@ app.get('/admin/index-health', async (req, res) => {
 
 // PATCH /admin/:productId/unhide — restore product to active in search
 app.patch('/admin/:productId/unhide', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
         const result = await SearchIndex.findOneAndUpdate(
             { productId: req.params.productId },
@@ -1010,7 +1010,7 @@ app.patch('/admin/:productId/unhide', async (req, res) => {
 
 // POST /admin/cache/clear — clear query cache
 app.post('/admin/cache/clear', (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     lru.flush();
     relatedLru.flush();
     res.json({ success: true, cleared: true });
@@ -1018,7 +1018,7 @@ app.post('/admin/cache/clear', (req, res) => {
 
 // GET /admin/autocomplete — list autocomplete suggestions from in-memory title set
 app.get('/admin/autocomplete', (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     const terms = [];
     for (const [, item] of titleSet) {
         if (item.title) terms.push(item.title);
@@ -1028,7 +1028,7 @@ app.get('/admin/autocomplete', (req, res) => {
 
 // DELETE /admin/autocomplete/:term — no separate autocomplete collection; return informational note
 app.delete('/admin/autocomplete/:term', (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     // Autocomplete is served from the in-memory titleSet (hydrated from SearchIndex).
     // There is no separate QueryLog or Autocomplete collection in this service.
     res.json({ success: true, note: 'no autocomplete collection' });
@@ -1036,7 +1036,7 @@ app.delete('/admin/autocomplete/:term', (req, res) => {
 
 // POST /admin/reindex-all — mark all SearchIndex docs as stale for reindex
 app.post('/admin/reindex-all', async (req, res) => {
-    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
         const result = await SearchIndex.updateMany({}, { status: 'stale' });
         // Flush caches so stale entries are not served

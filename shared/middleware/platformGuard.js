@@ -58,8 +58,8 @@ module.exports = (req, res, next) => {
     if (isHealth || isStatus || isAuth || isAdminApp) return next();
 
     // 2. Safety Bypass: Admin role (passed via x-user or verified token) ALWAYS allowed
-    // Check if req.user (populated by parseUser or verifyToken) is admin
-    if (req.user && req.user.role === 'admin') return next();
+    // Also bypass for admin-service callService requests (x-admin-email header)
+    if ((req.user && req.user.role === 'admin') || req.headers['x-admin-email']) return next();
 
     // 3. Enforcement: Lockdown Mode
     if (platformState.lockdownMode) {
