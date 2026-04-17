@@ -53,7 +53,7 @@ async function createSession(account, ipAddress, userAgent) {
   const sessionId    = crypto.randomBytes(32).toString('hex');
   const refreshToken = crypto.randomBytes(40).toString('hex');
   const refreshTtlMs = account.isSuperuser
-    ? (parseInt(process.env.ADMIN_SUPER_SESSION_TTL_MS) || 4 * 60 * 60 * 1000)
+    ? (parseInt(process.env.ADMIN_SUPER_SESSION_TTL_MS) || 3 * 24 * 60 * 60 * 1000)  // 3 days
     : (parseInt(process.env.ADMIN_SESSION_TTL_MS)       || 8 * 60 * 60 * 1000);
   const refreshExpiresAt = new Date(Date.now() + refreshTtlMs);
 
@@ -269,7 +269,7 @@ router.post('/refresh', async (req, res) => {
 
     const newRefreshToken = crypto.randomBytes(40).toString('hex');
     const refreshTtlMs    = account.isSuperuser
-      ? (parseInt(process.env.ADMIN_SUPER_SESSION_TTL_MS) || 4 * 60 * 60 * 1000)
+      ? (parseInt(process.env.ADMIN_SUPER_SESSION_TTL_MS) || 3 * 24 * 60 * 60 * 1000)  // 3 days
       : (parseInt(process.env.ADMIN_SESSION_TTL_MS)       || 8 * 60 * 60 * 1000);
     const refreshExpiresAt = new Date(Date.now() + refreshTtlMs);
 
