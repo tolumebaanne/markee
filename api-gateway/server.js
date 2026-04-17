@@ -321,10 +321,21 @@ app.get('/dashboard',   (req, res) => res.render('dashboard'));
 app.get('/inventory',   (req, res) => res.render('inventory'));
 app.get('/messages',       (_req, res) => res.render('messages', {}));
 app.get('/notifications',  (_req, res) => res.render('notifications'));
-app.get('/checkout',    (req, res) => res.render('checkout', {
-    standardDeliveryFeeCents: parseInt(process.env.STANDARD_DELIVERY_FEE_CENTS || '599',  10),
-    fastDeliveryFeeCents:     parseInt(process.env.FAST_DELIVERY_FEE_CENTS     || '1499', 10),
-}));
+app.get('/checkout',    (req, res) => {
+    const stdFee  = parseInt(process.env.STANDARD_DELIVERY_FEE_CENTS || '599',  10);
+    const fastFee = parseInt(process.env.FAST_DELIVERY_FEE_CENTS     || '1499', 10);
+    // PLATFORM_TAX_RATE env override — must mirror order-service getTaxRate() behaviour.
+    // If set, the server ignores the province table and uses this flat rate.
+    // We inject it so the client can do the same and the totals match.
+    const platformTaxRate = process.env.PLATFORM_TAX_RATE !== undefined && process.env.PLATFORM_TAX_RATE !== ''
+        ? parseFloat(process.env.PLATFORM_TAX_RATE) || 0.13
+        : null;
+    res.render('checkout', {
+        standardDeliveryFeeCents: stdFee,
+        fastDeliveryFeeCents:     fastFee,
+        platformTaxRate,          // null when not set — client uses province table
+    });
+});
 app.get('/cart',        (req, res) => res.render('cart'));
 app.get('/product/:id',    (req, res) => res.render('product',    { productId: req.params.id }));
 app.get('/store/:storeId', (req, res) => res.render('storefront', { storeId: req.params.storeId }));

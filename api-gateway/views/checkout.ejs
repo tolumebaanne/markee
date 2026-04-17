@@ -257,7 +257,7 @@
                             <div class="d-label">Standard Delivery</div>
                             <div class="d-detail">5–10 business days</div>
                         </div>
-                        <div class="d-price" style="color:#16a34a;">Free</div>
+                        <div class="d-price" id="standard-delivery-price"></div>
                     </label>
 
                     <label class="delivery-option" id="delivery-fast-label">
@@ -398,6 +398,9 @@
 // env vars in order-service/app.js (both default to 599 / 1499).
 const SERVER_STANDARD_DELIVERY_CENTS = <%- standardDeliveryFeeCents %>;
 const SERVER_FAST_DELIVERY_CENTS     = <%- fastDeliveryFeeCents %>;
+// PLATFORM_TAX_RATE override — null when not set (client uses province table).
+// When set, mirrors order-service getTaxRate() flat-rate override so client and server agree.
+const SERVER_PLATFORM_TAX_RATE = <%- platformTaxRate === null ? 'null' : platformTaxRate %>;
 
 // ── Inline error helpers ──────────────────────────────────────────────
 function showInlineError(elId, msg) {
@@ -595,6 +598,8 @@ function onFulfillmentChange() {
     const selfNote      = document.getElementById('self-fulfill-form');
     const deliveryCard  = document.getElementById('delivery-step-card');
 
+    updateDeliveryLabels(); // re-render standard fee label (Free for pickup/self_fulfilled, $X for shipping)
+
     if (ft === 'shipping') {
         if (addrSection)   addrSection.style.display   = 'block';
         if (pickupCard)    pickupCard.style.display    = 'none';
@@ -684,21 +689,29 @@ function deliveryCents() {
     const ft = document.getElementById('fulfillment-type-select')?.value || 'shipping';
     if (ft === 'pickup' || ft === 'self_fulfilled') return 0;
 
-    if (selectedDelivery === 'fast') {
-        // Use the max fastDeliveryFee set by any seller in the cart; fall back to server constant
-        const maxFee = checkoutItems.reduce((m, i) => Math.max(m, i.fastDeliveryFee || 0), 0);
-        return maxFee > 0 ? maxFee : SERVER_FAST_DELIVERY_CENTS;
-    }
-    // Standard shipping — must match server STANDARD_DELIVERY_FEE_CENTS
-    return SERVER_STANDARD_DELIVERY_CENTS;
+    // Both fast and standard use the server's flat platform fee.
+    // The server computeDeliveryFee() always uses FAST/STANDARD_DELIVERY_FEE_CENTS
+    // regardless of per-seller fastDeliveryFee — client must match exactly.
+    return selectedDelivery === 'fast' ? SERVER_FAST_DELIVERY_CENTS : SERVER_STANDARD_DELIVERY_CENTS;
 }
 
-function updateFastDeliveryLabel() {
-    const fee = checkoutItems.reduce((m, i) => Math.max(m, i.fastDeliveryFee || 0), 0);
-    const cents = fee > 0 ? fee : SERVER_FAST_DELIVERY_CENTS;
-    const el = document.getElementById('fast-delivery-price');
-    if (el) el.textContent = `+$${(cents / 100).toFixed(2)}`;
+function updateDeliveryLabels() {
+    const stdEl  = document.getElementById('standard-delivery-price');
+    const fastEl = document.getElementById('fast-delivery-price');
+    if (stdEl) {
+        const ft = document.getElementById('fulfillment-type-select')?.value || 'shipping';
+        if (ft === 'pickup' || ft === 'self_fulfilled') {
+            stdEl.textContent  = 'Free';
+            stdEl.style.color  = '#16a34a';
+        } else {
+            stdEl.textContent  = `+$${(SERVER_STANDARD_DELIVERY_CENTS / 100).toFixed(2)}`;
+            stdEl.style.color  = 'var(--accent-red)';
+        }
+    }
+    if (fastEl) fastEl.textContent = `+$${(SERVER_FAST_DELIVERY_CENTS / 100).toFixed(2)}`;
 }
+// Keep backward-compatible alias used in loadCheckoutItems and selectDelivery callers
+function updateFastDeliveryLabel() { updateDeliveryLabels(); }
 
 // ── Payment toggle ────────────────────────────────────────────────────
 function togglePaymentMethod() {
@@ -1346,6 +1359,11 @@ const _CA_PROVINCE_TAX = {
     'YT': { rate: 0.05,    label: '5% GST'         },
 };
 function getLocaleTaxRate() {
+    // Platform override takes precedence — mirrors order-service getTaxRate() env check
+    if (SERVER_PLATFORM_TAX_RATE !== null) {
+        const pct = (SERVER_PLATFORM_TAX_RATE * 100).toFixed(2).replace(/\.00$/, '');
+        return { rate: SERVER_PLATFORM_TAX_RATE, label: `${pct}% Tax` };
+    }
     if (_userLocale.country !== 'CA') return { rate: 0.05, label: '5% GST' };
     return _CA_PROVINCE_TAX[_userLocale.province] || { rate: 0.13, label: '13% HST' };
 }
