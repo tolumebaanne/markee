@@ -178,10 +178,11 @@ if (RETURN_TO) {
 (async () => {
     try {
         const r = await fetch('/api/users/me', { headers: HDRS });
-        if (!r.ok) return;
-        const p = await r.json();
-        _storeId = p.storeId || null;
-        if (_storeId) document.getElementById('pickup-section').style.display = '';
+        if (r.ok) {
+            const p = await r.json();
+            _storeId = p.storeId || null;
+            if (_storeId) document.getElementById('pickup-section').style.display = '';
+        }
     } catch (_) {}
     await loadDelivery();
     if (_storeId) await loadPickup();

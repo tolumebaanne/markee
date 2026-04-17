@@ -256,7 +256,7 @@ app.use('/api/search', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost
 // ── User profiles (JWT required, users manage own data) ───────────────────────
 
 const userProxy = createProxyMiddleware({
-    target: process.env.USER_SERVICE_URL || 'http://localhost:5013',
+    target: process.env.USER_SERVICE_URL || 'http://localhost:5002',
     changeOrigin: true,
     pathRewrite: { '^/api/users': '/users' },
     on: { error: (err, req, res) => errorResponse(res, 502, 'User service unreachable') }
