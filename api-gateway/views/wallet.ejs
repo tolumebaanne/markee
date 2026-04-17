@@ -13,14 +13,12 @@
         .wallet-section       { margin-bottom: 2.5rem; }
         .wallet-section h3    { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
         .card-list            { display: flex; flex-direction: column; gap: 0.75rem; }
-        .card-item            { border: 1.5px solid var(--border); border-radius: 10px; padding: 1rem 1.1rem; background: var(--surface2); display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; }
-        .card-info            { display: flex; align-items: center; gap: 0.75rem; }
-        .card-brand           { font-size: 1.3rem; width: 1.8rem; text-align: center; }
-        .card-detail          { font-size: 0.88rem; }
-        .card-detail strong   { display: block; font-size: 0.95rem; }
-        .card-expiry          { font-size: 0.78rem; color: var(--muted); }
         .empty-state          { text-align: center; padding: 2.5rem 1rem; color: var(--muted); }
         .empty-state i        { font-size: 2.2rem; display: block; margin-bottom: 0.6rem; }
+        /* Align card item remove button to the right */
+        .payment-selector-card { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; cursor: default; }
+        .payment-selector-card:hover { border-color: var(--border); background: var(--surface2); }
+        .payment-selector-card .pm-card-info { flex: 1; }
     </style>
 </head>
 <body>
@@ -43,7 +41,7 @@
     <div class="wallet-section">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
             <h3 style="margin:0"><i class="fa fa-credit-card" style="color:var(--accent);margin-right:0.4rem"></i> Saved Cards</h3>
-            <button id="add-card-btn" onclick="showAddCardForm()" class="btn btn-sm" style="background:var(--accent-red);color:#fff;width:auto;padding:0.35rem 0.9rem;font-size:0.82rem;">
+            <button id="add-card-btn" onclick="showAddCardForm()" class="btn btn-sm" style="background:var(--accent-red);color:#fff;white-space:nowrap;">
                 <i class="fa fa-plus" style="margin-right:0.35rem;"></i>Add Card
             </button>
         </div>
@@ -54,13 +52,16 @@
         <!-- Add card form (hidden by default) -->
         <div id="add-card-form" style="display:none; border:1.5px solid var(--border); border-radius:10px; padding:1.1rem; margin-bottom:1rem; background:var(--surface2);">
             <p style="font-size:0.85rem;color:var(--muted);margin-bottom:0.75rem;">Enter your card details. You may be prompted to verify with your bank.</p>
-            <div id="card-element" style="border:1.5px solid var(--border);border-radius:7px;padding:0.7rem 0.75rem;background:#fff;margin-bottom:0.75rem;min-height:42px;"></div>
-            <div id="add-card-error" style="display:none;color:var(--danger);font-size:0.83rem;margin-bottom:0.6rem;"></div>
-            <div style="display:flex;gap:0.5rem;align-items:center;">
-                <button id="save-card-btn" onclick="saveCard()" class="btn btn-sm" style="background:var(--accent-red);color:#fff;width:auto;padding:0.35rem 0.9rem;font-size:0.82rem;">
+            <div id="stripe-payment-element" style="min-height:40px;"></div>
+            <div id="stripe-loading" class="text-muted small" style="text-align:center;padding:1.25rem 0;">
+                <i class="fa fa-spinner fa-spin" style="margin-right:0.4rem;"></i> Loading secure payment form...
+            </div>
+            <div id="add-card-error" style="display:none;color:var(--danger);font-size:0.83rem;margin:0.6rem 0;"></div>
+            <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.75rem;">
+                <button id="save-card-btn" onclick="saveCard()" class="btn btn-sm" style="background:var(--accent-red);color:#fff;white-space:nowrap;">
                     <i class="fa fa-lock" style="margin-right:0.35rem;"></i>Save Card
                 </button>
-                <button onclick="cancelAddCard()" class="btn btn-ghost btn-sm" style="width:auto;font-size:0.82rem;">Cancel</button>
+                <button onclick="cancelAddCard()" class="btn btn-ghost btn-sm" style="white-space:nowrap;">Cancel</button>
             </div>
         </div>
 
@@ -81,40 +82,81 @@
 </div>
 
 <script>
-const _stripeKey  = '<%= stripePublishableKey %>';
-const _brandIcons = { visa:'💳', mastercard:'💳', amex:'💳', discover:'💳' };
+const _stripeKey = '<%= stripePublishableKey %>';
+
+// ── Expiry check ──────────────────────────────────────────────────────────────
+function isExpired(c) {
+    const today        = new Date();
+    const currentYear  = today.getFullYear();
+    const currentMonth = today.getMonth() + 1; // 1–12
+    const cardYear     = parseInt(c.expYear,  10);
+    const cardMonth    = parseInt(c.expMonth, 10);
+    if (cardYear < currentYear) return true;
+    if (cardYear === currentYear && cardMonth < currentMonth) return true;
+    return false;
+}
+
+// ── Brand icons (matches card-selector.js pattern) ────────────────────────────
+function brandIcon(brand) {
+    const icons = {
+        visa:       'fa-cc-visa',
+        mastercard: 'fa-cc-mastercard',
+        amex:       'fa-cc-amex',
+        discover:   'fa-cc-discover',
+        diners:     'fa-cc-diners-club',
+        jcb:        'fa-cc-jcb',
+    };
+    const key = (brand || '').toLowerCase();
+    return icons[key]
+        ? `<i class="fab ${icons[key]}" style="font-size:1.1rem;margin-right:0.4rem"></i>`
+        : `<i class="fa fa-credit-card" style="margin-right:0.4rem"></i>`;
+}
 
 // ── Add Card flow ─────────────────────────────────────────────────────────────
-let _stripe       = null;
-let _cardElement  = null;
+let _stripe         = null;
+let _stripeElements = null;
 
-function showAddCardForm() {
-    document.getElementById('add-card-form').style.display = 'block';
-    document.getElementById('add-card-btn').style.display  = 'none';
+async function showAddCardForm() {
+    document.getElementById('add-card-form').style.display  = 'block';
+    document.getElementById('add-card-btn').style.display   = 'none';
     document.getElementById('add-card-error').style.display = 'none';
 
-    if (!_stripe && _stripeKey) {
-        _stripe = Stripe(_stripeKey);
-    }
-    if (_stripe && !_cardElement) {
-        const elements = _stripe.elements();
-        _cardElement = elements.create('card', {
-            style: {
-                base: { fontSize: '15px', color: '#1a1a1a', '::placeholder': { color: '#9ca3af' } },
-            },
+    if (_stripeElements) return; // already mounted
+
+    const loadingEl = document.getElementById('stripe-loading');
+    const elementEl = document.getElementById('stripe-payment-element');
+    if (loadingEl) loadingEl.style.display = 'block';
+    if (elementEl) elementEl.innerHTML     = '';
+
+    try {
+        const token  = localStorage.getItem('access_token') || localStorage.getItem('authToken') || localStorage.getItem('token') || '';
+        const siRes  = await fetch('/api/payments/setup-intent', {
+            method:  'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         });
-        _cardElement.mount('#card-element');
+        const siData = await siRes.json();
+        if (!siRes.ok) throw new Error(siData.error || 'Could not set up card saving.');
+
+        if (!_stripe && _stripeKey) _stripe = Stripe(_stripeKey);
+        _stripeElements = _stripe.elements({ clientSecret: siData.clientSecret });
+        const payEl = _stripeElements.create('payment');
+        payEl.mount('#stripe-payment-element');
+        if (loadingEl) loadingEl.style.display = 'none';
+    } catch (err) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        const errEl = document.getElementById('add-card-error');
+        errEl.textContent   = err.message;
+        errEl.style.display = 'block';
     }
 }
 
 function cancelAddCard() {
-    document.getElementById('add-card-form').style.display = 'none';
-    document.getElementById('add-card-btn').style.display  = '';
+    document.getElementById('add-card-form').style.display  = 'none';
+    document.getElementById('add-card-btn').style.display   = '';
     document.getElementById('add-card-error').style.display = 'none';
-    if (_cardElement) {
-        _cardElement.unmount();
-        _cardElement = null;
-    }
+    const elementEl = document.getElementById('stripe-payment-element');
+    if (elementEl) elementEl.innerHTML = '';
+    _stripeElements = null;
 }
 
 async function saveCard() {
@@ -122,26 +164,20 @@ async function saveCard() {
     const errEl   = document.getElementById('add-card-error');
     errEl.style.display = 'none';
 
-    if (!_stripe || !_cardElement) {
-        errEl.textContent = 'Payment form not ready. Please refresh and try again.';
+    if (!_stripe || !_stripeElements) {
+        errEl.textContent   = 'Payment form not ready. Please refresh and try again.';
         errEl.style.display = 'block';
         return;
     }
 
-    saveBtn.disabled = true;
+    saveBtn.disabled  = true;
     saveBtn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.35rem;"></i>Saving…';
 
     try {
-        const token   = localStorage.getItem('access_token') || localStorage.getItem('authToken') || localStorage.getItem('token') || '';
-        const siRes   = await fetch('/api/payments/setup-intent', {
-            method:  'POST',
-            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        });
-        const siData  = await siRes.json();
-        if (!siRes.ok) throw new Error(siData.error || 'Could not set up card saving.');
-
-        const result = await _stripe.confirmCardSetup(siData.clientSecret, {
-            payment_method: { card: _cardElement },
+        const result = await _stripe.confirmSetup({
+            elements:      _stripeElements,
+            confirmParams: { return_url: window.location.href },
+            redirect:      'if_required',
         });
 
         if (result.error) {
@@ -153,13 +189,16 @@ async function saveCard() {
         }
 
         // Card saved successfully — clean up form and reload list
-        _cardElement.unmount();
-        _cardElement = null;
+        document.getElementById('stripe-payment-element').innerHTML = '';
+        _stripeElements = null;
         document.getElementById('add-card-form').style.display = 'none';
         document.getElementById('add-card-btn').style.display  = '';
         saveBtn.disabled  = false;
         saveBtn.innerHTML = '<i class="fa fa-lock" style="margin-right:0.35rem;"></i>Save Card';
         toast('Card saved successfully!', 'success');
+        const _p  = new URLSearchParams(window.location.search);
+        const _rt = _p.get('returnTo');
+        if (_rt) { window.location.href = decodeURIComponent(_rt); return; }
         loadSavedCards();
     } catch (err) {
         errEl.textContent   = err.message;
@@ -170,6 +209,13 @@ async function saveCard() {
 }
 
 async function loadSavedCards() {
+    // Reset all display states before every fetch
+    document.getElementById('cards-loading').style.display = 'block';
+    document.getElementById('cards-error').style.display   = 'none';
+    document.getElementById('cards-list').style.display    = 'none';
+    document.getElementById('cards-list').innerHTML        = '';
+    document.getElementById('cards-empty').style.display   = 'none';
+
     const token = localStorage.getItem('access_token');
     if (!token) {
         document.getElementById('cards-loading').style.display = 'none';
@@ -188,20 +234,24 @@ async function loadSavedCards() {
         }
         const list = document.getElementById('cards-list');
         list.style.display = 'flex';
-        list.innerHTML = cards.map(c => `
-            <div class="card-item" id="card-${c.id}">
-                <div class="card-info">
-                    <div class="card-brand">${_brandIcons[c.brand] || '💳'}</div>
-                    <div class="card-detail">
-                        <strong>${c.brand.charAt(0).toUpperCase() + c.brand.slice(1)} •••• ${c.last4}</strong>
-                        <span class="card-expiry">Expires ${String(c.expMonth).padStart(2,'0')}/${c.expYear}</span>
+        list.innerHTML = cards.map(c => {
+            const brand   = c.brand.charAt(0).toUpperCase() + c.brand.slice(1);
+            const exp     = `${String(c.expMonth).padStart(2,'0')}/${c.expYear}`;
+            const expired = isExpired(c);
+            return `
+            <div class="payment-selector-card" id="card-${c.id}" style="${expired ? 'opacity:0.65;' : ''}">
+                <div class="pm-card-info">
+                    <div class="pm-card-brand">${brandIcon(c.brand)}${brand} &bull;&bull;&bull;&bull; ${c.last4}</div>
+                    <div class="pm-card-expiry" style="${expired ? 'color:#dc2626;' : ''}">
+                        Expires ${exp}
+                        ${expired ? '<span style="margin-left:0.4rem;padding:0.1rem 0.45rem;background:#fca5a5;color:#7f1d1d;border-radius:4px;font-size:0.68rem;font-weight:700;">Expired</span>' : ''}
                     </div>
                 </div>
-                <button class="btn btn-danger btn-xs" onclick="removeCard('${c.id}')">
-                    <i class="fa fa-trash"></i> Remove
+                <button class="btn btn-sm btn-remove-card" data-id="${c.id}" style="background:var(--accent-red);color:#fff;white-space:nowrap;">
+                    <i class="fa fa-trash" style="margin-right:0.3rem;"></i>Remove
                 </button>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
     } catch (err) {
         document.getElementById('cards-loading').style.display = 'none';
         const errEl = document.getElementById('cards-error');
@@ -222,7 +272,6 @@ async function removeCard(pmId) {
         if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Remove failed'); }
         document.getElementById(`card-${pmId}`)?.remove();
         toast('Card removed.', 'success');
-        // If list is now empty, show empty state
         if (!document.getElementById('cards-list').children.length) {
             document.getElementById('cards-list').style.display  = 'none';
             document.getElementById('cards-empty').style.display = 'block';
@@ -256,6 +305,11 @@ async function loadPayoutSection() {
 
 loadSavedCards();
 loadPayoutSection();
+
+document.getElementById('cards-list').addEventListener('click', function (e) {
+    const btn = e.target.closest('.btn-remove-card');
+    if (btn) removeCard(btn.dataset.id);
+});
 </script>
 </body>
 </html>

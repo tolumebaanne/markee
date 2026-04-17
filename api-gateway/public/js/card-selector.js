@@ -9,6 +9,17 @@
         return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    function isExpired(c) {
+        const today        = new Date();
+        const currentYear  = today.getFullYear();
+        const currentMonth = today.getMonth() + 1;
+        const cardYear     = parseInt(c.expYear,  10);
+        const cardMonth    = parseInt(c.expMonth, 10);
+        if (cardYear < currentYear) return true;
+        if (cardYear === currentYear && cardMonth < currentMonth) return true;
+        return false;
+    }
+
     function brandIcon(brand) {
         const icons = {
             visa:       'fa-cc-visa',
@@ -71,16 +82,25 @@
             }
 
             body.innerHTML = cards.map((c, i) => {
-                const brand = escHtml(c.brand.charAt(0).toUpperCase() + c.brand.slice(1));
-                const exp   = `${String(c.expMonth).padStart(2,'0')}/${c.expYear}`;
+                const brand   = escHtml(c.brand.charAt(0).toUpperCase() + c.brand.slice(1));
+                const exp     = `${String(c.expMonth).padStart(2,'0')}/${c.expYear}`;
+                const expired = isExpired(c);
+                if (expired) {
+                    return `
+                <div class="payment-selector-card" data-index="${i}" aria-disabled="true" tabindex="-1" style="pointer-events:none;opacity:0.5;" aria-label="${brand} ending ${escHtml(c.last4)} — expired">
+                    <div class="pm-card-brand">${brandIcon(c.brand)}${brand} •••• ${escHtml(c.last4)}</div>
+                    <div class="pm-card-expiry" style="color:#dc2626;">Expires ${exp} <span style="margin-left:0.4rem;padding:0.1rem 0.45rem;background:#fca5a5;color:#7f1d1d;border-radius:4px;font-size:0.68rem;font-weight:700;">Expired</span></div>
+                </div>`;
+                }
                 return `
-                <div class="payment-selector-card" data-index="${i}" tabindex="0" role="button" aria-label="Select ${brand} ending ${c.last4}">
+                <div class="payment-selector-card" data-index="${i}" tabindex="0" role="button" aria-label="Select ${brand} ending ${escHtml(c.last4)}">
                     <div class="pm-card-brand">${brandIcon(c.brand)}${brand} •••• ${escHtml(c.last4)}</div>
                     <div class="pm-card-expiry">Expires ${exp}</div>
                 </div>`;
             }).join('');
 
-            body.querySelectorAll('.payment-selector-card').forEach((card, i) => {
+            body.querySelectorAll('.payment-selector-card:not([aria-disabled])').forEach((card) => {
+                const i = parseInt(card.dataset.index, 10);
                 const select = () => {
                     overlay.remove();
                     if (onSelect) onSelect(cards[i]);

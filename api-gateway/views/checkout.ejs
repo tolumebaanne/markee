@@ -729,6 +729,18 @@ function openCardSelector() {
     });
 }
 
+// ── Expiry check (matches wallet.ejs and card-selector.js) ──────────────
+function isExpired(c) {
+    const today        = new Date();
+    const currentYear  = today.getFullYear();
+    const currentMonth = today.getMonth() + 1;
+    const cardYear     = parseInt(c.expYear,  10);
+    const cardMonth    = parseInt(c.expMonth, 10);
+    if (cardYear < currentYear) return true;
+    if (cardYear === currentYear && cardMonth < currentMonth) return true;
+    return false;
+}
+
 // S21 — Check for saved cards on page load; card entry never happens on checkout
 async function loadSavedCards() {
     const token = getToken();
@@ -754,12 +766,27 @@ async function loadSavedCards() {
             return;
         }
 
-        // Has saved cards — hide no-cards message, show selector actions
+        // Filter to non-expired cards only
+        const validCards = cards.filter(c => !isExpired(c));
+
+        if (!validCards.length) {
+            // All cards expired — prompt user to update wallet
+            _selectedSavedPmId = null;
+            document.getElementById('no-saved-cards-msg').innerHTML =
+                `<i class="fa fa-exclamation-triangle" style="margin-right:0.4rem;color:var(--accent-red);"></i>` +
+                `All saved cards are expired. <a href="/account/wallet" style="color:var(--accent-red);font-weight:600;text-decoration:underline;">Update your wallet</a>`;
+            document.getElementById('no-saved-cards-msg').style.display    = 'block';
+            document.getElementById('selected-card-display').style.display = 'none';
+            document.getElementById('card-selector-actions').style.display = 'none';
+            return;
+        }
+
+        // Has valid saved cards — hide no-cards message, show selector actions
         document.getElementById('no-saved-cards-msg').style.display    = 'none';
         document.getElementById('card-selector-actions').style.display = 'flex';
 
-        // Auto-select the first saved card so there's always a default
-        const first = cards[0];
+        // Auto-select the first non-expired card
+        const first = validCards[0];
         _selectedSavedPmId = first.id;
         const brand = first.brand.charAt(0).toUpperCase() + first.brand.slice(1);
         const exp   = String(first.expMonth).padStart(2,'0') + '/' + first.expYear;
