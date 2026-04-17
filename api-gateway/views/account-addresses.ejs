@@ -160,11 +160,19 @@
 </div>
 
 <script>
+const toast  = window.showToast;   // showToast is the exported name in toast.js
 const TOKEN  = localStorage.getItem('access_token') || localStorage.getItem('authToken') || localStorage.getItem('token') || '';
 const HDRS   = { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` };
+const RETURN_TO = new URLSearchParams(window.location.search).get('returnTo') || '';
 let _storeId = null;
 let _deliveryAddresses = [];
 let _pickupLocations   = [];
+
+// Update back link if we came from somewhere specific
+if (RETURN_TO) {
+    const backLink = document.querySelector('a[href="/account"]');
+    if (backLink) { backLink.href = RETURN_TO; backLink.querySelector('i')?.after ? backLink.innerHTML = '<i class="fa fa-arrow-left"></i> Back' : null; backLink.textContent = '← Back'; backLink.innerHTML = '<i class="fa fa-arrow-left"></i> Back'; }
+}
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 (async () => {
@@ -271,6 +279,7 @@ async function saveDeliveryAddress() {
         renderDelivery();
         closeDeliveryForm();
         toast(id ? 'Address updated' : 'Address added', 'success');
+        if (RETURN_TO) { setTimeout(() => { window.location.href = RETURN_TO; }, 900); }
     } catch (e) { toast('Error: ' + e.message, 'error'); }
 }
 

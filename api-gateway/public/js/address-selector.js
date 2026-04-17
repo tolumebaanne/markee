@@ -75,7 +75,9 @@
                 const msg  = type === 'delivery'
                     ? 'No saved addresses yet.'
                     : 'No pickup locations saved yet.';
-                const href = '/account/addresses';
+                const href = type === 'delivery'
+                    ? `/account/addresses?returnTo=${encodeURIComponent(window.location.pathname)}`
+                    : '/account/addresses';
                 const cta  = type === 'delivery' ? 'Add Address' : 'Add Pickup Location';
                 body.innerHTML = `
                     <div class="address-selector-empty">
