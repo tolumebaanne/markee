@@ -10,15 +10,37 @@
     <script src="/js/confirm.js"></script>
     <script src="https://js.stripe.com/v3/"></script>
     <style>
-        .wallet-section       { margin-bottom: 2.5rem; }
-        .wallet-section h3    { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
+        /* ── Wallet page layout ───────────────────────────────────────────── */
+        .wallet-page-header    { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.75rem; }
+        .wallet-back-link      { color: var(--muted); text-decoration: none; font-size: 0.85rem; }
+        .wallet-divider        { color: var(--border); }
+        .wallet-section        { margin-bottom: 2.5rem; }
+        .wallet-section h3     { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
+        .wallet-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+        .wallet-section-icon   { color: var(--accent); margin-right: 0.4rem; }
+        .wallet-hint           { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.75rem; }
+
+        /* ── Add-card panel ───────────────────────────────────────────────── */
+        .add-card-panel       { display: none; border: 1.5px solid var(--border); border-radius: 10px; padding: 1.1rem; margin-bottom: 1rem; background: var(--surface2); }
+        .stripe-payment-element { min-height: 40px; }
+        .stripe-loading-msg   { text-align: center; padding: 1.25rem 0; color: var(--muted); font-size: 0.9rem; }
+        .add-card-error-msg   { display: none; color: var(--danger); font-size: 0.83rem; margin: 0.6rem 0; }
+        .add-card-actions     { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.75rem; }
+
+        /* ── Saved cards list ─────────────────────────────────────────────── */
         .card-list            { display: flex; flex-direction: column; gap: 0.75rem; }
+        .cards-loading-msg    { color: var(--muted); font-size: 0.9rem; }
         .empty-state          { text-align: center; padding: 2.5rem 1rem; color: var(--muted); }
         .empty-state i        { font-size: 2.2rem; display: block; margin-bottom: 0.6rem; }
-        /* Align card item remove button to the right */
-        .payment-selector-card { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; cursor: default; }
-        .payment-selector-card:hover { border-color: var(--border); background: var(--surface2); }
+
+        /* ── Card item (wallet list, not selector modal) ──────────────────── */
+        .payment-selector-card          { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; cursor: default; }
+        .payment-selector-card:hover    { border-color: var(--border); background: var(--surface2); }
         .payment-selector-card .pm-card-info { flex: 1; }
+
+        /* ── Payout section ───────────────────────────────────────────────── */
+        .payout-status      { font-size: 0.88rem; margin-bottom: 0.6rem; }
+        .payout-info        { font-size: 0.82rem; color: var(--muted); }
     </style>
 </head>
 <body>
@@ -31,41 +53,41 @@
 </nav>
 
 <div class="container py-4 animate-fade">
-    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.75rem">
-        <a href="/account" style="color:var(--muted);text-decoration:none;font-size:0.85rem"><i class="fa fa-arrow-left"></i> Account</a>
-        <span style="color:var(--border)">/</span>
+    <div class="wallet-page-header">
+        <a href="/account" class="wallet-back-link"><i class="fa fa-arrow-left"></i> Account</a>
+        <span class="wallet-divider">/</span>
         <h2 style="margin:0">Wallet</h2>
     </div>
 
     <!-- ── Saved Cards ─────────────────────────────────────────────────────────── -->
     <div class="wallet-section">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
-            <h3 style="margin:0"><i class="fa fa-credit-card" style="color:var(--accent);margin-right:0.4rem"></i> Saved Cards</h3>
-            <button id="add-card-btn" onclick="showAddCardForm()" class="btn btn-sm" style="background:var(--accent-red);color:#fff;white-space:nowrap;">
-                <i class="fa fa-plus" style="margin-right:0.35rem;"></i>Add Card
+        <div class="wallet-section-header">
+            <h3 style="margin:0"><i class="fa fa-credit-card wallet-section-icon"></i> Saved Cards</h3>
+            <button id="add-card-btn" onclick="showAddCardForm()" class="btn btn-sm btn-red">
+                <i class="fa fa-plus"></i>Add Card
             </button>
         </div>
-        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">
+        <p class="wallet-hint">
             Add a card here or cards are saved automatically when you complete a card payment. Remove a card to stop it appearing at checkout.
         </p>
 
         <!-- Add card form (hidden by default) -->
-        <div id="add-card-form" style="display:none; border:1.5px solid var(--border); border-radius:10px; padding:1.1rem; margin-bottom:1rem; background:var(--surface2);">
-            <p style="font-size:0.85rem;color:var(--muted);margin-bottom:0.75rem;">Enter your card details. You may be prompted to verify with your bank.</p>
-            <div id="stripe-payment-element" style="min-height:40px;"></div>
-            <div id="stripe-loading" class="text-muted small" style="text-align:center;padding:1.25rem 0;">
-                <i class="fa fa-spinner fa-spin" style="margin-right:0.4rem;"></i> Loading secure payment form...
+        <div id="add-card-form" class="add-card-panel">
+            <p class="wallet-hint">Enter your card details. You may be prompted to verify with your bank.</p>
+            <div id="stripe-payment-element" class="stripe-payment-element"></div>
+            <div id="stripe-loading" class="stripe-loading-msg">
+                <i class="fa fa-spinner fa-spin"></i> Loading secure payment form...
             </div>
-            <div id="add-card-error" style="display:none;color:var(--danger);font-size:0.83rem;margin:0.6rem 0;"></div>
-            <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.75rem;">
-                <button id="save-card-btn" onclick="saveCard()" class="btn btn-sm" style="background:var(--accent-red);color:#fff;white-space:nowrap;">
-                    <i class="fa fa-lock" style="margin-right:0.35rem;"></i>Save Card
+            <div id="add-card-error" class="add-card-error-msg"></div>
+            <div class="add-card-actions">
+                <button id="save-card-btn" onclick="saveCard()" class="btn btn-sm btn-red">
+                    <i class="fa fa-lock"></i>Save Card
                 </button>
-                <button onclick="cancelAddCard()" class="btn btn-ghost btn-sm" style="white-space:nowrap;">Cancel</button>
+                <button onclick="cancelAddCard()" class="btn btn-ghost btn-sm">Cancel</button>
             </div>
         </div>
 
-        <div id="cards-loading" style="color:var(--muted);font-size:0.9rem"><i class="fa fa-spinner fa-spin"></i> Loading...</div>
+        <div id="cards-loading" class="cards-loading-msg"><i class="fa fa-spinner fa-spin"></i> Loading...</div>
         <div id="cards-error"   style="display:none" class="error-banner"></div>
         <div id="cards-list"    class="card-list"    style="display:none"></div>
         <div id="cards-empty"   class="empty-state"  style="display:none">
@@ -76,7 +98,7 @@
 
     <!-- ── Payout Account (sellers only) ─────────────────────────────────────── -->
     <div class="wallet-section" id="payout-section" style="display:none">
-        <h3><i class="fa fa-building-columns" style="color:var(--accent);margin-right:0.4rem"></i> Payout Account</h3>
+        <h3><i class="fa fa-building-columns wallet-section-icon"></i> Payout Account</h3>
         <div id="payout-body"></div>
     </div>
 </div>
@@ -96,7 +118,7 @@ function isExpired(c) {
     return false;
 }
 
-// ── Brand icons (matches card-selector.js pattern) ────────────────────────────
+// ── Brand icons ───────────────────────────────────────────────────────────────
 function brandIcon(brand) {
     const icons = {
         visa:       'fa-cc-visa',
@@ -108,8 +130,8 @@ function brandIcon(brand) {
     };
     const key = (brand || '').toLowerCase();
     return icons[key]
-        ? `<i class="fab ${icons[key]}" style="font-size:1.1rem;margin-right:0.4rem"></i>`
-        : `<i class="fa fa-credit-card" style="margin-right:0.4rem"></i>`;
+        ? `<i class="fab ${icons[key]} brand-icon"></i>`
+        : `<i class="fa fa-credit-card brand-icon-generic"></i>`;
 }
 
 // ── Add Card flow ─────────────────────────────────────────────────────────────
@@ -171,7 +193,7 @@ async function saveCard() {
     }
 
     saveBtn.disabled  = true;
-    saveBtn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.35rem;"></i>Saving…';
+    saveBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>Saving…';
 
     try {
         const result = await _stripe.confirmSetup({
@@ -184,7 +206,7 @@ async function saveCard() {
             errEl.textContent   = result.error.message || 'Card setup failed.';
             errEl.style.display = 'block';
             saveBtn.disabled    = false;
-            saveBtn.innerHTML   = '<i class="fa fa-lock" style="margin-right:0.35rem;"></i>Save Card';
+            saveBtn.innerHTML   = '<i class="fa fa-lock"></i>Save Card';
             return;
         }
 
@@ -194,7 +216,7 @@ async function saveCard() {
         document.getElementById('add-card-form').style.display = 'none';
         document.getElementById('add-card-btn').style.display  = '';
         saveBtn.disabled  = false;
-        saveBtn.innerHTML = '<i class="fa fa-lock" style="margin-right:0.35rem;"></i>Save Card';
+        saveBtn.innerHTML = '<i class="fa fa-lock"></i>Save Card';
         toast('Card saved successfully!', 'success');
         const _p  = new URLSearchParams(window.location.search);
         const _rt = _p.get('returnTo');
@@ -207,7 +229,7 @@ async function saveCard() {
         errEl.textContent   = err.message;
         errEl.style.display = 'block';
         saveBtn.disabled    = false;
-        saveBtn.innerHTML   = '<i class="fa fa-lock" style="margin-right:0.35rem;"></i>Save Card';
+        saveBtn.innerHTML   = '<i class="fa fa-lock"></i>Save Card';
     }
 }
 
@@ -242,16 +264,16 @@ async function loadSavedCards() {
             const exp     = `${String(c.expMonth).padStart(2,'0')}/${c.expYear}`;
             const expired = isExpired(c);
             return `
-            <div class="payment-selector-card" id="card-${c.id}" style="${expired ? 'opacity:0.65;' : ''}">
+            <div class="payment-selector-card${expired ? ' payment-selector-card--expired' : ''}" id="card-${c.id}">
                 <div class="pm-card-info">
                     <div class="pm-card-brand">${brandIcon(c.brand)}${brand} &bull;&bull;&bull;&bull; ${c.last4}</div>
-                    <div class="pm-card-expiry" style="${expired ? 'color:#dc2626;' : ''}">
+                    <div class="pm-card-expiry${expired ? ' pm-card-expiry--expired' : ''}">
                         Expires ${exp}
-                        ${expired ? '<span style="margin-left:0.4rem;padding:0.1rem 0.45rem;background:#fca5a5;color:#7f1d1d;border-radius:4px;font-size:0.68rem;font-weight:700;">Expired</span>' : ''}
+                        ${expired ? '<span class="card-badge-expired">Expired</span>' : ''}
                     </div>
                 </div>
-                <button class="btn btn-sm btn-remove-card" data-id="${c.id}" style="background:var(--accent-red);color:#fff;white-space:nowrap;">
-                    <i class="fa fa-trash" style="margin-right:0.3rem;"></i>Remove
+                <button class="btn btn-sm btn-red btn-remove-card" data-id="${c.id}">
+                    <i class="fa fa-trash"></i>Remove
                 </button>
             </div>`;
         }).join('');
@@ -302,10 +324,10 @@ async function loadPayoutSection() {
         const labels= { not_connected:'Not Connected', pending:'Under Review', active:'Active — Payouts Enabled' };
         const colors= { not_connected:'var(--warn)', pending:'#60a5fa', active:'var(--success)' };
         document.getElementById('payout-body').innerHTML = `
-            <div style="font-size:0.88rem;margin-bottom:0.6rem">
+            <div class="payout-status">
                 Status: <strong style="color:${colors[cs]}">${labels[cs] || cs}</strong>
             </div>
-            <p style="font-size:0.82rem;color:var(--muted)">
+            <p class="payout-info wallet-hint">
                 Payout account status is managed by Markee staff. Contact support to connect your bank account.
             </p>`;
     } catch (err) { /* non-critical — hide payout section */ }

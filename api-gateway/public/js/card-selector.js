@@ -31,8 +31,8 @@
         };
         const key = (brand || '').toLowerCase();
         return icons[key]
-            ? `<i class="fab ${icons[key]}" style="font-size:1.1rem;margin-right:0.4rem"></i>`
-            : `<i class="fa fa-credit-card" style="margin-right:0.4rem"></i>`;
+            ? `<i class="fab ${icons[key]} brand-icon"></i>`
+            : `<i class="fa fa-credit-card brand-icon-generic"></i>`;
     }
 
     window.showCardSelector = async function (onSelect) {
@@ -87,9 +87,9 @@
                 const expired = isExpired(c);
                 if (expired) {
                     return `
-                <div class="payment-selector-card" data-index="${i}" aria-disabled="true" tabindex="-1" style="pointer-events:none;opacity:0.5;" aria-label="${brand} ending ${escHtml(c.last4)} — expired">
+                <div class="payment-selector-card payment-selector-card--expired" data-index="${i}" aria-disabled="true" tabindex="-1" aria-label="${brand} ending ${escHtml(c.last4)} — expired">
                     <div class="pm-card-brand">${brandIcon(c.brand)}${brand} •••• ${escHtml(c.last4)}</div>
-                    <div class="pm-card-expiry" style="color:#dc2626;">Expires ${exp} <span style="margin-left:0.4rem;padding:0.1rem 0.45rem;background:#fca5a5;color:#7f1d1d;border-radius:4px;font-size:0.68rem;font-weight:700;">Expired</span></div>
+                    <div class="pm-card-expiry pm-card-expiry--expired">Expires ${exp} <span class="card-badge-expired">Expired</span></div>
                 </div>`;
                 }
                 return `
