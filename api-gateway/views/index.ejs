@@ -176,42 +176,58 @@ async function loadProducts(append = false) {
     try {
         const params = new URLSearchParams({ page: currentPage, limit: PAGE_LIMIT });
         if (currentCategory) params.set('category', currentCategory);
-        if (currentSearch)   params.set('q', currentSearch); // search-service uses 'q'
-        if (currentSort)     params.set('sort', currentSort === 'momentum' ? 'trending' : currentSort); // 'momentum' -> 'trending' in search-service
-        
-        const res = await fetch(`/api/search?${params}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        
-        // search-service returns { results, suggestions, totalCount, ... }
-        // Normalize to the shape renderProductCard expects (_id, images, etc.)
-        const products = (data.results || []).map(r => ({
-            _id:    r.productId || r._id,
-            title:  r.title,
-            price:  r.price,
-            images: r.images || (r.imageUrl ? [r.imageUrl] : []),
-            category:      r.category,
-            sellerId:      r.sellerId,
-            rating:        r.rating,
-            reviewCount:   r.reviewCount,
-            fastDeliveryFee:    r.fastDeliveryFee    || 0,
-            fulfillmentOptions: r.fulfillmentOptions || [],
-            enabledCarriers:    r.enabledCarriers    || [],
-            pickupLocationId:   r.pickupLocationId   || null
-        }));
-        const suggestions = data.suggestions || null;
+        if (currentSort)     params.set('sort', currentSort);
+
+        let products, hasMoreFlag, totalCount;
+
+        if (currentSearch) {
+            // Keyword search — use search-service for relevance ranking
+            params.set('q', currentSearch);
+            params.set('sort', currentSort === 'momentum' ? 'trending' : currentSort);
+            const res = await fetch(`/api/search?${params}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            // Normalize: SearchIndex has productId not _id, and no images field
+            products = (data.results || []).map(r => ({
+                _id:    r.productId || r._id,
+                title:  r.title,
+                price:  r.price,
+                images: r.images || (r.imageUrl ? [r.imageUrl] : []),
+                category:      r.category,
+                sellerId:      r.sellerId,
+                rating:        r.rating,
+                reviewCount:   r.reviewCount,
+                fastDeliveryFee:    r.fastDeliveryFee    || 0,
+                fulfillmentOptions: r.fulfillmentOptions || [],
+                enabledCarriers:    r.enabledCarriers    || [],
+                pickupLocationId:   r.pickupLocationId   || null
+            }));
+            hasMoreFlag = !!data.hasMore;
+            totalCount  = data.totalCount || products.length;
+            // "Did you mean?" suggestions
+            const dym = document.getElementById('did-you-mean');
+            const suggestions = data.suggestions;
+            if (suggestions && suggestions.didYouMean && suggestions.didYouMean.length > 0) {
+                dym.innerHTML = `Did you mean: ${suggestions.didYouMean.map(s => `<span class="dym-link" onclick="applySuggestion('${s.replace(/'/g, "\\'")}')">${s}</span>`).join(', ')}?`;
+                dym.style.display = 'flex';
+            } else {
+                dym.style.display = 'none';
+            }
+        } else {
+            // Browse/discovery mode — use catalog directly (has images, always populated)
+            if (currentSort === 'momentum') params.set('shuffle', currentPage === 1 ? 'true' : 'false');
+            const res = await fetch(`/api/catalog/products?${params}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            products = await res.json();
+            if (!Array.isArray(products)) throw new Error('Invalid response from catalog');
+            hasMoreFlag = products.length >= PAGE_LIMIT;
+            totalCount  = null;
+            const dym = document.getElementById('did-you-mean');
+            if (dym) dym.style.display = 'none';
+        }
 
         if (!append) grid.innerHTML = '';
         sentinel.style.display = 'none';
-        
-        // Handle "Did you mean?" suggestions
-        const dym = document.getElementById('did-you-mean');
-        if (suggestions && suggestions.didYouMean && suggestions.didYouMean.length > 0) {
-            dym.innerHTML = `Did you mean: ${suggestions.didYouMean.map(s => `<span class="dym-link" onclick="applySuggestion('${s.replace(/'/g, "\\'")}')">${s}</span>`).join(', ')}?`;
-            dym.style.display = 'flex';
-        } else {
-            dym.style.display = 'none';
-        }
 
         if (products.length === 0 && !append) {
             grid.innerHTML = '<div class="flex-center py-5 text-muted" style="grid-column:1/-1;">No listings found. Try a different search.</div>';
@@ -223,7 +239,7 @@ async function loadProducts(append = false) {
                 grid.appendChild(div.firstElementChild);
             });
 
-            if (!data.hasMore) {
+            if (!hasMoreFlag) {
                 hasMore = false;
                 document.getElementById('end-of-results').style.display = 'flex';
             } else {
@@ -232,8 +248,8 @@ async function loadProducts(append = false) {
 
             // Update result count if searching
             if (currentSearch || currentCategory) {
-                const total = data.totalCount || grid.children.length;
-                document.getElementById('result-count').textContent = `${total} listings`;
+                const count = totalCount || grid.children.length;
+                document.getElementById('result-count').textContent = `${count} listings`;
             }
         }
     } catch (err) {
