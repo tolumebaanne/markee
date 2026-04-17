@@ -295,7 +295,8 @@ router.post('/refresh', async (req, res) => {
       access_token:  accessToken,
       refresh_token: newRefreshToken,
       token_type:    'Bearer',
-      expires_in:    (account.isSuperuser ? 10 : 15) * 60
+      expires_in:    (account.isSuperuser ? 10 : 15) * 60,
+      is_superuser:  account.isSuperuser
     });
   } catch (err) {
     console.error('[ADMIN] auth/refresh error:', err.message);

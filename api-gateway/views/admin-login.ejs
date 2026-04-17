@@ -148,6 +148,31 @@
 const ADMIN_URL = '/api/admin';
 let preAuthToken = null;
 
+// ── Silent refresh on page load ───────────────────────────────────────────────
+// If a valid refresh token exists in localStorage, renew the session silently
+// and redirect to /admin without asking for credentials or TOTP.
+// TOTP is only required when the 3-day refresh token has truly expired or been
+// explicitly revoked (logout / session superseded by another device).
+(async function trySilentRefresh() {
+    const rt = localStorage.getItem('admin_refresh_token');
+    if (!rt) return; // no session — show login form
+    try {
+        const r = await fetch(`${ADMIN_URL}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: rt })
+        });
+        if (!r.ok) return; // token invalid/expired — show login form
+        const d = await r.json();
+        localStorage.setItem('admin_access_token',  d.access_token);
+        localStorage.setItem('admin_refresh_token', d.refresh_token);
+        if (d.is_superuser !== undefined) localStorage.setItem('admin_is_superuser', d.is_superuser ? 'true' : 'false');
+        window.location.replace('/admin');
+    } catch {
+        // network error — fall through to login form
+    }
+})();
+
 function showErr(msg) {
     const el = document.getElementById('err-msg');
     el.textContent = msg; el.style.display = 'block';
