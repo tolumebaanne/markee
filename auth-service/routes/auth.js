@@ -75,6 +75,10 @@ router.post('/login', requireNotAuth, async (req, res) => {
     // Block fully soft-deleted accounts (email is mangled so this is belt-and-suspenders)
     if (user.status === 'deleted') return res.redirect('/login?error=This account no longer exists.');
 
+    // Block moderated accounts — mirrors the check in oauth.js
+    if (user.moderationStatus === 'banned') return res.redirect('/login?error=This account has been banned.');
+    if (user.moderationStatus === 'suspended') return res.redirect('/login?error=This account has been suspended.');
+
     req.session.user = {
       id:               user._id.toString(),
       email:            user.email,

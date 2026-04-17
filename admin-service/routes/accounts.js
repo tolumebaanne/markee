@@ -11,6 +11,7 @@ const bcrypt   = require('bcrypt');
 const crypto   = require('crypto');
 
 const AdminAccount       = require('../models/AdminAccount');
+const AdminSession       = require('../models/AdminSession');
 const PermissionTemplate = require('../models/PermissionTemplate');
 const AdminActionLog     = require('../models/AdminActionLog');
 const { generateSecret, otpauthUri, generateRecoveryCodes } = require('../utils/totp');

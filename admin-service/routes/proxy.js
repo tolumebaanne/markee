@@ -570,11 +570,29 @@ router.get('/users', requirePermission('auth', 'read'), async (req, res) => {
 
 router.patch('/users/:userId/suspend', requirePermission('auth', 'ban'), auditLog('user.suspend', 'User'), async (req, res) => {
   const r = await callService('PATCH', `${userUrl()}/admin/users/${req.params.userId}/suspend`, req.body, req.admin.email);
+  if (r.ok) {
+    // Revoke active sessions so suspended user is kicked out immediately.
+    callService('POST', `${authUrl()}/admin/users/${req.params.userId}/revoke-sessions`, {}, req.admin.email)
+      .then(rv => {
+        if (!rv.ok) console.error(`[PROXY] suspend: session revocation failed for ${req.params.userId} — status ${rv.status}`);
+      })
+      .catch(err => console.error(`[PROXY] suspend: session revocation error for ${req.params.userId}:`, err.message));
+  }
   res.status(r.status).json(r.data);
 });
 
 router.patch('/users/:userId/ban', requirePermission('auth', 'ban'), auditLog('user.ban', 'User'), async (req, res) => {
   const r = await callService('PATCH', `${userUrl()}/admin/users/${req.params.userId}/ban`, req.body, req.admin.email);
+  if (r.ok) {
+    // Immediately revoke all refresh tokens so banned user cannot re-authenticate.
+    // Fire-and-forget — ban itself already succeeded; log failures but don't block the response.
+    callService('POST', `${authUrl()}/admin/users/${req.params.userId}/revoke-sessions`, {}, req.admin.email)
+      .then(rv => {
+        if (!rv.ok) console.error(`[PROXY] ban: session revocation failed for ${req.params.userId} — status ${rv.status}`);
+        else console.log(`[PROXY] ban: revoked ${rv.data?.revokedCount ?? '?'} sessions for ${req.params.userId}`);
+      })
+      .catch(err => console.error(`[PROXY] ban: session revocation error for ${req.params.userId}:`, err.message));
+  }
   res.status(r.status).json(r.data);
 });
 
