@@ -614,9 +614,6 @@ _stripeWebhookHandler = async function handleStripeWebhook(req, res) {
         const sig           = req.headers['stripe-signature'];
         const webhookSecret = STRIPE_WEBHOOK_SECRET_AT_LOAD;
 
-        // Diagnostic — remove after confirming fix
-        console.log(`[PAYMENT] Webhook recv: body=${Buffer.isBuffer(req.body) ? req.body.length + 'B' : typeof req.body} sig=${sig ? sig.substring(0, 20) + '...' : 'MISSING'} secret=${webhookSecret ? webhookSecret.substring(0, 12) + '...' : 'MISSING'}`);
-
         let event;
         try {
             event = provider.constructWebhookEvent(req.body, sig, webhookSecret);
