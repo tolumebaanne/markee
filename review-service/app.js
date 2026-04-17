@@ -77,6 +77,21 @@ SellerReviewSchema.index({ sellerId: 1, status: 1 });
 SellerReviewSchema.index({ buyerId: 1 });
 const SellerReview = db.model('SellerReview', SellerReviewSchema);
 
+// Buyer-level reviews (seller rates buyer)
+const BuyerReviewSchema = new mongoose.Schema({
+    sellerId:  { type: String, required: true },
+    buyerId:   { type: String, required: true },
+    orderId:   { type: String, required: true },
+    rating:    { type: Number, min: 1, max: 5, required: true },
+    body:      String,
+    tags:      [{ type: String, enum: ['fast_payment', 'clear_communication', 'smooth_transaction', 'repeat_buyer', 'late_payment', 'no_show', 'rude_behaviour', 'item_returned'] }],
+    status:    { type: String, enum: ['pending', 'approved', 'flagged'], default: 'approved' },
+    createdAt: { type: Date, default: Date.now, index: true }
+});
+BuyerReviewSchema.index({ sellerId: 1, orderId: 1 }, { unique: true }); // Only 1 review per seller per order
+BuyerReviewSchema.index({ buyerId: 1, status: 1 });
+const BuyerReview = db.model('BuyerReview', BuyerReviewSchema);
+
 // 48h review nudge tracking
 const NudgeSchema = new mongoose.Schema({
     orderId:     { type: mongoose.Schema.Types.ObjectId, required: true, unique: true },
@@ -189,9 +204,11 @@ bus.on('user.deleted', async (payload) => {
         const r1 = await Review.deleteMany({ buyerId: uid });
         // Seller reviews (buyer-as-reviewer and any where this user was the seller)
         const r2 = await SellerReview.deleteMany({ $or: [{ buyerId: uid }, { sellerId: uid }] });
+        // Buyer reviews
+        const r2b = await BuyerReview.deleteMany({ $or: [{ buyerId: uid }, { sellerId: uid }] });
         // Review nudge records for this buyer
         const r3 = await Nudge.deleteMany({ buyerId: uid });
-        console.log(`[REVIEW] user.deleted cleanup: ${r1.deletedCount} reviews, ${r2.deletedCount} seller-reviews, ${r3.deletedCount} nudges for user ${uid}`);
+        console.log(`[REVIEW] user.deleted cleanup: ${r1.deletedCount} reviews, ${r2.deletedCount} seller-reviews, ${r2b.deletedCount} buyer-reviews, ${r3.deletedCount} nudges for user ${uid}`);
     } catch (err) { console.error('[REVIEW] user.deleted cleanup error:', err.message); }
 });
 
@@ -289,6 +306,34 @@ app.get('/check/:productId', async (req, res) => {
             }
         } catch {}
 
+        res.json({ canReview, alreadyReviewed, orderId: eligibleOrderId });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// GET /check/seller/:sellerId — verify if a buyer can review this seller
+app.get('/check/seller/:sellerId', async (req, res) => {
+    if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
+    try {
+        const alreadyReviewed = !!(await SellerReview.findOne({ sellerId: req.params.sellerId, buyerId: req.user.sub }));
+        let canReview = false;
+        let eligibleOrderId = null;
+
+        if (!alreadyReviewed) {
+            try {
+                const oRes = await fetch(`http://localhost:5003/my-orders`, {
+                    headers: { 'x-user': JSON.stringify(req.user) }
+                });
+                if (oRes.ok) {
+                    const orders = await oRes.json();
+                    for (const o of orders) {
+                        if (['delivered', 'picked_up', 'self_fulfilled'].includes(o.status)) {
+                            const hasItem = (o.items || []).some(i => i.sellerId?.toString() === req.params.sellerId);
+                            if (hasItem) { canReview = true; eligibleOrderId = o._id; break; }
+                        }
+                    }
+                }
+            } catch {}
+        }
         res.json({ canReview, alreadyReviewed, orderId: eligibleOrderId });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
@@ -441,7 +486,29 @@ app.get('/seller/:storeId/stats', async (req, res) => {
         const storeId = req.params.storeId;
         const reviews = await Review.find({ sellerId: storeId, status: 'approved' });
         const total = reviews.length;
-        if (!total) return res.json({ avgRating: 0, totalCount: 0, replyRate: 0, fiveStarPct: 0, oneStarPct: 0 });
+        
+        // Segment 3: Add SellerReview aggregate formatting
+        const sellerReviews = await SellerReview.find({ sellerId: storeId, status: 'approved' });
+        const stTotal = sellerReviews.length;
+        let storeRating = { avgRating: 0, totalCount: 0, tagBreakdown: {} };
+        if (stTotal > 0) {
+            const stAvg = sellerReviews.reduce((s, r) => s + r.rating, 0) / stTotal;
+            const tags = {};
+            sellerReviews.forEach(r => {
+                (r.tags || []).forEach(t => { tags[t] = (tags[t] || 0) + 1; });
+            });
+            // Sort tags by frequency
+            const sortedTags = Object.entries(tags).sort((a,b) => b[1] - a[1]).reduce((acc, [k,v]) => { acc[k] = v; return acc; }, {});
+            storeRating = {
+                avgRating: Math.round(stAvg * 10) / 10,
+                totalCount: stTotal,
+                tagBreakdown: sortedTags
+            };
+        }
+
+        if (!total) {
+            return res.json({ avgRating: 0, totalCount: 0, replyRate: 0, fiveStarPct: 0, oneStarPct: 0, storeRating });
+        }
 
         const avg = reviews.reduce((s, r) => s + r.rating, 0) / total;
         const withReply = reviews.filter(r => r.sellerReply?.body).length;
@@ -453,7 +520,8 @@ app.get('/seller/:storeId/stats', async (req, res) => {
             totalCount:  total,
             replyRate:   Math.round((withReply / total) * 100) / 100,
             fiveStarPct: Math.round((fiveStar  / total) * 100),
-            oneStarPct:  Math.round((oneStar   / total) * 100)
+            oneStarPct:  Math.round((oneStar   / total) * 100),
+            storeRating
         });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
@@ -554,6 +622,83 @@ app.get('/seller-reviews/:sellerId', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
+// POST /buyer-review — submit a rating for a buyer
+app.post('/buyer-review', async (req, res) => {
+    if (!req.user?.storeId) return errorResponse(res, 403, 'Must be a registered seller to rate buyers');
+    try {
+        const { buyerId, orderId, rating, body, tags } = req.body;
+        if (!buyerId || !orderId || !rating) return errorResponse(res, 400, 'Missing required fields');
+
+        // Order delivery check
+        if (!deliveredSet.has(orderId?.toString())) {
+            return errorResponse(res, 403, 'Cannot rate buyer until order is delivered');
+        }
+
+        // Unique check
+        const existing = await BuyerReview.findOne({ sellerId: req.user.storeId, orderId });
+        if (existing) return errorResponse(res, 409, 'You have already rated this buyer for this order');
+
+        const rev = await BuyerReview.create({
+            sellerId: req.user.storeId, buyerId, orderId, rating, body, tags: tags || [],
+            status: 'approved'
+        });
+
+        // Compute new buyer avg
+        const approved = await BuyerReview.find({ buyerId, status: 'approved' });
+        const count = approved.length;
+        const avg = count ? approved.reduce((s, r) => s + r.rating, 0) / count : 0;
+
+        bus.emit('buyer.review.submitted', {
+            buyerId,
+            avgRating: Math.round(avg * 10) / 10,
+            reviewCount: count
+        });
+
+        res.status(201).json(rev);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// GET /buyer-review/:buyerId/stats — public buyer reputation
+app.get('/buyer-review/:buyerId/stats', async (req, res) => {
+    try {
+        const reviews = await BuyerReview.find({ buyerId: req.params.buyerId, status: 'approved' });
+        const totalCount = reviews.length;
+        const avgRating = totalCount ? reviews.reduce((s, r) => s + r.rating, 0) / totalCount : 0;
+        
+        const tagBreakdown = {};
+        reviews.forEach(r => {
+            (r.tags || []).forEach(t => { tagBreakdown[t] = (tagBreakdown[t] || 0) + 1; });
+        });
+
+        res.json({
+            avgRating: Math.round(avgRating * 10) / 10,
+            totalCount,
+            tagBreakdown
+        });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// GET /buyer-review/check — Did I already rate this buyer on this order?
+app.get('/buyer-review/check', async (req, res) => {
+    if (!req.user?.storeId) return res.json({ alreadyReviewed: false });
+    try {
+        const { orderId } = req.query;
+        if (!orderId) return errorResponse(res, 400, 'orderId required');
+        
+        const existing = await BuyerReview.findOne({ sellerId: req.user.storeId, orderId });
+        res.json({ alreadyReviewed: !!existing });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// GET /buyer-review/:buyerId — list for admin
+app.get('/buyer-review/:buyerId', async (req, res) => {
+    try {
+        const reviews = await BuyerReview.find({ buyerId: req.params.buyerId })
+            .sort({ createdAt: -1 });
+        res.json(reviews);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
 // GET /pending — admin moderation queue (pending + flagged)
 app.get('/pending', async (req, res) => {
     try {
@@ -612,8 +757,71 @@ app.delete('/admin/:id', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
+// GET /admin/buyer-review/all — admin: list all BuyerReviews for moderation
+app.get('/admin/buyer-review/all', async (req, res) => {
+    try {
+        const reviews = await BuyerReview.find({}).sort({ createdAt: -1 }).limit(100);
+        res.json(reviews);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// DELETE /admin/buyer-review/:id — admin: delete a buyer review and recalculate buyerTradingScore
+app.delete('/admin/buyer-review/:id', async (req, res) => {
+    try {
+        const rev = await BuyerReview.findByIdAndDelete(req.params.id);
+        if (!rev) return errorResponse(res, 404, 'Buyer review not found');
+
+        // Recalculate buyer's trading score from remaining reviews
+        const remaining = await BuyerReview.find({ buyerId: rev.buyerId, status: 'approved' });
+        const count = remaining.length;
+        const avg = count ? remaining.reduce((s, r) => s + r.rating, 0) / count : 0;
+
+        bus.emit('buyer.review.submitted', {
+            buyerId: rev.buyerId,
+            avgRating: Math.round(avg * 10) / 10,
+            reviewCount: count
+        });
+
+        res.json({ success: true, deleted: rev._id });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// GET /stats/platform — super admin: platform-wide review health
+app.get('/stats/platform', async (req, res) => {
+    try {
+        const [productReviews, sellerReviews, buyerReviews, flagged] = await Promise.all([
+            Review.find({ status: 'approved' }),
+            SellerReview.find({ status: 'approved' }),
+            BuyerReview.find({ status: 'approved' }),
+            Review.countDocuments({ status: { $in: ['pending', 'flagged'] } })
+        ]);
+
+        const totalProductReviews = productReviews.length;
+        const platformAvgRating = totalProductReviews
+            ? Math.round((productReviews.reduce((s, r) => s + r.rating, 0) / totalProductReviews) * 10) / 10
+            : 0;
+
+        const buyerScoreDistribution = { high_4_5: 0, mid_3_4: 0, low_1_3: 0 };
+        buyerReviews.forEach(r => {
+            if (r.rating >= 4)      buyerScoreDistribution.high_4_5++;
+            else if (r.rating >= 3) buyerScoreDistribution.mid_3_4++;
+            else                    buyerScoreDistribution.low_1_3++;
+        });
+
+        res.json({
+            totalProductReviews,
+            platformAvgRating,
+            totalSellerReviews:  sellerReviews.length,
+            totalBuyerReviews:   buyerReviews.length,
+            buyerScoreDistribution,
+            flaggedPendingModeration: flagged
+        });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
 app.get('/health', (req, res) => {
     res.json({ service: 'review-service', status: 'ok', dbState: db.readyState === 1 ? 'connected' : 'disconnected' });
 });
 
 app.listen(process.env.PORT || 5008, () => console.log(`Review Service on port ${process.env.PORT || 5008}`));
+

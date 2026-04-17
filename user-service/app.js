@@ -69,6 +69,10 @@ const ProfileSchema = new mongoose.Schema({
     buyerScore:     { type: Number, default: 50, min: 0, max: 100 },
     reviewsWritten: { type: Number, default: 0 },
 
+    // Buyer trading reputation (from sellers)
+    buyerTradingScore: { type: Number, default: null },
+    buyerReviewCount:  { type: Number, default: 0 },
+
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
 
@@ -153,6 +157,18 @@ bus.on('review.submitted', async (payload) => {
             { buyerScore: 100 }
         );
     } catch (err) { console.error('[USER] review.submitted buyerScore error:', err.message); }
+});
+
+// Update buyer trading reputation when sellers rate them
+bus.on('buyer.review.submitted', async (payload) => {
+    try {
+        const { buyerId, avgRating, reviewCount } = payload;
+        await Profile.findOneAndUpdate(
+            { userId: buyerId },
+            { buyerTradingScore: avgRating, buyerReviewCount: reviewCount }
+        );
+        console.log(`[USER] Updated buyer reputation for ${buyerId}: ${avgRating} stars`);
+    } catch (err) { console.error('[USER] buyer.review.submitted error:', err.message); }
 });
 
 // S21 — Store Stripe Customer ID after payment-service creates the Customer

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security | Markee</title>
+    <meta name="description" content="Manage your Markee account security — change your password or request a reset link.">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js"></script>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="brand-combo">
+        <a href="/"><span class="brand">Markee</span></a>
+    </div>
+    <%- include('_nav') %>
+</nav>
+
+<div class="container py-4 animate-fade">
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.25rem">
+        <a href="/account" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none">
+            ← My Account
+        </a>
+    </div>
+    <h2 class="mb-1"><i class="fa fa-shield-alt" style="color:var(--accent-red)"></i> Security</h2>
+    <p style="color:var(--text-muted);margin-bottom:2rem">Manage your password and account access.</p>
+
+    <!-- Change Password -->
+    <div class="card" style="max-width:520px;margin-bottom:1.5rem">
+        <div class="card-title"><i class="fa fa-lock"></i> Change Password</div>
+        <p class="text-muted" style="font-size:0.85rem;margin-bottom:1.25rem">
+            You'll need to know your current password. All active sessions will remain valid.
+        </p>
+
+        <div id="pw-success" class="alert alert-success" style="display:none"></div>
+        <div id="pw-error"   class="alert alert-error"   style="display:none"></div>
+
+        <form id="change-pw-form">
+            <div class="form-group">
+                <label>Current Password</label>
+                <input type="password" id="oldPassword" placeholder="Your current password" required autocomplete="current-password">
+                <span class="password-toggle" onclick="toggleField('oldPassword', this)">Show</span>
+            </div>
+            <div class="form-group">
+                <label>New Password</label>
+                <input type="password" id="newPassword" placeholder="Min 8 characters" minlength="8" required autocomplete="new-password">
+                <span class="password-toggle" onclick="toggleField('newPassword', this)">Show</span>
+            </div>
+            <div class="form-group">
+                <label>Confirm New Password</label>
+                <input type="password" id="confirmPw" placeholder="Repeat new password" minlength="8" required autocomplete="new-password">
+                <span class="password-toggle" onclick="toggleField('confirmPw', this)">Show</span>
+            </div>
+            <p id="pw-match-hint" class="text-muted" style="font-size:0.8rem;min-height:1.2em;margin-bottom:0.75rem"></p>
+            <button type="submit" class="btn btn-red" id="change-pw-btn" style="width:auto">Update Password</button>
+        </form>
+    </div>
+
+    <!-- Forgot Password CTA -->
+    <div class="card" style="max-width:520px">
+        <div class="card-title"><i class="fa fa-envelope"></i> Forgot Your Password?</div>
+        <p class="text-muted" style="font-size:0.85rem;margin-bottom:1.25rem">
+            Don't know your current password? We'll send a secure reset link to your registered email.
+        </p>
+        <a href="/forgot-password" class="btn btn-ghost" style="width:auto;display:inline-block">
+            Send Reset Link →
+        </a>
+    </div>
+</div>
+
+<script>
+function toggleField(id, btn) {
+    const input = document.getElementById(id);
+    if (!input) return;
+    if (input.type === 'password') { input.type = 'text'; btn.textContent = 'Hide'; }
+    else                           { input.type = 'password'; btn.textContent = 'Show'; }
+}
+
+// Live password match indicator
+const npw  = document.getElementById('newPassword');
+const cpw  = document.getElementById('confirmPw');
+const hint = document.getElementById('pw-match-hint');
+function checkMatch() {
+    if (!cpw.value) { hint.textContent = ''; return; }
+    if (npw.value === cpw.value) {
+        hint.textContent = '✓ Passwords match';
+        hint.style.color = 'var(--success, #22c55e)';
+    } else {
+        hint.textContent = '✗ Passwords do not match';
+        hint.style.color = 'var(--accent-red, #ff2d55)';
+    }
+}
+npw?.addEventListener('input', checkMatch);
+cpw?.addEventListener('input', checkMatch);
+
+// Change password form submission
+document.getElementById('change-pw-form')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const successEl = document.getElementById('pw-success');
+    const errorEl   = document.getElementById('pw-error');
+    successEl.style.display = 'none';
+    errorEl.style.display   = 'none';
+
+    if (npw.value !== cpw.value) {
+        errorEl.textContent = 'New passwords do not match.';
+        errorEl.style.display = 'block';
+        return;
+    }
+    if (npw.value.length < 8) {
+        errorEl.textContent = 'New password must be at least 8 characters.';
+        errorEl.style.display = 'block';
+        return;
+    }
+
+    const btn = document.getElementById('change-pw-btn');
+    btn.disabled = true;
+    btn.textContent = 'Updating…';
+
+    try {
+        const token = localStorage.getItem('access_token') || localStorage.getItem('authToken') || '';
+        const res = await fetch('/api/auth/password', {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({
+                oldPassword: document.getElementById('oldPassword').value,
+                newPassword: npw.value
+            })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || data.error || 'Failed to update password');
+
+        successEl.textContent = 'Password updated successfully.';
+        successEl.style.display = 'block';
+        this.reset();
+        hint.textContent = '';
+        if (typeof showToast === 'function') showToast('Password updated.', 'success');
+    } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Update Password';
+    }
+});
+</script>
+</body>
+</html>

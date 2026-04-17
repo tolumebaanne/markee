@@ -9,294 +9,7 @@
     <script src="/js/toast.js"></script>
     <script src="/js/confirm.js"></script>
     <script src="/js/cart.js"></script>
-    <style>
-        /* ── Layout ──────────────────────────────────────────────────────────── */
-        .detail-grid {
-            display: grid;
-            grid-template-columns: 1fr 340px;
-            gap: 1.75rem;
-            align-items: start;
-        }
-
-        @media (max-width: 860px) {
-            .detail-grid { grid-template-columns: 1fr; }
-        }
-
-        /* ── Section cards ───────────────────────────────────────────────────── */
-        .section-card {
-            background: var(--bg-primary);
-            border: 1px solid var(--border-light);
-            border-radius: 12px;
-            overflow: hidden;
-            margin-bottom: 1.5rem;
-        }
-
-        .section-card-header {
-            padding: 1rem 1.25rem;
-            border-bottom: 1px solid var(--border-light);
-            background: var(--bg-secondary);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .section-card-header h4 { margin: 0; font-size: 0.9rem; font-weight: 700; }
-        .section-card-body { padding: 1.25rem; }
-
-        /* ── Status badge ─────────────────────────────────────────────────────── */
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            padding: 0.3rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-
-        .status-badge::before {
-            content: '';
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: currentColor;
-            display: inline-block;
-        }
-
-        .status-pending      { background: #fefce8; color: #a16207; border: 1px solid #fde68a; }
-        .status-authorizing  { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
-        .status-paid         { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-        .status-processing   { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
-        .status-shipped      { background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; }
-        .status-delivered    { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
-        .status-cancelled    { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
-
-        /* ── Timeline stepper ────────────────────────────────────────────────── */
-        .timeline {
-            padding: 0.5rem 0;
-        }
-
-        .timeline-step {
-            display: flex;
-            gap: 1rem;
-            position: relative;
-        }
-
-        .timeline-step:not(:last-child)::after {
-            content: '';
-            position: absolute;
-            left: 15px;
-            top: 32px;
-            bottom: 0;
-            width: 2px;
-            background: var(--border-light);
-        }
-
-        .timeline-step.done::after { background: #22c55e; }
-
-        .timeline-dot {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            border: 2px solid var(--border-light);
-            background: var(--bg-primary);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            position: relative;
-            z-index: 1;
-        }
-
-        .timeline-step.done .timeline-dot {
-            background: #22c55e;
-            border-color: #22c55e;
-            color: white;
-        }
-
-        .timeline-step.current .timeline-dot {
-            background: var(--accent-red);
-            border-color: var(--accent-red);
-            color: white;
-            box-shadow: 0 0 0 4px rgba(204,0,0,0.12);
-        }
-
-        .timeline-info {
-            padding-bottom: 1.5rem;
-            padding-top: 0.35rem;
-        }
-
-        .timeline-label {
-            font-weight: 600;
-            font-size: 0.875rem;
-            text-transform: capitalize;
-        }
-
-        .timeline-time {
-            font-size: 0.78rem;
-            color: var(--text-muted);
-            margin-top: 0.1rem;
-        }
-
-        .timeline-step.future .timeline-label { color: var(--text-muted); font-weight: 500; }
-
-        /* ── Order items ──────────────────────────────────────────────────────── */
-        .order-item-row {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            padding: 0.85rem 0;
-            border-bottom: 1px solid var(--border-light);
-        }
-
-        .order-item-row:last-child { border-bottom: none; }
-
-        .item-img {
-            width: 52px;
-            height: 52px;
-            border-radius: 8px;
-            object-fit: cover;
-            background: var(--bg-secondary);
-            flex-shrink: 0;
-            border: 1px solid var(--border-light);
-        }
-
-        .item-info { flex-grow: 1; min-width: 0; }
-        .item-title { font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .item-qty   { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem; }
-
-        .item-price { font-weight: 700; font-size: 0.95rem; flex-shrink: 0; }
-
-        .review-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            padding: 0.35rem 0.75rem;
-            border-radius: 7px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            border: 1.5px solid #bbf7d0;
-            background: #f0fdf4;
-            color: #15803d;
-            cursor: pointer;
-            transition: all 0.2s;
-            flex-shrink: 0;
-        }
-
-        .review-btn:hover { background: #dcfce7; }
-        .review-btn.reviewed { background: #f0fdf4; color: var(--text-muted); border-color: var(--border-light); cursor: default; }
-
-        /* ── Shipping address ─────────────────────────────────────────────────── */
-        .address-block {
-            background: var(--bg-secondary);
-            border-radius: 8px;
-            padding: 1rem;
-            font-size: 0.875rem;
-            line-height: 1.7;
-            color: var(--text-main);
-        }
-
-        /* ── Shipment form ────────────────────────────────────────────────────── */
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-        }
-
-        @media (max-width: 500px) { .form-row { grid-template-columns: 1fr; } }
-
-        /* ── Tracking display ─────────────────────────────────────────────────── */
-        .tracking-info {
-            background: #ecfeff;
-            border: 1px solid #a5f3fc;
-            border-radius: 8px;
-            padding: 1rem;
-            font-size: 0.875rem;
-        }
-
-        .tracking-info .track-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 0.3rem 0;
-            border-bottom: 1px solid rgba(165,243,252,0.5);
-        }
-
-        .tracking-info .track-row:last-child { border-bottom: none; }
-        .tracking-label { color: var(--text-muted); font-weight: 500; }
-        .tracking-value { font-weight: 600; }
-
-        /* ── Cancel button ────────────────────────────────────────────────────── */
-        .btn-danger {
-            background: transparent;
-            color: #b91c1c;
-            border: 1.5px solid #fecaca;
-        }
-
-        .btn-danger:hover {
-            background: #fef2f2;
-            color: #b91c1c;
-        }
-
-        /* ── Star rating ─────────────────────────────────────────────────────── */
-        .star-group { display: flex; gap: 0.25rem; }
-
-        .star {
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: #d1d5db;
-            transition: color 0.15s;
-            line-height: 1;
-        }
-
-        .star.filled, .star:hover, .star.hover { color: #f59e0b; }
-
-        /* ── Modal ───────────────────────────────────────────────────────────── */
-        .review-modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.55);
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 1rem;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.25s;
-        }
-
-        .review-modal-overlay.open {
-            opacity: 1;
-            pointer-events: all;
-        }
-
-        .review-modal {
-            background: white;
-            border-radius: 16px;
-            padding: 2rem;
-            width: 100%;
-            max-width: 440px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-            transform: translateY(20px);
-            transition: transform 0.25s;
-        }
-
-        .review-modal-overlay.open .review-modal { transform: translateY(0); }
-
-        /* ── Skeleton ────────────────────────────────────────────────────────── */
-        .skeleton {
-            background: linear-gradient(90deg, var(--bg-secondary) 25%, #e9eaec 50%, var(--bg-secondary) 75%);
-            background-size: 200% 100%;
-            animation: shimmer 1.4s infinite;
-            border-radius: 8px;
-        }
-
-        @keyframes shimmer { to { background-position: -200% 0; } }
-    </style>
+    
 </head>
 <body class="bg-light">
 
@@ -354,6 +67,15 @@
 
         <!-- LEFT COLUMN -->
         <div>
+
+            <!-- Delivery Banner (Task 4.1) -->
+            <div id="review-delivery-banner" class="alert alert-info" style="display:none; align-items:center; justify-content:space-between; box-shadow:var(--shadow-sm); margin-bottom:1.5rem;">
+                <div>
+                    <i class="fa fa-box-open" style="margin-right:0.6rem; font-size:1.1rem;"></i>
+                    <strong style="margin-right:0.25rem;">Delivered!</strong> Your order has arrived. Scroll down to leave a review on each item.
+                </div>
+                <button onclick="document.getElementById('review-delivery-banner').style.display='none'" style="background:none; border:none; cursor:pointer; color:inherit; font-size:1.25rem; margin-left:1rem; opacity:0.8;">&times;</button>
+            </div>
 
             <!-- Order Items -->
             <div class="section-card">
@@ -658,6 +380,73 @@
     </div>
 </div>
 
+<!-- ============ RATE BUYER MODAL ============ -->
+<div class="review-modal-overlay" id="rate-buyer-modal" onclick="if(event.target===this) this.classList.remove('open')">
+    <div class="review-modal">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+            <h4 style="margin:0;">Rate this Buyer</h4>
+            <button onclick="document.getElementById('rate-buyer-modal').classList.remove('open')" style="background:none; border:none; cursor:pointer; font-size:1.25rem; color:var(--text-muted);">&times;</button>
+        </div>
+        <div style="margin-bottom:1rem;">
+            <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.5rem;">Rating</label>
+            <div class="star-group" id="buyer-star-group">
+                <span class="star" data-val="1" onclick="setBuyerRating(1)">&#9733;</span>
+                <span class="star" data-val="2" onclick="setBuyerRating(2)">&#9733;</span>
+                <span class="star" data-val="3" onclick="setBuyerRating(3)">&#9733;</span>
+                <span class="star" data-val="4" onclick="setBuyerRating(4)">&#9733;</span>
+                <span class="star" data-val="5" onclick="setBuyerRating(5)">&#9733;</span>
+            </div>
+        </div>
+        <div class="form-group mb-4">
+            <label>Tags</label>
+            <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.5rem;">
+                <label style="font-weight:400; font-size:0.85rem; cursor:pointer;"><input type="checkbox" name="buyer-tag" value="prompt_payment"> Prompt Payment</label>
+                <label style="font-weight:400; font-size:0.85rem; cursor:pointer;"><input type="checkbox" name="buyer-tag" value="good_communication"> Good Communication</label>
+                <label style="font-weight:400; font-size:0.85rem; cursor:pointer;"><input type="checkbox" name="buyer-tag" value="smooth_transaction"> Smooth Transaction</label>
+            </div>
+        </div>
+        <div class="form-group mb-4">
+            <label>Comments (optional)</label>
+            <textarea id="buyer-review-body" placeholder="Any additional comments..." rows="3"></textarea>
+        </div>
+        <button id="buyer-review-submit-btn" class="btn btn-red" onclick="submitBuyerReview()">Submit Rating</button>
+    </div>
+</div>
+
+<!-- Seller Review Modal -->
+<div class="review-modal-overlay" id="seller-review-modal" onclick="if(event.target===this) this.classList.remove('open')">
+    <div class="review-modal">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+            <h4 style="margin:0;">Rate this Seller</h4>
+            <button onclick="document.getElementById('seller-review-modal').classList.remove('open')" style="background:none; border:none; cursor:pointer; font-size:1.25rem; color:var(--text-muted);">&times;</button>
+        </div>
+        <div style="margin-bottom:1rem;">
+            <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.5rem;">Rating</label>
+            <div class="star-group" id="seller-star-group">
+                <span class="star" data-val="1" onclick="setSellerRating(1)">&#9733;</span>
+                <span class="star" data-val="2" onclick="setSellerRating(2)">&#9733;</span>
+                <span class="star" data-val="3" onclick="setSellerRating(3)">&#9733;</span>
+                <span class="star" data-val="4" onclick="setSellerRating(4)">&#9733;</span>
+                <span class="star" data-val="5" onclick="setSellerRating(5)">&#9733;</span>
+            </div>
+        </div>
+        <div class="form-group mb-4">
+            <label>Experience Tags</label>
+            <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.5rem;">
+                <label style="font-weight:400; font-size:0.85rem; cursor:pointer;"><input type="checkbox" name="seller-tag" value="fast_shipping"> Fast Shipping</label>
+                <label style="font-weight:400; font-size:0.85rem; cursor:pointer;"><input type="checkbox" name="seller-tag" value="good_communication"> Good Communication</label>
+                <label style="font-weight:400; font-size:0.85rem; cursor:pointer;"><input type="checkbox" name="seller-tag" value="accurate_description"> Accurate Description</label>
+                <label style="font-weight:400; font-size:0.85rem; cursor:pointer;"><input type="checkbox" name="seller-tag" value="well_packaged"> Well Packaged</label>
+            </div>
+        </div>
+        <div class="form-group mb-4">
+            <label>Comments (optional)</label>
+            <textarea id="seller-review-body" placeholder="Any additional comments on the seller..." rows="3"></textarea>
+        </div>
+        <button id="seller-review-submit-btn" class="btn btn-red" onclick="submitSellerReview()">Submit Rating</button>
+    </div>
+</div>
+
 <!-- ============ SHIP MODAL (Task 5d) ============ -->
 <div id="ship-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
     <div style="background:var(--bg-primary); border-radius:14px; padding:1.75rem; width:90%; max-width:420px; box-shadow:var(--shadow-lg);">
@@ -835,7 +624,7 @@
     // ── Render items ──────────────────────────────────────────────────────────
     function renderItems(order) {
         const isBuyer = order.buyerId?.toString() === user.sub;
-        const isDelivered = order.status === 'delivered';
+        const isDelivered = ['delivered', 'picked_up', 'self_fulfilled'].includes(order.status);
         const items = order.items || [];
 
         document.getElementById('item-count-label').textContent = `${items.length} item${items.length !== 1 ? 's' : ''}`;
@@ -1452,6 +1241,29 @@
             // Enrich items with product images where missing (best-effort parallel fetch)
             await enrichItemImages(_order);
 
+            // ── Segment 4: Delivery Visibility (Check item review statuses) ──
+            const isBuyerForDelivery = _order.buyerId?.toString() === user.sub;
+            const isDelivered = ['delivered', 'picked_up', 'self_fulfilled'].includes(_order.status);
+            
+            if (isBuyerForDelivery && isDelivered) {
+                document.getElementById('review-delivery-banner').style.display = 'flex';
+                
+                const checks = (_order.items || []).map(item =>
+                    fetch(`/api/reviews/check/${item.productId}`, { headers: { Authorization: `Bearer ${token}` } })
+                        .then(r => r.ok ? r.json() : { alreadyReviewed: false })
+                        .catch(() => ({ alreadyReviewed: false }))
+                );
+                
+                try {
+                    const results = await Promise.all(checks);
+                    results.forEach((result, i) => {
+                        if (result.alreadyReviewed) {
+                            _reviewed.add((_order.items[i].productId || '').toString());
+                        }
+                    });
+                } catch (e) {}
+            }
+
             // Render sections
             renderItems(_order);
             renderAddress(_order);
@@ -1488,12 +1300,20 @@
 
             if (isSellerOfThisOrder) {
                 let trans = { current: _order.status, allowed: [], fulfillmentType: _order.fulfillmentType };
+                let alreadyRatedBuyer = false;
                 try {
                     const tr = await fetch(`/api/orders/${_order._id}/transitions`, {
                         headers: { Authorization: `Bearer ${token}` }
                     });
                     if (tr.ok) trans = await tr.json();
                 } catch {}
+
+                if (['delivered', 'picked_up', 'self_fulfilled'].includes(_order.status)) {
+                    try {
+                        const ch = await fetch(`/api/reviews/buyer-review/check?orderId=${_order._id}`, { headers: { Authorization: `Bearer ${token}` } });
+                        if (ch.ok) alreadyRatedBuyer = (await ch.json()).alreadyReviewed;
+                    } catch {}
+                }
 
                 const sellerPanel = document.getElementById('seller-action-panel');
                 if (sellerPanel) {
@@ -1539,6 +1359,19 @@
                                     </button>
                                 </div>
                             ` : ''}
+                            ${['delivered', 'picked_up', 'self_fulfilled'].includes(_order.status) ? (alreadyRatedBuyer ? `
+                                <div style="margin-bottom:1rem;">
+                                    <span class="status-badge" style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0;">
+                                        <i class="fa fa-check-circle" style="margin-right:0.35rem;"></i> Buyer Rated
+                                    </span>
+                                </div>
+                            ` : `
+                                <div style="margin-bottom:1rem;">
+                                    <button class="btn btn-sm" style="border:1px solid #bbf7d0; color:#15803d; background:#f0fdf4;" onclick="openRateBuyerModal('${_order._id}', '${_order.buyerId}')">
+                                        <i class="fa fa-star"></i> Rate this Buyer
+                                    </button>
+                                </div>
+                            `) : ''}
                             <button class="btn btn-sm btn-outline" onclick="msgBuyer('${_order.buyerId}', '${_order._id}')">
                                 <i class="fa fa-comment"></i> Message Buyer
                             </button>
@@ -1556,12 +1389,37 @@
             if (uniqueSellers.length > 0 && user.storeId?.toString() !== uniqueSellers[0][0]) {
                 const msgSection = document.getElementById('message-sellers-section');
                 if (msgSection) {
-                    msgSection.innerHTML = uniqueSellers.map(([, seller]) => {
-                        // seller.sellerId = store owner's personal userId; use that, not the storeId
+                    const isDelivered = ['delivered', 'picked_up', 'self_fulfilled'].includes(_order.status);
+                    
+                    const reviewChecks = await Promise.all(uniqueSellers.map(async ([, seller]) => {
+                        if (!isDelivered) return false;
+                        try {
+                            const res = await fetch(`/api/reviews/check/seller/${seller._id}`, { headers: { Authorization: `Bearer ${token}` } });
+                            if (res.ok) return (await res.json()).alreadyReviewed;
+                        } catch {}
+                        return false;
+                    }));
+
+                    msgSection.innerHTML = uniqueSellers.map(([, seller], idx) => {
+                        const sId = seller._id;
                         const recipientId = seller.sellerId || seller._id;
-                        return `<button class="btn btn-sm btn-outline" onclick="window.location.href='/messages?with=${recipientId}&re=${_order._id}&type=order'" style="margin-right:0.5rem;">
-                            <i class="fa fa-comment"></i> Message ${seller.storeName || seller.name || 'Seller'}
-                        </button>`;
+                        const alreadyReviewed = reviewChecks[idx];
+                        
+                        let reviewBtnHtml = '';
+                        if (isDelivered) {
+                            if (alreadyReviewed) {
+                                reviewBtnHtml = `<span class="status-badge" style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; margin-right:0.5rem;"><i class="fa fa-check-circle"></i> Seller Rated</span>`;
+                            } else {
+                                reviewBtnHtml = `<button id="btn-rate-seller-${sId}" class="btn btn-sm" style="border:1px solid #bbf7d0; color:#15803d; background:#f0fdf4; margin-right:0.5rem;" onclick="openSellerReviewModal('${sId}', '${_order._id}')"><i class="fa fa-star"></i> Rate this Seller</button>`;
+                            }
+                        }
+
+                        return `<div style="display:flex; align-items:center; margin-bottom:0.5rem;">
+                            ${reviewBtnHtml}
+                            <button class="btn btn-sm btn-outline" onclick="window.location.href='/messages?with=${recipientId}&re=${_order._id}&type=order'">
+                                <i class="fa fa-comment"></i> Message ${seller.storeName || seller.name || 'Seller'}
+                            </button>
+                        </div>`;
                     }).join('');
                     msgSection.style.display = 'block';
                 }
@@ -1938,6 +1796,108 @@
         } finally {
             btn.disabled = false;
             btn.innerHTML = 'Submit Review';
+        }
+    }
+
+    // ── Buyer Rating JS ────────────────────────────────────────────────────────
+    let currentBuyerRating = 0;
+    let currentBuyerId = null;
+
+    function setBuyerRating(val) {
+        currentBuyerRating = val;
+        const group = document.getElementById('buyer-star-group');
+        const stars = group.querySelectorAll('.star');
+        stars.forEach((s, idx) => {
+            if (idx < val) s.classList.add('filled');
+            else s.classList.remove('filled');
+        });
+    }
+
+    function openRateBuyerModal(orderId, buyerId) {
+        currentBuyerId = buyerId;
+        setBuyerRating(0);
+        document.getElementById('buyer-review-body').value = '';
+        document.querySelectorAll('input[name="buyer-tag"]').forEach(cb => cb.checked = false);
+        document.getElementById('rate-buyer-modal').classList.add('open');
+    }
+
+    async function submitBuyerReview() {
+        if (!currentBuyerRating) { showToast('Please select a rating', 'error'); return; }
+        const btn = document.getElementById('buyer-review-submit-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Submitting...';
+
+        const tags = Array.from(document.querySelectorAll('input[name="buyer-tag"]:checked')).map(cb => cb.value);
+        const body = document.getElementById('buyer-review-body').value.trim();
+
+        try {
+            const res = await fetch('/api/reviews/buyer-review', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ buyerId: currentBuyerId, orderId: ORDER_ID, rating: currentBuyerRating, tags, body })
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to submit rating');
+            
+            showToast('Buyer rated successfully', 'success', 3500);
+            document.getElementById('rate-buyer-modal').classList.remove('open');
+            setTimeout(() => window.location.reload(), 1000);
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = 'Submit Rating';
+        }
+    }
+
+    // ── Seller Rating JS ───────────────────────────────────────────────────────
+    let currentSellerRating = 0;
+    let currentSellerId = null;
+
+    function setSellerRating(val) {
+        currentSellerRating = val;
+        const group = document.getElementById('seller-star-group');
+        const stars = group.querySelectorAll('.star');
+        stars.forEach((s, idx) => {
+            if (idx < val) s.classList.add('filled');
+            else s.classList.remove('filled');
+        });
+    }
+
+    function openSellerReviewModal(storeId, orderId) {
+        currentSellerId = storeId;
+        setSellerRating(0);
+        document.getElementById('seller-review-body').value = '';
+        document.querySelectorAll('input[name="seller-tag"]').forEach(cb => cb.checked = false);
+        document.getElementById('seller-review-modal').classList.add('open');
+    }
+
+    async function submitSellerReview() {
+        if (!currentSellerRating) { showToast('Please select a rating', 'error'); return; }
+        const btn = document.getElementById('seller-review-submit-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Submitting...';
+
+        const tags = Array.from(document.querySelectorAll('input[name="seller-tag"]:checked')).map(cb => cb.value);
+        const body = document.getElementById('seller-review-body').value.trim();
+
+        try {
+            const res = await fetch('/api/reviews/seller', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ sellerId: currentSellerId, orderId: ORDER_ID, rating: currentSellerRating, tags, body })
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to submit rating');
+            
+            showToast('Seller rated successfully', 'success', 3500);
+            document.getElementById('seller-review-modal').classList.remove('open');
+            setTimeout(() => window.location.reload(), 1000);
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = 'Submit Rating';
         }
     }
 

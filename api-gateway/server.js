@@ -199,10 +199,14 @@ app.use('/api/reviews/seller-reviews', proxy(REVIEW_URL));
 app.use('/api/reviews/my-reviews', verifyToken, proxy(REVIEW_URL));
 app.use('/api/reviews/check',      verifyToken, proxy(REVIEW_URL));
 
-// Catch-all: public for GET /product/:id, auth required for everything else
+// Catch-all: public for GET /product/:id and /buyer-review/:id/stats, auth required for everything else
 app.use('/api/reviews', (req, res, next) => {
-    const isPublicGet = req.method === 'GET' && req.path.startsWith('/product/');
-    if (isPublicGet) return proxy(REVIEW_URL)(req, res, next);
+    const isPublicProductRoute = req.method === 'GET' && req.path.startsWith('/product/');
+    const isPublicBuyerStats = req.method === 'GET' && req.path.match(/^\/buyer-review\/[^\/]+\/stats$/);
+    
+    if (isPublicProductRoute || isPublicBuyerStats) {
+        return proxy(REVIEW_URL)(req, res, next);
+    }
     verifyToken(req, res, () => proxy(REVIEW_URL)(req, res, next));
 });
 
@@ -292,6 +296,17 @@ app.get('/login',       (req, res) => res.render('login',    {
     gatewayUrl: process.env.GATEWAY_URL || `http://localhost:${process.env.PORT || 4000}`
 }));
 app.get('/register',  (_req, res) => res.render('register', {}));
+
+// ── Password reset passthrough → auth-service (renders its own EJS) ────────────
+const authDirectProxy = createProxyMiddleware({
+    target: process.env.AUTH_SERVICE_URL || 'http://localhost:5001',
+    changeOrigin: true,
+    on: { error: (err, req, res) => errorResponse(res, 502, 'Auth service unreachable') }
+});
+app.get('/forgot-password',  authDirectProxy);
+app.post('/forgot-password', express.urlencoded({ extended: false }), authDirectProxy);
+app.get('/reset-password',   authDirectProxy);
+app.post('/reset-password',  express.urlencoded({ extended: false }), authDirectProxy);
 app.post('/register', express.urlencoded({ extended: true }), async (req, res) => {
     const AUTH = process.env.AUTH_SERVICE_URL || 'http://localhost:5001';
     try {
@@ -343,6 +358,7 @@ app.get('/profile',              (_req, res) => res.render('profile'));
 app.get('/account',              (_req, res) => res.render('account'));
 app.get('/account/addresses',    (_req, res) => res.render('account-addresses'));
 app.get('/account/wallet',       (_req, res) => res.render('wallet'));          // S21
+app.get('/account/security',     (_req, res) => res.render('account-security'));   // Password reset / change
 app.get('/orders',      (req, res) => res.render('orders'));
 app.get('/orders/:id',  (req, res) => res.render('order-detail', { orderId: req.params.id }));
 app.get('/purchases/history', (req, res) => res.render('purchases-history'));

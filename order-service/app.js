@@ -722,6 +722,67 @@ app.get('/my-orders', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
+// Buyer activity stats for profile page (Phase 5 — Segment 1)
+app.get('/my-stats', async (req, res) => {
+    try {
+        const buyerId = req.user?.sub;
+        if (!buyerId) return errorResponse(res, 401, 'Unauthorized');
+
+        const orders = await Order.find({ buyerId }).sort({ createdAt: -1 }).lean();
+
+        const completed = orders.filter(o =>
+            ['delivered', 'picked_up', 'self_fulfilled'].includes(o.status)
+        );
+        const cancelled = orders.filter(o => o.status === 'cancelled');
+
+        const totalSpentCents = completed.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
+        const sellerIds = new Set();
+        orders.forEach(o => (o.items || []).forEach(i => {
+            if (i.sellerId) sellerIds.add(i.sellerId.toString());
+        }));
+
+        const totalItems = completed.reduce((sum, o) =>
+            sum + ((o.items || []).reduce((s, i) => s + (i.qty || 1), 0)), 0
+        );
+
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        const spendByMonth = {};
+        completed
+            .filter(o => new Date(o.createdAt) >= sixMonthsAgo)
+            .forEach(o => {
+                const key = new Date(o.createdAt).toISOString().slice(0, 7); // "YYYY-MM"
+                spendByMonth[key] = (spendByMonth[key] || 0) + (o.totalAmount || 0);
+            });
+
+        const sellerOrderCount = {};
+        completed.forEach(o => (o.items || []).forEach(i => {
+            if (i.sellerId) {
+                const sid = i.sellerId.toString();
+                if (!sellerOrderCount[sid]) sellerOrderCount[sid] = 0;
+                sellerOrderCount[sid] += 1;
+            }
+        }));
+        const topSellers = Object.entries(sellerOrderCount)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([id, count]) => ({ sellerId: id, orderCount: count }));
+
+        res.json({
+            totalOrders:      orders.length,
+            completedOrders:  completed.length,
+            cancelledOrders:  cancelled.length,
+            totalSpentCents,
+            uniqueSellers:    sellerIds.size,
+            totalItems,
+            spendByMonth,
+            topSellers,
+            mostRecentOrderAt: orders[0]?.createdAt || null
+        });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
 // S20 — Fix seller-stats: include pickup/self_fulfilled/ready_for_pickup statuses
 app.get('/seller-stats', async (req, res) => {
     try {

@@ -5,6 +5,9 @@ const RefreshToken = require('../models/RefreshToken');
 const bus = require('../../shared/eventBus');
 const { body } = require('express-validator');
 const handleValidationErrors = require('../../shared/middleware/handleValidationErrors');
+const crypto = require('crypto');
+const bcrypt = require('bcrypt');
+const { sendPasswordResetEmail } = require('../services/mailer');
 
 const ORDER_SERVICE_URL = process.env.ORDER_SERVICE_URL || 'http://localhost:5003';
 
@@ -373,6 +376,104 @@ router.post('/admin/users/:id/revoke-sessions', async (req, res) => {
     console.log(`[AUTH] Admin ${req.headers['x-admin-email']} revoked ${result.modifiedCount} sessions for user ${user.email}`);
     res.json({ success: true, revokedCount: result.modifiedCount });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Forgot Password ───────────────────────────────────────────────────────────
+// m0t.AUTH.3.5  — same response whether email exists or not (no enumeration)
+// m0t.AUTH.3.4  — crypto.randomBytes(32); only SHA-256 hash stored in DB
+
+router.get('/forgot-password', (req, res) => {
+  res.render('forgot-password', { sent: req.query.sent === '1', error: req.query.error });
+});
+
+router.post('/forgot-password', express.urlencoded({ extended: false }), async (req, res) => {
+  const GENERIC_REDIRECT = '/forgot-password?sent=1';
+  try {
+    const email = (req.body.email || '').toLowerCase().trim();
+    if (!email) return res.redirect(GENERIC_REDIRECT);
+
+    const user = await User.findOne({ email, status: { $ne: 'deleted' } });
+    if (!user) return res.redirect(GENERIC_REDIRECT); // no enumeration — same response
+
+    // Soft rate-limit: if an unexpired token exists, don't spam
+    if (user.resetTokenExpiry && user.resetTokenExpiry > new Date()) {
+      return res.redirect(GENERIC_REDIRECT);
+    }
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    user.resetToken = tokenHash;
+    user.resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await user.save();
+
+    const base = (process.env.APP_BASE_URL || 'http://localhost:4000').replace(/\/$/, '');
+    const resetLink = `${base}/reset-password?token=${rawToken}`;
+    await sendPasswordResetEmail(email, resetLink);
+
+    return res.redirect(GENERIC_REDIRECT);
+  } catch (err) {
+    console.error('[AUTH] forgot-password error:', err.message);
+    return res.redirect(GENERIC_REDIRECT); // fail safely, no leakage
+  }
+});
+
+// ── Reset Password ────────────────────────────────────────────────────────────
+
+router.get('/reset-password', async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.render('reset-password', { valid: false, error: 'Invalid or missing reset link.' });
+
+  try {
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const user = await User.findOne({
+      resetToken: tokenHash,
+      resetTokenExpiry: { $gt: new Date() }
+    });
+    if (!user) return res.render('reset-password', { valid: false, error: 'This link is invalid or has expired. Please request a new one.' });
+    res.render('reset-password', { valid: true, token, error: null });
+  } catch (err) {
+    console.error('[AUTH] reset-password GET error:', err.message);
+    res.render('reset-password', { valid: false, error: 'Something went wrong. Please try again.' });
+  }
+});
+
+router.post('/reset-password', express.urlencoded({ extended: false }), async (req, res) => {
+  const { token, newPassword, confirmPassword } = req.body || {};
+
+  if (!token || !newPassword) {
+    return res.render('reset-password', { valid: !!token, token, error: 'All fields are required.' });
+  }
+  if (newPassword !== confirmPassword) {
+    return res.render('reset-password', { valid: true, token, error: 'Passwords do not match.' });
+  }
+  if (newPassword.length < 8) {
+    return res.render('reset-password', { valid: true, token, error: 'Password must be at least 8 characters.' });
+  }
+
+  try {
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const user = await User.findOne({
+      resetToken: tokenHash,
+      resetTokenExpiry: { $gt: new Date() }
+    });
+
+    if (!user) {
+      return res.render('reset-password', { valid: false, error: 'This link is invalid or has expired. Please request a new one.' });
+    }
+
+    // Hash new password, clear reset fields, revoke all refresh tokens (m0t.AUTH.1.4)
+    user.passwordHash   = await bcrypt.hash(newPassword, 12);
+    user.resetToken     = null;
+    user.resetTokenExpiry = null;
+    await user.save();
+    await RefreshToken.deleteMany({ userId: user._id });
+
+    console.log(`[AUTH] Password reset successful for ${user.email}`);
+    return res.redirect('/login?success=Password+reset+successful.+Please+sign+in+with+your+new+password.');
+  } catch (err) {
+    console.error('[AUTH] reset-password POST error:', err.message);
+    return res.render('reset-password', { valid: true, token, error: 'Reset failed. Please try again.' });
+  }
 });
 
 module.exports = router;

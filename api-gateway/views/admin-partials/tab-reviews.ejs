@@ -9,6 +9,7 @@
     <button class="sub-tab active" onclick="switchSubTab('rev','queue',this);renderReviews(window._revData||[],'rev-queue')">Queue (All)</button>
     <button class="sub-tab" onclick="switchSubTab('rev','pending',this);renderReviews((window._revData||[]).filter(r=>r.status==='pending'),'rev-pending')">Pending</button>
     <button class="sub-tab" onclick="switchSubTab('rev','flagged',this);renderReviews((window._revData||[]).filter(r=>r.status==='flagged'),'rev-flagged')">Flagged</button>
+    <button class="sub-tab" onclick="switchSubTab('rev','buyer',this);loadBuyerReviews()">Buyer Reviews</button>
   </div>
 
   <!-- Queue: All -->
@@ -28,6 +29,13 @@
   <div class="sub-panel" id="rev-flagged" style="display:none">
     <div id="rev-flagged-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
     <div id="rev-flagged-list"></div>
+  </div>
+
+  <!-- Buyer Reviews (Segment 6) -->
+  <div class="sub-panel" id="rev-buyer" style="display:none">
+    <div id="rev-buyer-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="rev-buyer-loading" class="loading" style="display:none"><i class="fas fa-spinner fa-spin"></i> Loading buyer reviews…</div>
+    <div id="rev-buyer-list"></div>
   </div>
 </div>
 
@@ -136,4 +144,83 @@
       toast('Error: ' + err.message, 'error');
     }
   }
+
+  // ── Segment 6: Buyer Reviews Tab ─────────────────────────────────────────────
+  let _buyerRevLoaded = false;
+  window._buyerRevData = [];
+
+  async function loadBuyerReviews() {
+    if (_buyerRevLoaded) return;
+    _buyerRevLoaded = true;
+    const loading = document.getElementById('rev-buyer-loading');
+    hideErr('rev-buyer-error');
+    loading.style.display = 'block';
+    try {
+      const data = await adminApi('GET', '/proxy/reviews/buyer-all');
+      window._buyerRevData = Array.isArray(data) ? data : [];
+      loading.style.display = 'none';
+      renderBuyerReviews(window._buyerRevData);
+    } catch (err) {
+      loading.style.display = 'none';
+      showErr('rev-buyer-error', err.message);
+    }
+  }
+
+  function renderBuyerReviews(reviews) {
+    const target = document.getElementById('rev-buyer-list');
+    if (!target) return;
+    if (!reviews.length) {
+      target.innerHTML = '<div class="empty-state"><i class="fas fa-user-check"></i><p>No buyer reviews on record.</p></div>';
+      return;
+    }
+    target.innerHTML = reviews.map(r => {
+      const tagHtml = (r.tags||[]).map(t => `<span style="background:#1e2d45;color:#94a3b8;font-size:0.65rem;padding:0.1rem 0.4rem;border-radius:4px;text-transform:capitalize">${t.replace(/_/g,' ')}</span>`).join(' ');
+      return `
+        <div class="review-card" id="brev-${r._id}">
+          <div>
+            <div style="display:flex;gap:0.6rem;margin-bottom:0.3rem;align-items:center;flex-wrap:wrap">
+              <span class="review-stars">${stars(r.rating||0)}</span>
+              <span class="badge" style="background:#052e16;color:#4ade80;font-size:0.65rem;padding:0.1rem 0.5rem;border-radius:4px">Buyer Review</span>
+              ${tagHtml}
+            </div>
+            <div class="review-body">"${trunc(r.body||r.comment||'(no comment)',160)}"</div>
+            <div class="review-meta">
+              seller: <span class="mono">${trunc(r.sellerId||'—',12)}</span>
+              | buyer: <span class="mono">${trunc(r.buyerId||'—',12)}</span>
+              | order: <span class="mono">${trunc(r.orderId||'—',10)}</span>
+              | date: ${fmtDate(r.createdAt)}
+            </div>
+          </div>
+          <div class="review-actions">
+            <button class="btn btn-xs btn-danger" onclick="deleteBuyerReview('${r._id}','${r.buyerId||''}')">
+              <i class="fas fa-trash"></i> Delete
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function deleteBuyerReview(id, buyerId) {
+    const result = await showConfirm({
+      title: 'Delete Buyer Review',
+      body: `Permanently remove this buyer review? The buyer's trading score will be recalculated.`,
+      withReason: true,
+      danger: true
+    });
+    if (!result.confirmed) return;
+    try {
+      await adminApi('DELETE', `/proxy/reviews/buyer/${id}`, { reason: result.reason });
+      toast('Buyer review deleted. Trading score recalculated.', 'success');
+      window._buyerRevData = window._buyerRevData.filter(r => r._id !== id);
+      document.getElementById(`brev-${id}`)?.remove();
+      if (!window._buyerRevData.length) {
+        document.getElementById('rev-buyer-list').innerHTML = '<div class="empty-state"><i class="fas fa-user-check"></i><p>No buyer reviews on record.</p></div>';
+      }
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+    }
+  }
 </script>
+
+

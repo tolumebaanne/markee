@@ -273,8 +273,14 @@
 
             <!-- Seller ratings card (populated from review-service) -->
             <div id="sf-ratings-card" class="sf-info-card" style="display:none;">
-                <h5><i class="fa fa-star" style="margin-right:0.4rem; color:#f59e0b;"></i>Seller Ratings</h5>
+                <h5><i class="fa fa-star" style="margin-right:0.4rem; color:#f59e0b;"></i>Product Ratings</h5>
                 <div id="sf-ratings-body" style="font-size:0.83rem; display:grid; gap:0.4rem;"></div>
+            </div>
+
+            <!-- Store Aggregate Rating (Segment 3) -->
+            <div id="sf-store-rating-card" class="sf-info-card" style="display:none;">
+                <h5><i class="fa fa-store" style="margin-right:0.4rem; color:var(--accent-red);"></i>Store Rating</h5>
+                <div id="sf-store-rating-body" style="font-size:0.83rem; display:grid; gap:0.4rem;"></div>
             </div>
 
             <!-- Policies accordion -->
@@ -330,6 +336,11 @@
             <h3 style="margin:0; font-size:1rem;">Customer Reviews of This Seller</h3>
             <span id="sr-count-label" style="font-size:0.8rem; color:var(--text-muted);"></span>
         </div>
+        <div id="sr-cta-container" style="margin-bottom:1.5rem; display:none;">
+            <button class="btn btn-sm" style="border:1px solid #bbf7d0; color:#15803d; background:#f0fdf4;" onclick="openSellerReviewModal()">
+                <i class="fa fa-star"></i> Leave a Seller Review
+            </button>
+        </div>
         <div id="sr-avg-row" style="display:none; align-items:center; gap:0.65rem; margin-bottom:1rem; flex-wrap:wrap;">
             <span style="font-size:1.8rem; font-weight:800;" id="sr-avg-num"></span>
             <div>
@@ -346,6 +357,40 @@
             <div style="font-weight:600; margin-bottom:0.25rem;">No seller reviews yet</div>
             <div class="small">Be the first to review this seller after completing an order.</div>
         </div>
+    </div>
+</div>
+
+<!-- Seller Review Modal -->
+<div class="review-modal-overlay" id="seller-review-modal" onclick="if(event.target===this) this.classList.remove('open')">
+    <div class="review-modal">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+            <h4 style="margin:0;">Rate this Seller</h4>
+            <button onclick="document.getElementById('seller-review-modal').classList.remove('open')" style="background:none; border:none; cursor:pointer; font-size:1.25rem; color:var(--text-muted);">&times;</button>
+        </div>
+        <div style="margin-bottom:1rem;">
+            <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.5rem;">Rating</label>
+            <div class="star-group" id="seller-star-group">
+                <span class="star" data-val="1" onclick="setSellerRating(1)">&#9733;</span>
+                <span class="star" data-val="2" onclick="setSellerRating(2)">&#9733;</span>
+                <span class="star" data-val="3" onclick="setSellerRating(3)">&#9733;</span>
+                <span class="star" data-val="4" onclick="setSellerRating(4)">&#9733;</span>
+                <span class="star" data-val="5" onclick="setSellerRating(5)">&#9733;</span>
+            </div>
+        </div>
+        <div class="form-group mb-4">
+            <label>Experience Tags</label>
+            <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.5rem;">
+                <label style="font-weight:400; font-size:0.85rem; cursor:pointer;"><input type="checkbox" name="seller-tag" value="fast_shipping"> Fast Shipping</label>
+                <label style="font-weight:400; font-size:0.85rem; cursor:pointer;"><input type="checkbox" name="seller-tag" value="good_communication"> Good Communication</label>
+                <label style="font-weight:400; font-size:0.85rem; cursor:pointer;"><input type="checkbox" name="seller-tag" value="accurate_description"> Accurate Description</label>
+                <label style="font-weight:400; font-size:0.85rem; cursor:pointer;"><input type="checkbox" name="seller-tag" value="well_packaged"> Well Packaged</label>
+            </div>
+        </div>
+        <div class="form-group mb-4">
+            <label>Comments (optional)</label>
+            <textarea id="seller-review-body" placeholder="Any additional comments on the seller..." rows="3"></textarea>
+        </div>
+        <button id="seller-review-submit-btn" class="btn btn-red" onclick="submitSellerReview()">Submit Rating</button>
     </div>
 </div>
 
@@ -546,6 +591,31 @@
                 <div style="color:var(--text-muted);">${stats.totalCount} review${stats.totalCount!==1?'s':''}</div>
                 ${replyPct != null ? `<div style="color:var(--text-muted);">Responds to <strong style="color:var(--text-main);">${replyPct}%</strong> of reviews</div>` : ''}`;
             document.getElementById('sf-ratings-card').style.display = 'block';
+
+            // Segment 3: Store Rating UI
+            if (stats.storeRating) {
+                const sr = stats.storeRating;
+                const srBody = document.getElementById('sf-store-rating-body');
+                if (sr.totalCount > 0) {
+                    const tagHtml = Object.entries(sr.tagBreakdown || {})
+                        .slice(0, 3)
+                        .map(([t]) => `<span style="background:var(--bg-secondary); color:var(--text-muted); font-size:0.7rem; padding:0.1rem 0.4rem; border-radius:4px; border:1px solid var(--border-light); display:inline-block; margin-top:0.2rem; text-transform:capitalize;">${t.replace(/_/g,' ')}</span>`)
+                        .join(' ');
+                        
+                    srBody.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <span style="font-size:1.2rem; font-weight:800;">${(sr.avgRating||0).toFixed(1)}</span>
+                            <span style="color:#f59e0b;">${renderStarsHtml(sr.avgRating||0)}</span>
+                        </div>
+                        <div style="color:var(--text-muted);">${sr.totalCount} seller review${sr.totalCount!==1?'s':''}</div>
+                        ${tagHtml ? `<div style="display:flex; flex-wrap:wrap; gap:0.3rem;">${tagHtml}</div>` : ''}`;
+                } else {
+                    srBody.innerHTML = `
+                        <div style="color:var(--text-muted); font-style:italic;">No store reviews yet.</div>
+                        <div style="margin-top:0.4rem; font-size:0.75rem;"><a href="#seller-reviews-section" style="color:var(--accent-red); text-decoration:none;">Be the first to review →</a></div>`;
+                }
+                document.getElementById('sf-store-rating-card').style.display = 'block';
+            }
         } catch {}
     }
 
@@ -684,6 +754,7 @@
     let _srAllReviews  = [];
     let _srPageSize    = 5;
     let _srShown       = 0;
+    let _eligibleOrderId = null;
 
     async function loadSellerReviews() {
         try {
@@ -699,10 +770,25 @@
 
             if (!total) {
                 document.getElementById('sr-empty').style.display = 'block';
-                return;
+            } else {
+                document.getElementById('sr-count-label').textContent = `${total} review${total!==1?'s':''}`;
             }
 
-            document.getElementById('sr-count-label').textContent = `${total} review${total!==1?'s':''}`;
+            // Check eligibility if logged in
+            if (token) {
+                try {
+                    const cRes = await fetch(`/api/reviews/check/seller/${STORE_ID}`, { headers: { Authorization: `Bearer ${token}` } });
+                    if (cRes.ok) {
+                        const eligibility = await cRes.json();
+                        if (eligibility.canReview && !eligibility.alreadyReviewed) {
+                            _eligibleOrderId = eligibility.orderId;
+                            document.getElementById('sr-cta-container').style.display = 'block';
+                        }
+                    }
+                } catch {}
+            }
+
+            if (!total) return;
 
             if (avg > 0) {
                 const row = document.getElementById('sr-avg-row');
@@ -823,6 +909,55 @@
 
     // ── Init ──────────────────────────────────────────────────────────────────
     Promise.all([loadStore(), loadProducts(), loadSellerReviews()]);
+
+    // ── Seller Rating JS ───────────────────────────────────────────────────────
+    let currentSellerRating = 0;
+
+    function setSellerRating(val) {
+        currentSellerRating = val;
+        const group = document.getElementById('seller-star-group');
+        const stars = group.querySelectorAll('.star');
+        stars.forEach((s, idx) => {
+            if (idx < val) s.classList.add('filled');
+            else s.classList.remove('filled');
+        });
+    }
+
+    function openSellerReviewModal() {
+        setSellerRating(0);
+        document.getElementById('seller-review-body').value = '';
+        document.querySelectorAll('input[name="seller-tag"]').forEach(cb => cb.checked = false);
+        document.getElementById('seller-review-modal').classList.add('open');
+    }
+
+    async function submitSellerReview() {
+        if (!currentSellerRating) { showToast('Please select a rating', 'error'); return; }
+        const btn = document.getElementById('seller-review-submit-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Submitting...';
+
+        const tags = Array.from(document.querySelectorAll('input[name="seller-tag"]:checked')).map(cb => cb.value);
+        const body = document.getElementById('seller-review-body').value.trim();
+
+        try {
+            const res = await fetch('/api/reviews/seller', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ sellerId: STORE_ID, orderId: _eligibleOrderId, rating: currentSellerRating, tags, body })
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to submit rating');
+            
+            showToast('Seller rated successfully', 'success', 3500);
+            document.getElementById('seller-review-modal').classList.remove('open');
+            setTimeout(() => window.location.reload(), 1000);
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = 'Submit Rating';
+        }
+    }
 </script>
 </body>
 </html>

@@ -16,6 +16,13 @@
     <div id="anlt-overview-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
     <div id="anlt-overview-loading" class="loading" style="display:none"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
     <div class="stats-grid" id="anlt-overview-stats"></div>
+
+    <!-- Segment 6: Review Health (superuser only) -->
+    <div id="anlt-review-health" style="display:none; margin-bottom:1.35rem;">
+      <div class="card-title" style="margin-bottom:0.75rem;"><i class="fas fa-star" style="color:var(--warn)"></i> Review Health</div>
+      <div class="stats-grid" id="anlt-review-health-stats"></div>
+    </div>
+
     <div class="grid-2 section-gap">
       <div class="card">
         <div class="card-title"><i class="fas fa-box"></i> Top Products</div>
@@ -117,6 +124,45 @@
       animateCounter(document.getElementById('anlt-ov-orders'), totalOrders, '', '');
       animateCounter(document.getElementById('anlt-ov-sellers'), totalSellers, '', '');
       animateCounter(document.getElementById('anlt-ov-buyers'), totalBuyers, '', '');
+
+      // Segment 6: Review Health — superuser only
+      if (window._isSuperuser) {
+        try {
+          const rh = await adminApi('GET', '/proxy/reviews/stats/platform');
+          const rhEl = document.getElementById('anlt-review-health');
+          const rhStats = document.getElementById('anlt-review-health-stats');
+          if (rhEl && rhStats && rh) {
+            const dist = rh.buyerScoreDistribution || {};
+            rhStats.innerHTML = `
+              <div class="stat-card" style="--stat-color:var(--warn)">
+                <div class="stat-label">Product Reviews</div>
+                <div class="stat-value" style="font-size:1.4rem">${(rh.totalProductReviews||0).toLocaleString()}</div>
+                <div class="stat-sub">Avg ${(rh.platformAvgRating||0).toFixed(1)} ★</div>
+                <i class="fas fa-star stat-icon"></i>
+              </div>
+              <div class="stat-card" style="--stat-color:#a855f7">
+                <div class="stat-label">Seller Reviews</div>
+                <div class="stat-value" style="font-size:1.4rem">${(rh.totalSellerReviews||0).toLocaleString()}</div>
+                <div class="stat-sub">Store-level feedback</div>
+                <i class="fas fa-store stat-icon"></i>
+              </div>
+              <div class="stat-card" style="--stat-color:var(--info)">
+                <div class="stat-label">Buyer Reviews</div>
+                <div class="stat-value" style="font-size:1.4rem">${(rh.totalBuyerReviews||0).toLocaleString()}</div>
+                <div class="stat-sub">Good: ${dist.high_4_5||0} / Mid: ${dist.mid_3_4||0} / Low: ${dist.low_1_3||0}</div>
+                <i class="fas fa-user-check stat-icon"></i>
+              </div>
+              <div class="stat-card" style="--stat-color:var(--accent)">
+                <div class="stat-label">Pending Moderation</div>
+                <div class="stat-value" style="font-size:1.4rem">${(rh.flaggedPendingModeration||0).toLocaleString()}</div>
+                <div class="stat-sub">Reviews needing action</div>
+                <i class="fas fa-flag stat-icon"></i>
+              </div>
+            `;
+            rhEl.style.display = 'block';
+          }
+        } catch { /* non-critical — superuser stats fail silently */ }
+      }
 
       // Mini overview charts
       const prodArr = products.products || (Array.isArray(products) ? products : []);

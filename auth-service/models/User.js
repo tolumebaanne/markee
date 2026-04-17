@@ -22,6 +22,9 @@ const UserSchema = new mongoose.Schema({
   pendingDeletionSince: { type: Date },   // set when status → pending_deletion; used by scheduled job
   deletedAt:            { type: Date },   // set when status → deleted
   originalEmail:        { type: String }, // stores the real email after mangling; never emitted on event bus
+  // Password reset — raw token is emailed; only the SHA-256 hash is stored here (m0t.AUTH.3.4)
+  resetToken:           { type: String, default: null },
+  resetTokenExpiry:     { type: Date,   default: null },
 });
 
 UserSchema.statics.validatePassword = async function(email, password) {

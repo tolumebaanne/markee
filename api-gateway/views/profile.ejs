@@ -9,151 +9,7 @@
     <script src="/js/toast.js"></script>
     <script src="/js/confirm.js"></script>
     <script src="/js/cart.js"></script>
-    <style>
-        .profile-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.75rem;
-            align-items: start;
-        }
-
-        @media (max-width: 760px) { .profile-grid { grid-template-columns: 1fr; } }
-
-        .profile-card {
-            background: var(--bg-primary);
-            border: 1px solid var(--border-light);
-            border-radius: 12px;
-            overflow: hidden;
-        }
-
-        .profile-card-header {
-            padding: 1rem 1.25rem;
-            border-bottom: 1px solid var(--border-light);
-            background: var(--bg-secondary);
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-        }
-
-        .profile-card-header h4 { margin: 0; font-size: 0.9rem; font-weight: 700; }
-
-        .profile-card-body { padding: 1.25rem; }
-
-        .quick-link {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0.85rem 1rem;
-            border-bottom: 1px solid var(--border-light);
-            cursor: pointer;
-            transition: background 0.15s;
-            text-decoration: none;
-            color: var(--text-main);
-        }
-
-        .quick-link:hover { background: var(--bg-secondary); }
-        .quick-link:last-child { border-bottom: none; }
-
-        .quick-link-left { display: flex; align-items: center; gap: 0.75rem; font-weight: 500; font-size: 0.875rem; }
-        .quick-link-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; flex-shrink: 0; }
-
-        /* Avatar circle (uploadable) */
-        .avatar-circle {
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-            border: 3px solid var(--accent-red);
-            overflow: hidden;
-            cursor: pointer;
-            position: relative;
-            margin: 0 auto 1rem;
-            background: var(--bg-secondary);
-            flex-shrink: 0;
-        }
-
-        .avatar-circle:hover .avatar-overlay { opacity: 1; }
-
-        .avatar-overlay {
-            position: absolute;
-            inset: 0;
-            background: rgba(0,0,0,0.45);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transition: opacity 0.2s;
-            color: white;
-            font-size: 1.3rem;
-            border-radius: 50%;
-        }
-
-        /* Editor modal */
-        .avatar-editor-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.72);
-            z-index: 2000;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 1rem;
-        }
-
-        .avatar-editor-overlay.open { display: flex; }
-
-        .avatar-editor-box {
-            background: white;
-            border-radius: 16px;
-            padding: 1.5rem;
-            width: 320px;
-            max-width: 95vw;
-        }
-
-        .editor-circle-wrap {
-            width: 220px;
-            height: 220px;
-            border-radius: 50%;
-            overflow: hidden;
-            margin: 0 auto 1.25rem;
-            border: 3px solid var(--accent-red);
-            position: relative;
-            cursor: move;
-            background: var(--bg-secondary);
-            touch-action: none;
-        }
-
-        /* Role pill */
-        .role-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.78rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-
-        .role-seller { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-        .role-buyer  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
-        .role-admin  { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
-
-        /* Store settings form state */
-        .store-form-group { margin-bottom: 1rem; }
-        .store-form-group label { font-size: 0.82rem; font-weight: 600; display: block; margin-bottom: 0.4rem; }
-        .store-form-group input,
-        .store-form-group textarea { font-size: 0.875rem; }
-
-        .skeleton {
-            background: linear-gradient(90deg, var(--bg-secondary) 25%, #e9eaec 50%, var(--bg-secondary) 75%);
-            background-size: 200% 100%;
-            animation: shimmer 1.4s infinite;
-            border-radius: 6px;
-        }
-
-        @keyframes shimmer { to { background-position: -200% 0; } }
-    </style>
+    
 </head>
 <body class="bg-light">
 
@@ -341,6 +197,55 @@
 
         <!-- RIGHT: Store settings (seller only) + danger zone -->
         <div>
+            <!-- ── Phase 5: Achievements ───────────────────────────────────── -->
+            <div class="profile-card" id="achievements-card" style="display:none; margin-bottom:1.5rem;">
+                <div class="profile-card-header">
+                    <i class="fa fa-trophy" style="color:#f5c518;"></i>
+                    <h4>Achievements</h4>
+                </div>
+                <div class="profile-card-body" id="achievements-body">
+                    <div class="achievements-grid" id="achievements-grid"></div>
+                </div>
+            </div>
+
+            <!-- ── Phase 5: Activity Stats ─────────────────────────────────── -->
+            <div class="profile-card" id="activity-stats-card" style="display:none; margin-bottom:1.5rem;">
+                <div class="profile-card-header">
+                    <i class="fa fa-chart-bar" style="color:var(--accent-red);"></i>
+                    <h4>Activity Stats</h4>
+                </div>
+                <div class="profile-card-body">
+                    <div class="activity-stats-grid" id="activity-stats-grid"></div>
+                    <div id="member-since-row" style="margin-top:0.75rem; font-size:0.78rem; color:var(--text-muted); text-align:center;"></div>
+                </div>
+            </div>
+
+            <!-- ── Phase 5: Purchase Insights ─────────────────────────────── -->
+            <div class="profile-card" id="purchase-insights-card" style="display:none; margin-bottom:1.5rem;">
+                <div class="profile-card-header">
+                    <i class="fa fa-shopping-bag" style="color:var(--accent-red);"></i>
+                    <h4>Purchase Insights</h4>
+                </div>
+                <div class="profile-card-body">
+                    <div id="purchase-insights-summary" style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.75rem;"></div>
+                    <div class="spend-bar-chart" id="spend-chart"></div>
+                </div>
+            </div>
+
+            <!-- ── Phase 5: Watchlist Snapshot ────────────────────────────── -->
+            <div class="profile-card" id="watchlist-card" style="display:none; margin-bottom:1.5rem;">
+                <div class="profile-card-header" style="justify-content:space-between;">
+                    <div style="display:flex; align-items:center; gap:0.6rem;">
+                        <i class="fa fa-heart" style="color:var(--accent-red);"></i>
+                        <h4>Watchlist</h4>
+                    </div>
+                    <a href="/wishlist" style="font-size:0.75rem; color:var(--accent-red); font-weight:600; text-decoration:none;">See all</a>
+                </div>
+                <div class="profile-card-body">
+                    <div class="watchlist-snap-grid" id="watchlist-snap-grid"></div>
+                </div>
+            </div>
+
             <!-- Notifications Card -->
             <div class="profile-card" id="notifications" style="margin-bottom:1.5rem;">
                 <div class="profile-card-header" style="justify-content:space-between;">
@@ -479,13 +384,13 @@
                 </div>
             </div>
 
-            <!-- Reviewer Score (B.5) -->
-            <div class="profile-card" id="reviewer-score-card" style="display:none; margin-bottom:1.5rem;">
+            <!-- ── Phase 5: Unified Reputation ──────────────────────────────── -->
+            <div class="profile-card" id="reputation-card" style="display:none; margin-bottom:1.5rem;">
                 <div class="profile-card-header">
-                    <i class="fa fa-star" style="color:#f59e0b;"></i>
-                    <h4>Your Reviewer Score</h4>
+                    <i class="fa fa-shield-alt" style="color:#1d4ed8;"></i>
+                    <h4>Your Reputation</h4>
                 </div>
-                <div class="profile-card-body" id="reviewer-score-body"></div>
+                <div class="profile-card-body" id="reputation-body"></div>
             </div>
 
             <!-- Your Reviews (B.5) -->
@@ -568,6 +473,19 @@
     // ── Auth ──────────────────────────────────────────────────────────────────
     const token = localStorage.getItem('access_token');
     if (!token) { window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search)); }
+
+    // Phase 5 — shared state for async coordination
+    let _userProfile   = null;  // set by loadReviewerScore(), consumed by reputation + achievements
+    let _myReviews     = null;  // set by loadMyReviews(),     consumed by reputation + achievements
+
+    function _tryLoadReputation() {
+        if (_userProfile === null || _myReviews === null) return;
+        loadReputation(_userProfile, _myReviews);
+    }
+    function _tryLoadAchievements() {
+        if (_userProfile === null || _myReviews === null || !window._activityStats) return;
+        loadAchievements(_userProfile, _myReviews, window._activityStats);
+    }
 
     function parseJwt(t) {
         try {
@@ -1090,37 +1008,10 @@
             const res = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
             if (!res.ok) return;
             const profile = await res.json();
-            const score = profile.buyerScore ?? 50;
-            const written = profile.reviewsWritten ?? 0;
-            const card  = document.getElementById('reviewer-score-card');
-            const body  = document.getElementById('reviewer-score-body');
-            let badgeColor, badgeText, badgeIcon, desc;
-            if (score >= 80) {
-                badgeColor='#15803d'; badgeText='Trusted Reviewer'; badgeIcon='fa-medal';
-                desc = 'Your review history shows you\'re a trusted buyer. Sellers value your input.';
-            } else if (score >= 60) {
-                badgeColor='#1d4ed8'; badgeText='Established Reviewer'; badgeIcon='fa-user-check';
-                desc = 'You have a solid review track record. Keep reviewing to reach Trusted status.';
-            } else {
-                badgeColor='#6b7280'; badgeText='New Reviewer'; badgeIcon='fa-user';
-                desc = 'Leave more verified reviews to build your buyer reputation score.';
-            }
-            body.innerHTML = `
-                <div style="display:flex; align-items:center; gap:1rem; margin-bottom:0.75rem;">
-                    <div style="width:56px; height:56px; border-radius:50%; background:${badgeColor}15; display:flex; align-items:center; justify-content:center; font-size:1.5rem; color:${badgeColor}; flex-shrink:0;">
-                        <i class="fa ${badgeIcon}"></i>
-                    </div>
-                    <div>
-                        <div style="font-weight:700; font-size:1rem; color:${badgeColor};">${badgeText}</div>
-                        <div style="font-size:0.82rem; color:var(--text-muted);">${written} review${written!==1?'s':''} written · Score: ${score}/100</div>
-                    </div>
-                </div>
-                <div style="background:var(--bg-secondary); border-radius:6px; padding:0.6rem 0.85rem; font-size:0.8rem; color:var(--text-muted); line-height:1.5;">${desc}</div>
-                <div style="margin-top:0.75rem; height:6px; background:var(--bg-secondary); border-radius:3px; overflow:hidden;">
-                    <div style="height:100%; width:${score}%; background:${badgeColor}; border-radius:3px; transition:width 0.6s;"></div>
-                </div>
-                <div style="font-size:0.68rem; color:var(--text-muted); text-align:right; margin-top:0.2rem;">${score} / 100</div>`;
-            card.style.display = 'block';
+            // Phase 5 — share profile for reputation + achievements coordination
+            _userProfile = profile;
+            _tryLoadReputation();
+            _tryLoadAchievements();
         } catch {}
     }
 
@@ -1131,6 +1022,10 @@
             });
             if (!res.ok) return;
             const reviews = await res.json();
+            // Phase 5 — share reviews for reputation + achievements coordination
+            _myReviews = reviews;
+            _tryLoadReputation();
+            _tryLoadAchievements();
             const card = document.getElementById('my-reviews-card');
             const list = document.getElementById('my-reviews-list');
             const countEl = document.getElementById('my-reviews-count');
@@ -1172,12 +1067,281 @@
         } catch {}
     }
 
+    // ── Phase 5: Activity Stats (Segment 1) ───────────────────────────────────
+    async function loadActivityStats() {
+        try {
+            const res = await fetch('/api/orders/my-stats', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) return;
+            const s = await res.json();
+            window._activityStats = s;
+
+            const card = document.getElementById('activity-stats-card');
+            const grid = document.getElementById('activity-stats-grid');
+
+            const fmt = cents => '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+            grid.innerHTML = [
+                { value: s.totalOrders,    label: 'Total Orders' },
+                { value: s.completedOrders, label: 'Completed' },
+                { value: fmt(s.totalSpentCents), label: 'Total Spent' },
+                { value: s.uniqueSellers,  label: 'Sellers Bought From' },
+                { value: s.totalItems,     label: 'Items Purchased' },
+                { value: s.cancelledOrders, label: 'Cancelled' }
+            ].map(item => `
+                <div class="activity-stat-item">
+                    <div class="stat-value">${item.value}</div>
+                    <div class="stat-label">${item.label}</div>
+                </div>`).join('');
+
+            if (_userProfile?.createdAt) {
+                const since = new Date(_userProfile.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                document.getElementById('member-since-row').textContent = `Member since ${since}`;
+            }
+
+            card.style.display = 'block';
+
+            // Segment 2 depends on _activityStats — trigger it now
+            loadPurchaseInsights();
+            // Segment 5 may now be ready
+            _tryLoadAchievements();
+        } catch(e) { console.error('loadActivityStats:', e); }
+    }
+
+    // ── Phase 5: Purchase Insights (Segment 2) ────────────────────────────────
+    async function loadPurchaseInsights() {
+        const s = window._activityStats;
+        if (!s) return;
+
+        const card    = document.getElementById('purchase-insights-card');
+        const summary = document.getElementById('purchase-insights-summary');
+        const chart   = document.getElementById('spend-chart');
+
+        const fmt = cents => '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        if (s.completedOrders === 0) {
+            summary.textContent = 'No completed orders yet. Your spending breakdown will appear here after your first purchase.';
+            card.style.display = 'block';
+            return;
+        }
+
+        const avgOrder = s.completedOrders > 0 ? (s.totalSpentCents / s.completedOrders) : 0;
+        summary.innerHTML = `Avg. order value: <strong>${fmt(avgOrder)}</strong> &nbsp;·&nbsp; ${s.completedOrders} completed order${s.completedOrders !== 1 ? 's' : ''}`;
+
+        // Spend bar chart — last 6 months
+        const months = Object.keys(s.spendByMonth).sort();
+        if (months.length === 0) {
+            chart.innerHTML = '<p style="font-size:0.78rem; color:var(--text-muted);">No spend data in the last 6 months.</p>';
+        } else {
+            const maxVal = Math.max(...Object.values(s.spendByMonth));
+            chart.innerHTML = months.map(m => {
+                const val  = s.spendByMonth[m];
+                const pct  = maxVal > 0 ? Math.round((val / maxVal) * 100) : 0;
+                const label = new Date(m + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+                return `
+                    <div class="bar-row">
+                        <span class="bar-month">${label}</span>
+                        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;"></div></div>
+                        <span class="bar-amount">${fmt(val)}</span>
+                    </div>`;
+            }).join('');
+        }
+
+        card.style.display = 'block';
+    }
+
+    // ── Phase 5: Unified Reputation (Segment 3) ───────────────────────────────
+    function loadReputation(profile, reviews) {
+        const card = document.getElementById('reputation-card');
+        const body = document.getElementById('reputation-body');
+
+        const buyerScore   = profile.buyerScore        ?? 50;
+        const tradingScore = profile.buyerTradingScore  ?? null;
+        const written      = profile.reviewsWritten     ?? reviews.length;
+        const tradeCount   = profile.buyerReviewCount   ?? 0;
+
+        // Reviewer tier
+        let rTier, rColor;
+        if (buyerScore >= 80) { rTier = 'Trusted';     rColor = '#15803d'; }
+        else if (buyerScore >= 60) { rTier = 'Established'; rColor = '#1d4ed8'; }
+        else                  { rTier = 'New';          rColor = '#6b7280'; }
+
+        const metricsHtml = `
+            <div class="reputation-unified">
+                <div class="rep-metric">
+                    <div class="rep-value" style="color:${rColor};">${buyerScore}</div>
+                    <div class="rep-label">Reviewer Score <span style="font-size:0.65rem;">/100</span></div>
+                </div>
+                <div class="rep-metric">
+                    <div class="rep-value">${written}</div>
+                    <div class="rep-label">Review${written !== 1 ? 's' : ''} Written</div>
+                </div>
+                ${tradingScore !== null ? `
+                <div class="rep-metric">
+                    <div class="rep-value" style="color:#15803d;">${tradingScore.toFixed(1)}</div>
+                    <div class="rep-label">Buyer Rating <span style="font-size:0.65rem;">/5</span></div>
+                </div>
+                <div class="rep-metric">
+                    <div class="rep-value">${tradeCount}</div>
+                    <div class="rep-label">Seller Review${tradeCount !== 1 ? 's' : ''}</div>
+                </div>` : ''}
+            </div>`;
+
+        // Progress bar
+        const barHtml = `
+            <div style="margin-bottom:0.75rem;">
+                <div style="display:flex; justify-content:space-between; font-size:0.72rem; color:var(--text-muted); margin-bottom:0.25rem;">
+                    <span>${rTier} Reviewer</span><span>${buyerScore} / 100</span>
+                </div>
+                <div style="height:6px; background:var(--bg-secondary); border-radius:3px; overflow:hidden;">
+                    <div style="height:100%; width:${buyerScore}%; background:${rColor}; border-radius:3px; transition:width 0.6s;"></div>
+                </div>
+            </div>`;
+
+        body.innerHTML = metricsHtml + barHtml;
+        card.style.display = 'block';
+    }
+
+    // ── Phase 5: Watchlist Snapshot (Segment 4) ───────────────────────────────
+    async function loadWatchlistSnapshot() {
+        try {
+            const res = await fetch('/api/users/me/watchlist', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) return;
+            const list = await res.json();
+            if (!list || list.length === 0) return;
+
+            const card = document.getElementById('watchlist-card');
+            const grid = document.getElementById('watchlist-snap-grid');
+
+            // Take up to 6 most recently added
+            const recent = list.slice().sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt)).slice(0, 6);
+
+            // Fetch product details for each
+            const items = await Promise.all(recent.map(async entry => {
+                try {
+                    const r = await fetch(`/api/catalog/products/${entry.productId}`);
+                    if (!r.ok) return null;
+                    return await r.json();
+                } catch { return null; }
+            }));
+
+            const validItems = items.filter(Boolean);
+            if (validItems.length === 0) return;
+
+            grid.innerHTML = validItems.map(p => {
+                const img   = (p.images && p.images[0]) ? p.images[0] : '/img/placeholder.png';
+                const price = p.price != null ? '$' + (p.price / 100).toFixed(2) : '';
+                const title = p.title || 'Product';
+                return `
+                    <div class="wl-thumb" onclick="window.location='/product/${p._id}'">
+                        <img src="${img}" alt="${title}" onerror="this.src='/img/placeholder.png'">
+                        <div class="wl-title" title="${title}">${title}</div>
+                        ${price ? `<div class="wl-price">${price}</div>` : ''}
+                    </div>`;
+            }).join('');
+
+            card.style.display = 'block';
+        } catch(e) { console.error('loadWatchlistSnapshot:', e); }
+    }
+
+    // ── Phase 5: Achievements (Segment 5) ─────────────────────────────────────
+    function loadAchievements(profile, reviews, stats) {
+        const card = document.getElementById('achievements-card');
+        const grid = document.getElementById('achievements-grid');
+
+        const completed = stats.completedOrders  || 0;
+        const spent     = stats.totalSpentCents   || 0;
+        const sellers   = stats.uniqueSellers     || 0;
+        const written   = profile.reviewsWritten  ?? reviews.length;
+        const score     = profile.buyerScore      ?? 50;
+
+        const ACHIEVEMENTS = [
+            {
+                id: 'first_order',
+                icon: '🛍️',
+                name: 'First Purchase',
+                desc: 'Placed your first order',
+                earned: completed >= 1
+            },
+            {
+                id: 'five_orders',
+                icon: '🧺',
+                name: 'Frequent Buyer',
+                desc: '5 completed orders',
+                earned: completed >= 5
+            },
+            {
+                id: 'twenty_orders',
+                icon: '🏆',
+                name: 'Power Buyer',
+                desc: '20 completed orders',
+                earned: completed >= 20
+            },
+            {
+                id: 'first_review',
+                icon: '✍️',
+                name: 'First Review',
+                desc: 'Wrote your first review',
+                earned: written >= 1
+            },
+            {
+                id: 'ten_reviews',
+                icon: '📝',
+                name: 'Prolific Reviewer',
+                desc: '10 reviews written',
+                earned: written >= 10
+            },
+            {
+                id: 'trusted_reviewer',
+                icon: '🥇',
+                name: 'Trusted Reviewer',
+                desc: 'Reviewer score ≥ 80',
+                earned: score >= 80
+            },
+            {
+                id: 'big_spender',
+                icon: '💰',
+                name: 'Big Spender',
+                desc: 'Spent over $500 total',
+                earned: spent >= 50000
+            },
+            {
+                id: 'explorer',
+                icon: '🗺️',
+                name: 'Explorer',
+                desc: 'Bought from 5+ sellers',
+                earned: sellers >= 5
+            },
+            {
+                id: 'loyal_customer',
+                icon: '🤝',
+                name: 'Loyal Customer',
+                desc: 'Bought from same seller 3+ times',
+                earned: (stats.topSellers || []).some(s => s.orderCount >= 3)
+            }
+        ];
+
+        grid.innerHTML = ACHIEVEMENTS.map(a => `
+            <div class="achievement-item ${a.earned ? 'earned' : ''}" title="${a.earned ? 'Earned!' : 'Not yet unlocked'}">
+                <div class="ach-icon" style="${a.earned ? '' : 'filter:grayscale(1); opacity:0.4;'}">${a.icon}</div>
+                <div class="ach-name">${a.name}</div>
+                <div class="ach-desc">${a.desc}</div>
+            </div>`).join('');
+
+        card.style.display = 'block';
+    }
+
     // ── Boot ──────────────────────────────────────────────────────────────────
     loadAvatar();
     loadBio();
     loadLocale();
     loadReviewerScore();
     loadMyReviews();
+    loadActivityStats();
+    loadWatchlistSnapshot();
     if (window.MarkeeCart) MarkeeCart.updateAllCartBadges();
 </script>
 </body>

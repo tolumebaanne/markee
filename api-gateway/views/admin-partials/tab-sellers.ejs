@@ -82,7 +82,8 @@ async function loadSellers() {
         </div>
         <div style="display:flex;gap:1rem;font-size:0.7rem;color:var(--muted);margin-bottom:0.65rem">
           <span><strong style="color:var(--text);display:block;font-size:0.85rem">${s.totalOrders||0}</strong>Orders</span>
-          <span><strong style="color:var(--text);display:block;font-size:0.85rem">${s.sellerAvgRating?s.sellerAvgRating.toFixed(1):'—'}</strong>Rating</span>
+          <span><strong style="color:var(--text);display:block;font-size:0.85rem">${s.sellerAvgRating?s.sellerAvgRating.toFixed(1):'—'}</strong>Product ★</span>
+          <span id="store-rating-${s._id}"><strong style="color:var(--text);display:block;font-size:0.85rem">…</strong>Store ★</span>
           <span><strong style="color:var(--text);display:block;font-size:0.78rem">${fmtDate(s.createdAt)}</strong>Joined</span>
         </div>
         <div class="seller-card-actions">
@@ -94,7 +95,23 @@ async function loadSellers() {
         </div>
       </div>`;
     }).join('')}</div>`;
+    // Segment 6: lazy-load store rating badges
+    stores.forEach(s => loadStoreRatingBadge(s._id));
   } catch(err){showErr('sel-error',err.message);el.innerHTML='';}
+}
+
+async function loadStoreRatingBadge(storeId) {
+  try {
+    const r = await adminApi('GET', `/proxy/reviews/seller/${storeId}/stats`);
+    const el = document.getElementById(`store-rating-${storeId}`);
+    if (!el) return;
+    const sr = r.storeRating;
+    if (sr && sr.totalCount > 0) {
+      el.innerHTML = `<strong style="color:var(--text);display:block;font-size:0.85rem">${sr.avgRating.toFixed(1)}</strong>Store ★`;
+    } else {
+      el.innerHTML = `<strong style="color:var(--muted);display:block;font-size:0.75rem">—</strong>Store ★`;
+    }
+  } catch { /* silently skip */ }
 }
 
 async function loadDormantSellers() {
