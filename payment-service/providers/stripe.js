@@ -28,15 +28,20 @@ const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
  * which is necessary because checkout uses confirmPayment({ redirect: 'if_required' })
  * without a return_url — redirect-based methods (bank redirects etc.) would fail.
  */
-async function authorize({ amountCents, currency, orderId, idempotencyKey }) {
+async function authorize({ amountCents, currency, orderId, idempotencyKey, stripeCustomerId }) {
+    const intentParams = {
+        amount:                    amountCents,
+        currency:                  currency || 'cad',
+        capture_method:            'manual',
+        automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+        metadata:                  { orderId: orderId?.toString() || '' },
+    };
+    // Attach Stripe Customer so saved PaymentMethods can be reused.
+    // Without this, Stripe rejects confirmed saved cards as single-use only.
+    if (stripeCustomerId) intentParams.customer = stripeCustomerId;
+
     const intent = await stripe.paymentIntents.create(
-        {
-            amount:                    amountCents,
-            currency:                  currency || 'cad',
-            capture_method:            'manual',
-            automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
-            metadata:                  { orderId: orderId?.toString() || '' },
-        },
+        intentParams,
         idempotencyKey ? { idempotencyKey: `auth-${idempotencyKey}` } : {}
     );
     return {

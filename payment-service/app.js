@@ -786,10 +786,26 @@ app.post('/create-intent', async (req, res) => {
         const currency     = cfg.defaultCurrency || 'cad';
         const providerName = process.env.PAYMENT_PROVIDER || (STRIPE_SECRET_KEY_AT_LOAD ? 'stripe' : 'mock');
         const provider     = getProvider(providerName);
-        const result       = await provider.authorize({
+
+        // Fetch the user's Stripe Customer ID so saved PaymentMethods can be reused.
+        // Without customer on the PaymentIntent, Stripe rejects any saved card.
+        let stripeCustomerId = null;
+        try {
+            const userSvcUrl = process.env.USER_SERVICE_URL || 'http://localhost:5013';
+            const userResp   = await fetch(`${userSvcUrl}/users/internal/${req.user.sub}/stripe-data`, {
+                headers: { 'x-internal-service': 'payment-service' },
+            });
+            if (userResp.ok) {
+                const userData   = await userResp.json();
+                stripeCustomerId = userData.stripeCustomerId || null;
+            }
+        } catch (_) { /* non-fatal — proceed without customer */ }
+
+        const result = await provider.authorize({
             amountCents,
             currency,
-            orderId:  req.user.sub,   // temporary buyer reference before orderId is assigned
+            orderId:            req.user.sub,   // temporary buyer reference before orderId is assigned
+            stripeCustomerId,
         });
         res.json({ clientSecret: result.clientSecret, intentId: result.intentId });
     } catch (err) {
