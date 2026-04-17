@@ -782,9 +782,9 @@ app.post('/create-intent', async (req, res) => {
         return errorResponse(res, 400, 'amountCents must be at least 50');
     }
     try {
-        const cfg          = await getPlatformConfig();
+        const cfg          = await getPlatformConfig().catch(() => ({ defaultCurrency: 'cad' }));
         const currency     = cfg.defaultCurrency || 'cad';
-        const providerName = process.env.PAYMENT_PROVIDER || (process.env.STRIPE_SECRET_KEY ? 'stripe' : 'mock');
+        const providerName = process.env.PAYMENT_PROVIDER || (STRIPE_SECRET_KEY_AT_LOAD ? 'stripe' : 'mock');
         const provider     = getProvider(providerName);
         const result       = await provider.authorize({
             amountCents,

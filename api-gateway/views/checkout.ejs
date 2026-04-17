@@ -687,6 +687,8 @@ function useNewCard() {
     document.getElementById('saved-payments-section').style.display = 'none';
     document.getElementById('payment-type-row').style.display = 'flex';
     document.getElementById('card-fields').style.display = 'block';
+    // Card fields are now visible — mount the Stripe element if it hasn't been yet.
+    mountStripeElement();
 }
 
 // S21 — Load saved cards and show them above the payment type selector
@@ -804,9 +806,11 @@ function updateTotals() {
         delivEl.style.color = '#16a34a';
     }
 
-    // Phase 3: remount Stripe element if amount changed and card is selected
+    // Phase 3: remount Stripe element if amount changed, card is selected, and the card
+    // fields container is visible (it is hidden when a saved card is active).
     const payMethod = document.querySelector('input[name="payment"]:checked')?.value;
-    if (payMethod === 'card' && totalCents !== _lastMountedAmountCents && totalCents >= 50) {
+    const cardFieldsVisible = document.getElementById('card-fields')?.style.display !== 'none';
+    if (payMethod === 'card' && cardFieldsVisible && totalCents !== _lastMountedAmountCents && totalCents >= 50) {
         mountStripeElement();
     }
 }
@@ -921,6 +925,12 @@ async function mountStripeElement() {
 
     try {
         const token = getToken();
+        if (!token) {
+            // Session expired while the user was on the checkout page — send to login
+            if (loadingEl) loadingEl.style.display = 'none';
+            window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search));
+            return;
+        }
         const res = await fetch('/api/payments/create-intent', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -928,7 +938,7 @@ async function mountStripeElement() {
         });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || 'Payment setup failed');
+            throw new Error(err.message || err.error || 'Payment setup failed');
         }
         const { clientSecret, intentId } = await res.json();
         _stripeIntentId         = intentId;
