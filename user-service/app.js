@@ -532,7 +532,7 @@ app.get('/admin/users', async (req, res) => {
 // PATCH /admin/users/:userId/suspend — set status to 'suspended'
 // Body: { reason }
 app.patch('/admin/users/:userId/suspend', async (req, res) => {
-    if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const profile = await Profile.findOneAndUpdate(
             { userId: req.params.userId },
@@ -548,7 +548,7 @@ app.patch('/admin/users/:userId/suspend', async (req, res) => {
 // PATCH /admin/users/:userId/ban — hard ban, set status to 'banned'
 // Body: { reason }
 app.patch('/admin/users/:userId/ban', async (req, res) => {
-    if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const profile = await Profile.findOneAndUpdate(
             { userId: req.params.userId },
@@ -563,7 +563,7 @@ app.patch('/admin/users/:userId/ban', async (req, res) => {
 
 // PATCH /admin/users/:userId/unban — lift ban, set status to 'active'
 app.patch('/admin/users/:userId/unban', async (req, res) => {
-    if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const profile = await Profile.findOneAndUpdate(
             { userId: req.params.userId },
@@ -579,7 +579,7 @@ app.patch('/admin/users/:userId/unban', async (req, res) => {
 // PATCH /admin/users/:userId/role — change role
 // Body: { role: 'buyer'|'seller'|'admin', reason }
 app.patch('/admin/users/:userId/role', async (req, res) => {
-    if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     const { role, reason } = req.body;
     const VALID_ROLES = ['buyer', 'seller', 'admin'];
     if (!role || !VALID_ROLES.includes(role)) {
