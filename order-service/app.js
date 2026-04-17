@@ -44,8 +44,8 @@ const OrderSchema = new mongoose.Schema({
         default: 'shipping'
     },
     // Canonical address fields: street, city, province, postalCode, country, label, isDefault
-    shippingAddress: { street: String, city: String, province: String, postalCode: String, country: String },
-    billingAddress:  { street: String, city: String, province: String, postalCode: String, country: String },
+    shippingAddress: { street: String, city: String, province: String, postalCode: String, country: String, recipientName: String },
+    billingAddress:  { street: String, city: String, province: String, postalCode: String, country: String, recipientName: String },
     deliverySpeed:   { type: String, enum: ['standard', 'fast'], default: 'standard' },
     deliveryFee:     { type: Number, default: 0 },
     cancellationReason: { type: String, default: '' },
@@ -578,11 +578,12 @@ app.post('/', async (req, res) => {
 
         // Sanitize shippingAddress and billingAddress to canonical fields only
         const sanitizeAddr = (a) => a ? {
-            street:     String(a.street     || '').trim().slice(0, 200),
-            city:       String(a.city       || '').trim().slice(0, 100),
-            province:   String(a.province   || '').trim().slice(0, 100),
-            postalCode: String(a.postalCode || '').trim().slice(0, 20),
-            country:    String(a.country    || 'Canada').trim().slice(0, 100),
+            street:        String(a.street        || '').trim().slice(0, 200),
+            city:          String(a.city          || '').trim().slice(0, 100),
+            province:      String(a.province      || '').trim().slice(0, 100),
+            postalCode:    String(a.postalCode    || '').trim().slice(0, 20),
+            country:       String(a.country       || 'Canada').trim().slice(0, 100),
+            recipientName: String(a.recipientName || '').trim().slice(0, 100),
         } : undefined;
 
         const resolvedShippingAddress = sanitizeAddr(shippingAddress);

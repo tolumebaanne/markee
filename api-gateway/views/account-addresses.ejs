@@ -63,11 +63,11 @@
             <div class="addr-form-grid">
                 <div class="full">
                     <label class="form-label">Label</label>
-                    <select id="d-label" class="form-control">
-                        <option value="Home">Home</option>
-                        <option value="Work">Work</option>
-                        <option value="Other">Other</option>
-                    </select>
+                    <input type="text" id="d-label" class="form-control" placeholder="e.g. Home, Work, Mum's..." maxlength="50" value="Home">
+                </div>
+                <div class="full">
+                    <label class="form-label">Recipient Name <span style="font-size:.8rem;color:var(--muted)">(optional — for sending to someone else)</span></label>
+                    <input type="text" id="d-recipientName" class="form-control" placeholder="e.g. Jane Doe" maxlength="100">
                 </div>
                 <div class="full">
                     <label class="form-label">Street Address <span style="color:var(--danger)">*</span></label>
@@ -202,6 +202,7 @@ function renderDelivery() {
             <div class="addr-item-top">
                 <div>
                     <div class="addr-label">${a.label || 'Address'}${a.isDefault ? ' <span class="addr-badge">Default</span>' : ''}</div>
+                    ${a.recipientName ? `<div class="addr-recipient" style="font-size:.85rem;font-weight:600;margin-bottom:.15rem">${esc(a.recipientName)}</div>` : ''}
                     <div class="addr-street">${esc(a.street)}</div>
                     ${line2 ? `<div class="addr-line2">${esc(line2)}</div>` : ''}
                     ${a.country ? `<div class="addr-country">${esc(a.country)}</div>` : ''}
@@ -222,15 +223,17 @@ function openDeliveryForm(idx) {
     if (idx === null) {
         title.textContent = 'Add Address';
         document.getElementById('delivery-edit-id').value = '';
-        ['d-label','d-street','d-city','d-province','d-postalCode'].forEach(id => document.getElementById(id).value = '');
+        ['d-label','d-recipientName','d-street','d-city','d-province','d-postalCode'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('d-label').value = 'Home';
         document.getElementById('d-country').value = 'Canada';
         document.getElementById('d-isDefault').checked = false;
     } else {
         const a = _deliveryAddresses[idx];
         title.textContent = 'Edit Address';
         document.getElementById('delivery-edit-id').value = a._id;
-        document.getElementById('d-label').value      = a.label      || 'Home';
-        document.getElementById('d-street').value     = a.street     || '';
+        document.getElementById('d-label').value         = a.label         || 'Home';
+        document.getElementById('d-recipientName').value = a.recipientName || '';
+        document.getElementById('d-street').value        = a.street        || '';
         document.getElementById('d-city').value       = a.city       || '';
         document.getElementById('d-province').value   = a.province   || '';
         document.getElementById('d-postalCode').value = a.postalCode || '';
@@ -246,8 +249,9 @@ function closeDeliveryForm() { document.getElementById('delivery-form-wrap').cla
 async function saveDeliveryAddress() {
     const id = document.getElementById('delivery-edit-id').value;
     const body = {
-        label:      document.getElementById('d-label').value,
-        street:     document.getElementById('d-street').value.trim(),
+        label:         document.getElementById('d-label').value.trim() || 'Home',
+        recipientName: document.getElementById('d-recipientName').value.trim(),
+        street:        document.getElementById('d-street').value.trim(),
         city:       document.getElementById('d-city').value.trim(),
         province:   document.getElementById('d-province').value.trim(),
         postalCode: document.getElementById('d-postalCode').value.trim(),

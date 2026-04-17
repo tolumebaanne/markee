@@ -908,6 +908,7 @@
 
         const zip = addr.postalCode || addr.zip || '';
         blockEl.innerHTML = `
+            ${addr.recipientName ? `<strong>${escHtml(addr.recipientName)}</strong><br>` : ''}
             <strong>${escHtml(addr.street)}</strong><br>
             ${escHtml(addr.city || '')}${zip ? ', ' + escHtml(zip) : ''}<br>
             ${escHtml(addr.province || addr.state || '')}${(addr.province || addr.state) && addr.country ? ', ' : ''}${escHtml(addr.country || '')}
@@ -1221,9 +1222,10 @@
         document.getElementById('billing-card').style.display = 'block';
         const bPostal = addr.postalCode || addr.zip || '';
         document.getElementById('billing-block').innerHTML = `
-            <strong>${addr.street}</strong><br>
-            ${addr.city}${bPostal ? ', ' + bPostal : ''}<br>
-            ${addr.country || ''}
+            ${addr.recipientName ? `<strong>${escHtml(addr.recipientName)}</strong><br>` : ''}
+            <strong>${escHtml(addr.street)}</strong><br>
+            ${escHtml(addr.city || '')}${bPostal ? ', ' + escHtml(bPostal) : ''}<br>
+            ${escHtml(addr.country || '')}
         `;
     }
 

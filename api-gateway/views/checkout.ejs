@@ -424,6 +424,10 @@ let _lastMountedAmountCents = 0;
 let _selectedSavedPmId    = null;  // S21 — set when buyer picks a saved card
 
 // ── Address selector helpers ──────────────────────────────────────────
+function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function renderSelectedAddrCard(type, addr) {
     const display = document.getElementById(`${type}-addr-display`);
     const empty   = document.getElementById(`${type}-addr-empty`);
@@ -438,7 +442,8 @@ function renderSelectedAddrCard(type, addr) {
     if (labelEl) labelEl.textContent = addr.label || 'Address';
     if (textEl) {
         const line2 = [addr.city, addr.province, addr.postalCode].filter(Boolean).join(', ');
-        textEl.innerHTML = `${addr.street || ''}<br>${line2}<br>${addr.country || ''}`;
+        const recipient = addr.recipientName ? `<strong>${escHtml(addr.recipientName)}</strong><br>` : '';
+        textEl.innerHTML = `${recipient}${escHtml(addr.street || '')}<br>${escHtml(line2)}<br>${escHtml(addr.country || '')}`;
     }
     display.style.display = '';
     empty.style.display   = 'none';
@@ -487,7 +492,8 @@ function renderSelfFulfillAddrCard(addr) {
     if (!display || !label || !text) return;
     label.textContent = addr.label || 'Address';
     const line2 = [addr.city, addr.province, addr.postalCode].filter(Boolean).join(', ');
-    text.innerHTML = [addr.street, line2, addr.country].filter(Boolean).join('<br>');
+    const sfRecipient = addr.recipientName ? `<strong>${escHtml(addr.recipientName)}</strong><br>` : '';
+    text.innerHTML = sfRecipient + [addr.street, line2, addr.country].filter(Boolean).map(escHtml).join('<br>');
     display.style.display = 'block';
     if (empty) empty.style.display = 'none';
 }
@@ -633,11 +639,12 @@ function getShippingAddress() {
     const addr = sameAsBilling ? selectedBillingAddr : (selectedShippingAddr || selectedBillingAddr);
     if (!addr) return null;
     return {
-        street:     addr.street     || '',
-        city:       addr.city       || '',
-        province:   addr.province   || '',
-        postalCode: addr.postalCode || '',
-        country:    addr.country    || 'Canada',
+        street:        addr.street        || '',
+        city:          addr.city          || '',
+        province:      addr.province      || '',
+        postalCode:    addr.postalCode    || '',
+        country:       addr.country       || 'Canada',
+        recipientName: addr.recipientName || '',
     };
 }
 
@@ -1110,11 +1117,12 @@ async function placeOrder(evt) {
     }
 
     const billingAddress = {
-        street:     selectedBillingAddr?.street     || '',
-        city:       selectedBillingAddr?.city       || '',
-        province:   selectedBillingAddr?.province   || '',
-        postalCode: selectedBillingAddr?.postalCode || '',
-        country:    selectedBillingAddr?.country    || 'Canada',
+        street:        selectedBillingAddr?.street        || '',
+        city:          selectedBillingAddr?.city          || '',
+        province:      selectedBillingAddr?.province      || '',
+        postalCode:    selectedBillingAddr?.postalCode    || '',
+        country:       selectedBillingAddr?.country       || 'Canada',
+        recipientName: selectedBillingAddr?.recipientName || '',
     };
     const fulfillmentType = document.getElementById('fulfillment-type-select')?.value || 'shipping';
 

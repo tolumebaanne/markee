@@ -24,13 +24,14 @@ app.get('/health', (req, res) => {
 // ── Schema ───────────────────────────────────────────────────────────────────
 
 const AddressSchema = new mongoose.Schema({
-    label:      { type: String, enum: ['Home', 'Work', 'Other'], default: 'Home' },
-    street:     { type: String, default: '' },
-    city:       { type: String, default: '' },
-    province:   { type: String, default: '' },
-    postalCode: { type: String, default: '' },
-    country:    { type: String, default: 'Canada' },
-    isDefault:  { type: Boolean, default: false }
+    label:         { type: String, default: 'Home' },
+    recipientName: { type: String, default: '' },
+    street:        { type: String, default: '' },
+    city:          { type: String, default: '' },
+    province:      { type: String, default: '' },
+    postalCode:    { type: String, default: '' },
+    country:       { type: String, default: 'Canada' },
+    isDefault:     { type: Boolean, default: false }
 });
 
 const ProfileSchema = new mongoose.Schema({
@@ -209,8 +210,8 @@ app.put('/users/me', async (req, res) => {
 });
 
 // Canonical address fields allowed from client
-const ADDR_ALLOWED = ['label', 'street', 'city', 'province', 'postalCode', 'country', 'isDefault'];
-const ADDR_MAX = { street: 200, city: 100, province: 100, postalCode: 20, country: 100 };
+const ADDR_ALLOWED = ['label', 'recipientName', 'street', 'city', 'province', 'postalCode', 'country', 'isDefault'];
+const ADDR_MAX = { label: 50, recipientName: 100, street: 200, city: 100, province: 100, postalCode: 20, country: 100 };
 
 function validateAddress(body) {
     if (!body.street?.trim())     return 'street is required';

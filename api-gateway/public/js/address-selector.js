@@ -7,6 +7,10 @@
  *   onSelect(addressObject) — called with the chosen address, modal closes
  */
 (function () {
+    function escHtml(s) {
+        return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
     window.showAddressSelector = async function (options, onSelect) {
         const { type = 'delivery', title = 'Select Address', storeId } = options || {};
 
@@ -89,6 +93,7 @@
                 return `
                 <div class="address-selector-card" data-index="${i}" tabindex="0" role="button" aria-label="Select ${a.label || a.street}">
                     <div class="addr-card-label">${a.label || 'Address'}${a.isDefault ? ' <span class="addr-default-badge">DEFAULT</span>' : ''}</div>
+                    ${a.recipientName ? `<div class="addr-card-recipient"><strong>${escHtml(a.recipientName)}</strong></div>` : ''}
                     <div class="addr-card-street">${a.street}</div>
                     ${line2 ? `<div class="addr-card-line2">${line2}</div>` : ''}
                     ${a.country ? `<div class="addr-card-country">${a.country}</div>` : ''}
