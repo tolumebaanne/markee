@@ -455,9 +455,9 @@ router.post('/notifications/broadcast',
 // ── Analytics ──────────────────────────────────────────────────────────────────
 const analyticsUrl = () => process.env.ANALYTICS_SERVICE_URL || 'http://localhost:5011';
 
-// callService — like callService but includes x-user: { role:'admin' }
-// so analytics/other services that scope on req.user.role respond with platform-wide data.
-async function callService(method, url, body, adminEmail) {
+// callServiceWithUser — like callService but also injects x-user: { role:'admin' }
+// so services that scope queries on req.user.role respond with platform-wide data.
+async function callServiceWithUser(method, url, body, adminEmail) {
   const opts = {
     method: method.toUpperCase(),
     headers: {
@@ -482,28 +482,28 @@ async function callService(method, url, body, adminEmail) {
 
 // Platform-wide analytics for the super dashboard
 router.get('/analytics/platform/top-products', requirePermission('analytics', 'readAll'), async (req, res) => {
-  const r = await callService('GET', `${analyticsUrl()}/top-products`, null, req.admin.email);
+  const r = await callServiceWithUser('GET', `${analyticsUrl()}/top-products`, null, req.admin.email);
   res.status(r.status).json(r.data);
 });
 
 router.get('/analytics/platform/revenue', requirePermission('analytics', 'readAll'), async (req, res) => {
-  const r = await callService('GET', `${analyticsUrl()}/revenue`, null, req.admin.email);
+  const r = await callServiceWithUser('GET', `${analyticsUrl()}/revenue`, null, req.admin.email);
   res.status(r.status).json(r.data);
 });
 
 router.get('/analytics/platform/dashboard', requirePermission('analytics', 'readAll'), async (req, res) => {
-  const r = await callService('GET', `${analyticsUrl()}/dashboard`, null, req.admin.email);
+  const r = await callServiceWithUser('GET', `${analyticsUrl()}/dashboard`, null, req.admin.email);
   res.status(r.status).json(r.data);
 });
 
 router.get('/analytics/platform/pulse', requirePermission('analytics', 'readAll'), async (req, res) => {
-  const r = await callService('GET', `${analyticsUrl()}/admin/platform-pulse`, null, req.admin.email);
+  const r = await callServiceWithUser('GET', `${analyticsUrl()}/admin/platform-pulse`, null, req.admin.email);
   res.status(r.status).json(r.data);
 });
 
 // Per-store analytics
 router.get('/analytics/:storeId', requirePermission('analytics', 'readAll'), async (req, res) => {
-  const r = await callService('GET', `${analyticsUrl()}/admin/store/${req.params.storeId}`, null, req.admin.email);
+  const r = await callServiceWithUser('GET', `${analyticsUrl()}/admin/store/${req.params.storeId}`, null, req.admin.email);
   res.status(r.status).json(r.data);
 });
 
@@ -949,7 +949,7 @@ router.post('/notifications/resend/:id', requirePermission('notifications', 'sen
 router.get('/audit', requirePermission('audit', 'readAll'), async (req, res) => {
   const qs = new URLSearchParams(req.query).toString();
   // Audit is in admin-service itself
-  const r = await callService('GET', `${process.env.ADMIN_SERVICE_URL || 'http://localhost:5013'}/admin/system/audit?${qs}`, null, req.admin.email);
+  const r = await callService('GET', `${process.env.ADMIN_SERVICE_URL || 'http://localhost:5014'}/admin/system/audit?${qs}`, null, req.admin.email);
   res.status(r.status).json(r.data);
 });
 

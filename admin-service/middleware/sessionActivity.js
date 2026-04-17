@@ -10,7 +10,7 @@ module.exports = async function sessionActivity(req, res, next) {
   if (!req.admin) return next(); // not an admin request
 
   try {
-    const session = await AdminSession.model.findOne({ sessionId: req.admin.sessionId });
+    const session = await AdminSession.model.findOne({ sessionId: req.admin.sessionId, revoked: false });
     if (!session) return errorResponse(res, 401, 'Session not found');
 
     const account = req.admin._account;

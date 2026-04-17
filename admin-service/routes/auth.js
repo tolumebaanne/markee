@@ -269,24 +269,21 @@ router.post('/refresh', async (req, res) => {
       return errorResponse(res, 401, 'Superuser session superseded');
     }
 
-    // Rotate refresh token (revoke old, issue new)
-    await AdminSession.model.findByIdAndUpdate(session._id, { revoked: true, invalidatedReason: 'rotated' });
-
+    // Rotate refresh token — update the existing session document in-place to avoid
+    // unique constraint violation on sessionId (sessionId stays the same across rotations).
     const newRefreshToken = crypto.randomBytes(40).toString('hex');
     const refreshTtlMs    = account.isSuperuser
       ? (parseInt(process.env.ADMIN_SUPER_SESSION_TTL_MS) || 3 * 24 * 60 * 60 * 1000)  // 3 days
       : (parseInt(process.env.ADMIN_SESSION_TTL_MS)       || 8 * 60 * 60 * 1000);
     const refreshExpiresAt = new Date(Date.now() + refreshTtlMs);
 
-    await AdminSession.model.create({
-      sessionId:        session.sessionId,  // keep same sessionId
-      adminId:          account._id,
-      isSuperuser:      account.isSuperuser,
-      refreshToken:     newRefreshToken,
-      refreshTokenHash: hashToken(newRefreshToken),
+    await AdminSession.model.findByIdAndUpdate(session._id, {
+      refreshToken:       newRefreshToken,
+      refreshTokenHash:   hashToken(newRefreshToken),
       refreshExpiresAt,
-      ipAddress:        session.ipAddress,
-      userAgent:        session.userAgent
+      revoked:            false,
+      invalidatedReason:  null,
+      lastActivityAt:     new Date()
     });
 
     const accessToken = issueAdminJwt(account, session.sessionId);

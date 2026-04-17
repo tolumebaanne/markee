@@ -507,7 +507,7 @@ app.get('/admin/users/deleted', async (req, res) => {
 // We query Profile documents here and support page/limit pagination.
 // role and status filters are passed through to a best-effort $match if those fields exist on the doc.
 app.get('/admin/users', async (req, res) => {
-    if (!req.user || req.user.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const { role, status, search, page = 1, limit = 50 } = req.query;
         const query = { softDeleted: { $ne: true } }; // hide soft-deleted from main list
