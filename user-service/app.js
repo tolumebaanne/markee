@@ -540,12 +540,12 @@ app.get('/admin/users', async (req, res) => {
 app.patch('/admin/users/:userId/suspend', async (req, res) => {
     if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
-        const profile = await Profile.findOneAndUpdate(
+        // Update Profile if it exists — no-op if not (moderation is an auth-level concern,
+        // not gated on Profile existence; bus event propagates to auth-service regardless)
+        await Profile.findOneAndUpdate(
             { userId: req.params.userId },
-            { $set: { moderationStatus: 'suspended', updatedAt: new Date() } },
-            { new: true }
+            { $set: { moderationStatus: 'suspended', updatedAt: new Date() } }
         );
-        if (!profile) return errorResponse(res, 404, 'Profile not found');
         bus.emit('user.suspended', { userId: req.params.userId, reason: req.body.reason || null });
         res.json({ userId: req.params.userId, status: 'suspended' });
     } catch (err) { errorResponse(res, 500, err.message); }
@@ -556,12 +556,10 @@ app.patch('/admin/users/:userId/suspend', async (req, res) => {
 app.patch('/admin/users/:userId/ban', async (req, res) => {
     if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
-        const profile = await Profile.findOneAndUpdate(
+        await Profile.findOneAndUpdate(
             { userId: req.params.userId },
-            { $set: { moderationStatus: 'banned', updatedAt: new Date() } },
-            { new: true }
+            { $set: { moderationStatus: 'banned', updatedAt: new Date() } }
         );
-        if (!profile) return errorResponse(res, 404, 'Profile not found');
         bus.emit('user.banned', { userId: req.params.userId, reason: req.body.reason || null });
         res.json({ userId: req.params.userId, status: 'banned' });
     } catch (err) { errorResponse(res, 500, err.message); }
@@ -571,12 +569,10 @@ app.patch('/admin/users/:userId/ban', async (req, res) => {
 app.patch('/admin/users/:userId/unban', async (req, res) => {
     if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
-        const profile = await Profile.findOneAndUpdate(
+        await Profile.findOneAndUpdate(
             { userId: req.params.userId },
-            { $set: { moderationStatus: 'active', updatedAt: new Date() } },
-            { new: true }
+            { $set: { moderationStatus: 'active', updatedAt: new Date() } }
         );
-        if (!profile) return errorResponse(res, 404, 'Profile not found');
         bus.emit('user.unbanned', { userId: req.params.userId });
         res.json({ userId: req.params.userId, status: 'active' });
     } catch (err) { errorResponse(res, 500, err.message); }
@@ -592,12 +588,10 @@ app.patch('/admin/users/:userId/role', async (req, res) => {
         return errorResponse(res, 400, `role must be one of: ${VALID_ROLES.join(', ')}`);
     }
     try {
-        const profile = await Profile.findOneAndUpdate(
+        await Profile.findOneAndUpdate(
             { userId: req.params.userId },
-            { $set: { role, updatedAt: new Date() } },
-            { new: true }
+            { $set: { role, updatedAt: new Date() } }
         );
-        if (!profile) return errorResponse(res, 404, 'Profile not found');
         bus.emit('user.role_changed', { userId: req.params.userId, newRole: role, reason: reason || null });
         res.json({ userId: req.params.userId, role });
     } catch (err) { errorResponse(res, 500, err.message); }

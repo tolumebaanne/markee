@@ -234,7 +234,15 @@ async function loadEscrows(page) {
           <button class="btn btn-xs btn-purple" onclick="event.stopPropagation();splitRefund('${e.orderId}')"><i class="fas fa-scissors"></i></button>
         </td>
       </tr>
-      <tr style="display:none"><td colspan="7" style="padding:.5rem 1rem;background:var(--surface-2)">${payoutsHtml||'<span style="font-size:.75rem;color:var(--muted)">No seller payouts</span>'}</td></tr>`;
+      <tr style="display:none"><td colspan="7" style="padding:.6rem 1rem;background:var(--surface-2)">
+        <div style="display:flex;flex-wrap:wrap;gap:.5rem 1.5rem;margin-bottom:${payoutsHtml?'.5rem':'0'}">
+          ${e.stripePaymentIntentId ? `<div style="font-size:.72rem;color:var(--muted)">Payment Intent: <span style="font-family:monospace;color:var(--muted2)">${e.stripePaymentIntentId}</span></div>` : ''}
+          ${e.stripeChargeId        ? `<div style="font-size:.72rem;color:var(--muted)">Charge: <span style="font-family:monospace;color:var(--muted2)">${e.stripeChargeId}</span></div>` : ''}
+          ${e.stripeRefundId        ? `<div style="font-size:.72rem;color:var(--muted)">Refund: <span style="font-family:monospace;color:var(--muted2)">${e.stripeRefundId}</span></div>` : ''}
+          ${!e.stripePaymentIntentId && !e.stripeChargeId ? `<div style="font-size:.72rem;color:var(--muted)"><i class="fas fa-circle-info" style="margin-right:.25rem"></i>No Stripe IDs (COD or pre-Stripe order)</div>` : ''}
+        </div>
+        ${payoutsHtml||'<span style="font-size:.75rem;color:var(--muted)">No seller payouts</span>'}
+      </td></tr>`;
     }).join('');
 
     // Pagination

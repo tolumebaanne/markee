@@ -295,19 +295,19 @@ router.get('/admin/users', async (req, res) => {
 
 // Mirror moderation state from user-service events so the admin list stays consistent
 bus.on('user.suspended', async (payload) => {
-  try { await User.findByIdAndUpdate(payload.userId, { moderationStatus: 'suspended' }); }
+  try { await User.findByIdAndUpdate(payload.userId, { $set: { moderationStatus: 'suspended' } }); }
   catch (err) { console.error('[AUTH] user.suspended mirror error:', err.message); }
 });
 bus.on('user.banned', async (payload) => {
-  try { await User.findByIdAndUpdate(payload.userId, { moderationStatus: 'banned' }); }
+  try { await User.findByIdAndUpdate(payload.userId, { $set: { moderationStatus: 'banned' } }); }
   catch (err) { console.error('[AUTH] user.banned mirror error:', err.message); }
 });
 bus.on('user.unbanned', async (payload) => {
-  try { await User.findByIdAndUpdate(payload.userId, { moderationStatus: 'active' }); }
+  try { await User.findByIdAndUpdate(payload.userId, { $set: { moderationStatus: 'active' } }); }
   catch (err) { console.error('[AUTH] user.unbanned mirror error:', err.message); }
 });
 bus.on('user.role_changed', async (payload) => {
-  try { await User.findByIdAndUpdate(payload.userId, { role: payload.newRole }); }
+  try { await User.findByIdAndUpdate(payload.userId, { $set: { role: payload.newRole } }); }
   catch (err) { console.error('[AUTH] user.role_changed mirror error:', err.message); }
 });
 

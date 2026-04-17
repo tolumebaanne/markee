@@ -1358,7 +1358,8 @@ app.get('/admin/escrows', async (req, res) => {
         if (status)        filter.status        = status;
         if (paymentMethod) filter.paymentMethod  = paymentMethod;
         if (buyerId)       filter.buyerId        = buyerId;
-        if (sellerId)      filter['sellerPayouts.sellerId'] = sellerId;
+        if (sellerId && mongoose.Types.ObjectId.isValid(sellerId))
+            filter['sellerPayouts.sellerId'] = new mongoose.Types.ObjectId(sellerId);
         if (from || to) {
             filter.createdAt = {};
             if (from) filter.createdAt.$gte = new Date(from);
@@ -1464,7 +1465,7 @@ app.get('/admin/payments/payout-holds', async (req, res) => {
     if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
         const holds = await PayoutHold.find().sort({ heldAt: -1 });
-        res.json(holds);
+        res.json({ holds });  // wrapped so tab can read data.holds
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
