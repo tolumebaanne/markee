@@ -116,14 +116,15 @@ app.use('/api/orders/admin', verifyToken, (req, res, next) => {
 app.use('/api/orders', verifyToken, proxy(process.env.ORDER_SERVICE_URL || 'http://localhost:5003'));
 
 // ── Payments ──────────────────────────────────────────────────────────────────
-// Stripe webhook — raw body MUST reach payment-service unchanged for signature verification.
-// No body parser here: there is no global express.json() on this gateway, so the body
-// passes through the proxy as a raw stream. The payment-service reads it with its own
-// express.raw() before its own body parsers. Security via Stripe signature only.
+// Stripe webhook — raw body MUST reach payment-service byte-for-byte unchanged for
+// signature verification. http-proxy-middleware v3 defaults parseReqBody:true which
+// re-serialises the body and breaks the Stripe HMAC. parseReqBody:false disables
+// that behaviour and forwards the raw stream directly. Security via Stripe signature only.
 app.post(
     '/api/payments/webhook',
     proxy(process.env.PAYMENT_SERVICE_URL || 'http://localhost:5004', {
         pathRewrite: { '^/api/payments/webhook': '/webhook/stripe' },
+        parseReqBody: false,
     })
 );
 

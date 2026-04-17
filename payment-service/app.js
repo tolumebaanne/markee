@@ -13,9 +13,20 @@ const app = express();
 // ── Stripe webhook — must be BEFORE express.json() to preserve raw body ───────
 // Handler body is assigned after model definitions; by request time the module
 // is fully loaded and _stripeWebhookHandler points to the real async function.
+//
+// express.raw({ type: '*/*' }) accepts any Content-Type — necessary because:
+//   1. nginx or http-proxy-middleware may append '; charset=utf-8' to the
+//      Content-Type, causing express.raw({ type: 'application/json' }) to
+//      skip buffering and leave req.body as undefined.
+//   2. Stripe's signature is computed over the raw bytes of the original
+//      payload; the body MUST arrive as a Buffer, never as parsed JSON.
 let _stripeWebhookHandler = null;
-app.post('/webhook/stripe', express.raw({ type: 'application/json' }), (req, res) => {
+app.post('/webhook/stripe', express.raw({ type: '*/*' }), (req, res) => {
     if (!_stripeWebhookHandler) return res.status(503).json({ error: 'Webhook not initialized' });
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+        console.error('[PAYMENT] Webhook body not buffered — received:', typeof req.body, req.body);
+        return res.status(400).send('Webhook Error: body was not buffered as raw bytes');
+    }
     return _stripeWebhookHandler(req, res);
 });
 
@@ -597,6 +608,9 @@ _stripeWebhookHandler = async function handleStripeWebhook(req, res) {
         const provider      = getProvider('stripe');
         const sig           = req.headers['stripe-signature'];
         const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+        // Diagnostic — remove after confirming fix
+        console.log(`[PAYMENT] Webhook recv: body=${Buffer.isBuffer(req.body) ? req.body.length + 'B' : typeof req.body} sig=${sig ? sig.substring(0, 20) + '...' : 'MISSING'} secret=${webhookSecret ? webhookSecret.substring(0, 12) + '...' : 'MISSING'}`);
 
         let event;
         try {
