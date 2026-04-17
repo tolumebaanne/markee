@@ -79,6 +79,12 @@ const ProfileSchema = new mongoose.Schema({
     // S21 — Stripe Customer ID (stored after first Stripe payment)
     stripeCustomerId: { type: String },
 
+    // Moderation mirror — kept in sync with auth-service via bus events
+    moderationStatus: { type: String, enum: ['active', 'suspended', 'banned'], default: 'active' },
+
+    // Role mirror — kept in sync with auth-service via bus events
+    role: { type: String, enum: ['user', 'buyer', 'seller', 'admin'], default: 'user' },
+
     // Soft-delete fields — populated by user.self_deleted event
     softDeleted:    { type: Boolean, default: false },
     pendingDeletion: { type: Boolean, default: false },
@@ -536,7 +542,7 @@ app.patch('/admin/users/:userId/suspend', async (req, res) => {
     try {
         const profile = await Profile.findOneAndUpdate(
             { userId: req.params.userId },
-            { $set: { status: 'suspended', updatedAt: new Date() } },
+            { $set: { moderationStatus: 'suspended', updatedAt: new Date() } },
             { new: true }
         );
         if (!profile) return errorResponse(res, 404, 'Profile not found');
@@ -552,7 +558,7 @@ app.patch('/admin/users/:userId/ban', async (req, res) => {
     try {
         const profile = await Profile.findOneAndUpdate(
             { userId: req.params.userId },
-            { $set: { status: 'banned', updatedAt: new Date() } },
+            { $set: { moderationStatus: 'banned', updatedAt: new Date() } },
             { new: true }
         );
         if (!profile) return errorResponse(res, 404, 'Profile not found');
@@ -567,7 +573,7 @@ app.patch('/admin/users/:userId/unban', async (req, res) => {
     try {
         const profile = await Profile.findOneAndUpdate(
             { userId: req.params.userId },
-            { $set: { status: 'active', updatedAt: new Date() } },
+            { $set: { moderationStatus: 'active', updatedAt: new Date() } },
             { new: true }
         );
         if (!profile) return errorResponse(res, 404, 'Profile not found');

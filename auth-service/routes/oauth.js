@@ -98,6 +98,7 @@ router.post('/login', async (req, res) => {
     if (!user) return res.render('oauth-login', { error: 'Invalid email or password.', nextUrl: returnTo });
     if (user.status === 'deleted') return res.render('oauth-login', { error: 'This account no longer exists.', nextUrl: returnTo });
     if (user.moderationStatus === 'banned') return res.render('oauth-login', { error: 'This account has been banned.', nextUrl: returnTo });
+    if (user.moderationStatus === 'suspended') return res.render('oauth-login', { error: 'This account has been suspended.', nextUrl: returnTo });
 
     req.session.user = {
       id:              user._id.toString(),
@@ -213,6 +214,10 @@ router.post('/quick-login', async (req, res) => {
   try {
     const user = await User.validatePassword(email, password);
     if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+
+    if (user.status === 'deleted') return res.status(401).json({ error: 'This account no longer exists.' });
+    if (user.moderationStatus === 'banned') return res.status(401).json({ error: 'This account has been banned.' });
+    if (user.moderationStatus === 'suspended') return res.status(401).json({ error: 'This account has been suspended.' });
 
     const { scopes, storeActive } = await computeScopes(user);
 

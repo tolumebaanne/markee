@@ -28,7 +28,7 @@ const UserSchema = new mongoose.Schema({
 });
 
 UserSchema.statics.validatePassword = async function(email, password) {
-  const user = await this.findOne({ email });
+  const user = await this.findOne({ email: email.toLowerCase().trim() });
   if (!user) return null;
   
   const isValid = await bcrypt.compare(password, user.passwordHash);

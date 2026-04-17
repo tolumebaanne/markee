@@ -288,13 +288,21 @@ function onSearchInput() {
     const val = document.getElementById('main-search').value.trim();
     document.getElementById('search-clear-btn').style.display = val ? 'flex' : 'none';
     const results = document.getElementById('main-search-results');
-    
+
+    clearTimeout(_searchDebounce);
+
+    if (val.length === 0) {
+        results.style.display = 'none';
+        clearSearch();
+        return;
+    }
+
     if (val.length < 2) {
         results.style.display = 'none';
         return;
     }
 
-    clearTimeout(_searchDebounce);
+    // Suggestions dropdown (fast)
     _searchDebounce = setTimeout(async () => {
         try {
             const res = await fetch(`/api/search/suggest?q=${encodeURIComponent(val)}`);
@@ -303,6 +311,12 @@ function onSearchInput() {
             renderHeroSuggestions(data);
         } catch {}
     }, 250);
+
+    // Product grid update (slightly slower to avoid thrashing)
+    clearTimeout(window._gridDebounce);
+    window._gridDebounce = setTimeout(() => {
+        executeSearch();
+    }, 400);
 }
 
 function renderHeroSuggestions(data) {
@@ -348,6 +362,7 @@ function applySuggestion(suggestedQuery) {
 
 function clearSearch() {
     clearTimeout(_searchDebounce);
+    clearTimeout(window._gridDebounce);
     document.getElementById('main-search').value = '';
     document.getElementById('search-clear-btn').style.display = 'none';
     currentSearch = '';
@@ -364,6 +379,7 @@ function clearSearch() {
 }
 
 function executeSearch() {
+    clearTimeout(window._gridDebounce);
     const q = document.getElementById('main-search').value.trim();
     document.getElementById('main-search-results').style.display = 'none';
     if (!q) { clearSearch(); return; }

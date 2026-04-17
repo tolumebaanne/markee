@@ -722,12 +722,23 @@ async function loadThreads() {
             return;
         }
 
+        // Sort: pinned first, then by most recent activity
+        threads.sort(function(a, b) {
+            if (a.pinned && !b.pinned) return -1;
+            if (!a.pinned && b.pinned) return 1;
+            var aTime = new Date(a.lastMessageAt || a.updatedAt || 0).getTime();
+            var bTime = new Date(b.lastMessageAt || b.updatedAt || 0).getTime();
+            return bTime - aTime;
+        });
+
         content.innerHTML = threads.map(function(t) { return renderThreadItem(t); }).join('');
+        return threads;
     } catch (err) {
         console.error('[MSG] loadThreads failed:', err.message);
         document.getElementById('thread-skeleton').style.display = 'none';
         document.getElementById('thread-content').innerHTML =
             '<div class="text-center p-4 text-muted small">Failed to load threads.</div>';
+        return [];
     }
 }
 
@@ -1895,8 +1906,15 @@ function init() {
     setupTokenRefresh();
     setupUnreadPolling();
 
-    loadThreads().then(function() {
-        parseUrlParams();
+    loadThreads().then(function(threads) {
+        var params  = new URLSearchParams(window.location.search);
+        var hasDeepLink = params.get('thread') || params.get('with') || params.get('target') || params.get('ctx');
+        if (hasDeepLink) {
+            parseUrlParams();
+        } else if (threads && threads.length && !currentThreadId) {
+            // Auto-open first thread (most recent) when landing with no deep-link
+            openThread(threads[0].threadId || threads[0]._id);
+        }
     });
 
     if (typeof MarkeeCart !== 'undefined' && MarkeeCart.updateAllCartBadges) {

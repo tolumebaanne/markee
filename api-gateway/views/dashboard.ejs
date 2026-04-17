@@ -2403,6 +2403,11 @@
                 ${canShip ? `
                 <div class="ship-form-inline" id="ship-form-${o._id}" style="display:none;">
                     ${shipMode === 'shipping' ? `
+                    ${o.selectedCarrier ? `
+                    <div style="margin-bottom:0.5rem; padding:0.4rem 0.65rem; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; font-size:0.78rem; color:#1e40af;">
+                        <i class="fa fa-info-circle" style="margin-right:0.35rem;"></i>
+                        Buyer requested: <strong>${o.selectedCarrier === 'canada_post' ? 'Canada Post' : o.selectedCarrier === 'ups' ? 'UPS' : o.selectedCarrier === 'fedex' ? 'FedEx' : o.selectedCarrier === 'purolator' ? 'Purolator' : o.selectedCarrier === 'dhl' ? 'DHL' : o.selectedCarrier}</strong>
+                    </div>` : ''}
                     <div class="ship-form-row">
                         <div class="form-group" style="margin:0;">
                             <label for="carrier-${o._id}" style="font-size:0.78rem;">Carrier</label>

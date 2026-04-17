@@ -556,7 +556,7 @@ function validatePickup(body) {
 app.get('/:storeId/pickup-locations', async (req, res) => {
     try {
         const store = await Store.findById(req.params.storeId);
-        if (!store) return errorResponse(res, 404, 'Store not found');
+        if (!store) return res.json([]); // store not yet created — return empty list
         res.json(store.pickupLocations || []);
     } catch (err) { errorResponse(res, 500, err.message); }
 });
@@ -567,8 +567,16 @@ app.post('/:storeId/pickup-locations', async (req, res) => {
     const err = validatePickup(req.body);
     if (err) return errorResponse(res, 400, err);
     try {
-        const store = await Store.findById(req.params.storeId);
-        if (!store) return errorResponse(res, 404, 'Store not found');
+        // Auto-create a stub store for users who registered before seller onboarding existed
+        let store = await Store.findById(req.params.storeId);
+        if (!store) {
+            store = await Store.create({
+                _id:      req.params.storeId,
+                sellerId: req.user.sub,
+                name:     'My Store'
+            });
+            console.log(`[SELLER] Auto-created stub store for storeId=${req.params.storeId}`);
+        }
         const data = {};
         for (const k of PICKUP_ALLOWED) if (req.body[k] !== undefined) data[k] = req.body[k];
         store.pickupLocations.push(data);
@@ -584,7 +592,7 @@ app.put('/:storeId/pickup-locations/:locationId', async (req, res) => {
     if (err) return errorResponse(res, 400, err);
     try {
         const store = await Store.findById(req.params.storeId);
-        if (!store) return errorResponse(res, 404, 'Store not found');
+        if (!store) return res.json([]);
         const loc = store.pickupLocations.id(req.params.locationId);
         if (!loc) return errorResponse(res, 404, 'Pickup location not found');
         for (const k of PICKUP_ALLOWED) if (req.body[k] !== undefined) loc[k] = req.body[k];

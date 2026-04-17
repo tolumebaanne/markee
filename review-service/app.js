@@ -300,7 +300,7 @@ app.get('/check/:productId', async (req, res) => {
             if (oRes.ok) {
                 const orders = await oRes.json();
                 for (const o of orders) {
-                    if (o.status === 'delivered' && deliveredSet.has(o._id?.toString())) {
+                    if (o.status === 'delivered') {
                         const hasItem = (o.items || []).some(i => i.productId?.toString() === req.params.productId);
                         if (hasItem) { canReview = true; eligibleOrderId = o._id; break; }
                     }

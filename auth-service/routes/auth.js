@@ -30,7 +30,7 @@ router.get('/register', requireNotAuth, (req, res) => {
 });
 
 router.post('/register', requireNotAuth, [
-    body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
+    body('email').isEmail().withMessage('Valid email required').customSanitizer(v => v.toLowerCase().trim()),
     body('password')
         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
         .matches(/[0-9]/).withMessage('Password must contain at least one number')
@@ -305,6 +305,10 @@ bus.on('user.banned', async (payload) => {
 bus.on('user.unbanned', async (payload) => {
   try { await User.findByIdAndUpdate(payload.userId, { moderationStatus: 'active' }); }
   catch (err) { console.error('[AUTH] user.unbanned mirror error:', err.message); }
+});
+bus.on('user.role_changed', async (payload) => {
+  try { await User.findByIdAndUpdate(payload.userId, { role: payload.newRole }); }
+  catch (err) { console.error('[AUTH] user.role_changed mirror error:', err.message); }
 });
 
 router.get('/', (req, res) => {

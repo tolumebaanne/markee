@@ -1931,6 +1931,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
             padding: 1.5rem;
             width: 320px;
             max-width: 95vw;
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
         .editor-circle-wrap {

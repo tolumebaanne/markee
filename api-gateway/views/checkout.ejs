@@ -1322,6 +1322,10 @@ async function placeOrder(evt) {
         const params = new URLSearchParams(window.location.search);
         if (!params.get('productId')) MarkeeCart.clearCart();
 
+        // Reset Stripe state so a subsequent order creates a fresh Payment Intent
+        _stripeElements       = null;
+        _lastMountedAmountCents = 0;
+
         // Show confirmation
         document.getElementById('checkout-main').style.display = 'none';
         const confirm = document.getElementById('confirm-screen');

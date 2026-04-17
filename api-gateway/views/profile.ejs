@@ -862,6 +862,11 @@
 
     document.addEventListener('touchend', () => { _dragging = false; });
 
+    // Click outside the box to close
+    document.getElementById('avatar-editor-overlay').addEventListener('click', e => {
+        if (e.target === document.getElementById('avatar-editor-overlay')) closeEditorModal();
+    });
+
     // Scroll-to-zoom inside the editor circle
     document.getElementById('avatar-editor-overlay').addEventListener('wheel', e => {
         if (!document.getElementById('avatar-editor-overlay').classList.contains('open')) return;
