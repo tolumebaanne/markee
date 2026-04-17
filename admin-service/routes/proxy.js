@@ -31,7 +31,7 @@ async function callService(method, url, body = null, adminEmail = '') {
   };
   if (body && method !== 'GET') opts.body = JSON.stringify(body);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
+  const timer = setTimeout(() => controller.abort(), 20000);
   try {
     const res = await fetch(url, { ...opts, signal: controller.signal });
     clearTimeout(timer);
@@ -468,7 +468,7 @@ async function callServiceWithUser(method, url, body, adminEmail) {
   };
   if (body && method !== 'GET') opts.body = JSON.stringify(body);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
+  const timer = setTimeout(() => controller.abort(), 20000);
   try {
     const svcRes = await fetch(url, { ...opts, signal: controller.signal });
     clearTimeout(timer);
@@ -644,9 +644,21 @@ router.delete('/users/:userId',
       }
     }
 
+    // Delete Profile from user-service
     const r = await callService('DELETE', `${userUrl()}/admin/users/${uid}`, req.body, req.admin.email);
     console.log(`[PROXY] user-service delete — ok=${r.ok} status=${r.status}`, JSON.stringify(r.data));
-    res.status(r.status).json(r.data);
+    if (!r.ok) return res.status(r.status).json(r.data);
+
+    // Delete User record + refresh tokens from auth-service (the record the user list is sourced from)
+    const authDel = await callService('DELETE', `${authUrl()}/admin/users/${uid}`, {}, req.admin.email);
+    console.log(`[PROXY] auth-service delete — ok=${authDel.ok} status=${authDel.status}`, JSON.stringify(authDel.data));
+    if (!authDel.ok) {
+      // Profile already gone; log the partial state but still surface the error
+      console.error(`[PROXY] hard-delete partial: profile deleted but auth record removal failed for uid=${uid}`);
+      return res.status(502).json({ error: 'Profile deleted but auth record removal failed — contact support', uid });
+    }
+
+    res.status(200).json({ userId: uid, deleted: true });
   }
 );
 
