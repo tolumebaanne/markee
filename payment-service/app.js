@@ -8,6 +8,11 @@ const errorResponse = require('../shared/utils/errorResponse');
 const bus = require('../shared/eventBus');
 const getProvider = require('./providers');
 
+// Capture Stripe credentials at module load time, before any other service's
+// .env can override process.env (monolith loads envs sequentially).
+const STRIPE_SECRET_KEY_AT_LOAD     = process.env.STRIPE_SECRET_KEY;
+const STRIPE_WEBHOOK_SECRET_AT_LOAD = process.env.STRIPE_WEBHOOK_SECRET;
+
 const app = express();
 
 // ── Stripe webhook — must be BEFORE express.json() to preserve raw body ───────
@@ -602,12 +607,12 @@ setInterval(runSweep, SWEEP_INTERVAL_MS);
 
 _stripeWebhookHandler = async function handleStripeWebhook(req, res) {
     try {
-        if (!process.env.STRIPE_SECRET_KEY) {
+        if (!STRIPE_SECRET_KEY_AT_LOAD) {
             return res.status(503).json({ error: 'Stripe not configured on this instance' });
         }
         const provider      = getProvider('stripe');
         const sig           = req.headers['stripe-signature'];
-        const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+        const webhookSecret = STRIPE_WEBHOOK_SECRET_AT_LOAD;
 
         // Diagnostic — remove after confirming fix
         console.log(`[PAYMENT] Webhook recv: body=${Buffer.isBuffer(req.body) ? req.body.length + 'B' : typeof req.body} sig=${sig ? sig.substring(0, 20) + '...' : 'MISSING'} secret=${webhookSecret ? webhookSecret.substring(0, 12) + '...' : 'MISSING'}`);
