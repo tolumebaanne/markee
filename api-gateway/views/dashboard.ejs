@@ -636,6 +636,19 @@
                 </div>
             </div>
 
+            <!-- ── Payout Account (S20) ── -->
+            <div class="card" style="margin-bottom:1.25rem; cursor:default;" id="ops-payout-card">
+                <div class="card-header" style="display:flex; align-items:center;">
+                    <i class="fa fa-credit-card" style="color:var(--accent-red); margin-right:0.5rem;"></i>
+                    <h3 style="margin:0; font-size:1rem;">Payout Account</h3>
+                </div>
+                <div style="padding:1.25rem;">
+                    <div id="ops-payout-status-wrap">
+                        <p class="text-muted small">Loading payout status…</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- ── Save button ── -->
             <div style="display:flex; justify-content:flex-end; gap:0.75rem; padding-bottom:1.5rem;">
                 <button class="btn btn-outline" style="width:auto;" onclick="resetOpsForm()">Reset</button>
@@ -881,6 +894,27 @@
                     </div>
                 </div>
 
+
+                <!-- Earnings Overview (S19) -->
+                <div class="card" style="margin-top:1rem;">
+                    <div class="card-header">
+                        <h4 style="margin:0; font-size:0.9rem;"><i class="fa fa-dollar-sign" style="margin-right:0.5rem; color:#15803d;"></i>Earnings Overview</h4>
+                    </div>
+                    <div class="grid-3" style="gap:0; border-top:1px solid var(--border-light);">
+                        <div style="padding:1rem 1.25rem; border-right:1px solid var(--border-light); text-align:center;">
+                            <div style="font-size:1.4rem; font-weight:800; color:#15803d;" id="earn-total-sales">—</div>
+                            <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">Total Sales</div>
+                        </div>
+                        <div style="padding:1rem 1.25rem; border-right:1px solid var(--border-light); text-align:center;">
+                            <div style="font-size:1.4rem; font-weight:800; color:var(--accent-red);" id="earn-total-orders">—</div>
+                            <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">Total Orders</div>
+                        </div>
+                        <div style="padding:1rem 1.25rem; text-align:center;">
+                            <div style="font-size:1.4rem; font-weight:800; color:#1d4ed8;" id="earn-pending-payouts">—</div>
+                            <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">Pending Payouts</div>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Category Revenue -->
                 <div class="card" style="margin-top:1rem;">
@@ -1587,11 +1621,11 @@
         }
     }
 
-    // Orders Needing Action widget: pending/paid orders, max 3, with inline Accept
+    // Orders Needing Action widget: authorizing/pending/paid orders, max 3, with inline Accept/Reject
     function renderOverviewOrders() {
         const widget = document.getElementById('mc-orders-list');
         if (!widget) return;
-        const actionable = (_sellerOrders || []).filter(o => ['pending','paid'].includes(o.status)).slice(0, 3);
+        const actionable = (_sellerOrders || []).filter(o => ['authorizing','pending','paid'].includes(o.status)).slice(0, 3);
         if (!actionable.length) {
             widget.innerHTML = '<p class="text-muted small" style="padding:1rem;">You\'re all caught up 🎉</p>';
             return;
@@ -1608,7 +1642,10 @@
                     <div style="color:var(--text-muted); font-size:0.72rem;">${o.status} · ${new Date(o.createdAt).toLocaleDateString()}</div>
                 </div>
                 <div style="font-weight:700; color:var(--accent-red); white-space:nowrap;">$${(total/100).toFixed(2)}</div>
-                ${o.status === 'pending' ? `<button class="btn" style="width:auto; padding:0.2rem 0.65rem; font-size:0.72rem; background:var(--accent-red); white-space:nowrap;" onclick="quickAcceptOrder('${o._id}', event); renderOverviewOrders();">Accept</button>` : ''}
+                ${o.status === 'authorizing' ? `
+                    <button class="btn" style="width:auto; padding:0.2rem 0.65rem; font-size:0.72rem; background:#15803d; white-space:nowrap;" onclick="quickAcceptOrder('${o._id}', event);">Accept</button>
+                    <button class="btn" style="width:auto; padding:0.2rem 0.65rem; font-size:0.72rem; background:#b91c1c; white-space:nowrap;" onclick="quickRejectOrder('${o._id}', event);">Reject</button>
+                ` : ''}
             </div>`;
         }).join('');
     }
@@ -2312,8 +2349,10 @@
                 : `<div style="width:32px;height:32px;border-radius:4px;background:var(--bg-secondary);border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;"><i class="fa fa-box" style="font-size:0.7rem;color:var(--text-muted);"></i></div>`
             ).join('');
 
-            const canAccept = o.status === 'pending';
-            const canCancel = ['pending','paid','processing'].includes(o.status);
+            const canAccept     = o.status === 'authorizing';
+            const canReject     = o.status === 'authorizing';
+            const canCancel     = ['pending','authorizing','paid','processing'].includes(o.status);
+            const canCollectCod = o.paymentMethod === 'cod' && ['delivered','picked_up','self_fulfilled'].includes(o.status);
 
             return `
             <div class="list-item" style="flex-direction:column; align-items:stretch; gap:0.5rem;" id="order-item-${o._id}">
@@ -2333,9 +2372,17 @@
                         <button class="act-btn activate" onclick="quickAcceptOrder('${o._id}', event)" title="Accept this order">
                             <i class="fa fa-check"></i> Accept
                         </button>` : ''}
+                        ${canReject ? `
+                        <button class="act-btn danger" onclick="quickRejectOrder('${o._id}', event)" title="Reject this order">
+                            <i class="fa fa-times"></i> Reject
+                        </button>` : ''}
                         ${canShip ? `
                         <button class="act-btn" onclick="toggleShipForm('${o._id}')" title="Create shipment">
                             <i class="fa fa-truck"></i> ${shipMode === 'pickup' ? 'Pickup' : shipMode === 'self_fulfilled' ? 'Fulfil' : 'Ship'}
+                        </button>` : ''}
+                        ${canCollectCod ? `
+                        <button class="act-btn activate" onclick="quickCodCollect('${o._id}', event)" title="Mark cash as collected">
+                            <i class="fas fa-hand-holding-dollar"></i> Collected
                         </button>` : ''}
                         ${canCancel ? `
                         <button class="act-btn danger" onclick="quickCancelOrder('${o._id}')" title="Cancel order">
@@ -2412,8 +2459,8 @@
         const emptyEl     = document.getElementById('needs-action-empty');
         const countBadge  = document.getElementById('needs-action-count');
         if (!actionList) return;
-        const actionable = orders.filter(o => ['pending','paid','processing','payment_dispute'].includes(o.status));
-        const STATUS_LABEL = { pending: 'Awaiting acceptance', paid: 'Ready to process', processing: 'Ready to ship', payment_dispute: 'Dispute filed' };
+        const actionable = orders.filter(o => ['authorizing','pending','paid','processing','payment_dispute'].includes(o.status));
+        const STATUS_LABEL = { authorizing: 'Awaiting your response', pending: 'Awaiting acceptance', paid: 'Ready to process', processing: 'Ready to ship', payment_dispute: 'Dispute filed' };
         if (countBadge) countBadge.textContent = actionable.length;
         if (!actionable.length) {
             actionList.innerHTML = '';
@@ -2440,10 +2487,11 @@
     // ── Store Analytics panel ────────────────────────────────────────────────
     async function loadStoreAnalytics() {
         try {
-            const [trendRes, topRes, missedRes] = await Promise.all([
+            const [trendRes, topRes, missedRes, earnRes] = await Promise.all([
                 fetch('/api/analytics/revenue-trend?days=14', { headers: { Authorization: `Bearer ${token}` } }),
                 fetch('/api/analytics/top-products',          { headers: { Authorization: `Bearer ${token}` } }),
-                fetch('/api/analytics/missed-sales',          { headers: { Authorization: `Bearer ${token}` } })
+                fetch('/api/analytics/missed-sales',          { headers: { Authorization: `Bearer ${token}` } }),
+                fetch('/api/seller/analytics',                { headers: { Authorization: `Bearer ${token}` } })
             ]);
 
             // Revenue sparkline
@@ -2541,6 +2589,18 @@
                 }
             }
 
+            // Earnings Overview (S19)
+            if (earnRes.ok) {
+                const earn = await earnRes.json();
+                const fmt$ = cents => '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const eTS = document.getElementById('earn-total-sales');
+                const eTO = document.getElementById('earn-total-orders');
+                const ePP = document.getElementById('earn-pending-payouts');
+                if (eTS) eTS.textContent = fmt$(earn.totalSales    || 0);
+                if (eTO) eTO.textContent = earn.totalOrders || 0;
+                if (ePP) ePP.textContent = fmt$(earn.pendingPayouts || 0);
+            }
+
             // Store health from smart metrics (already loaded via loadSellerProducts)
             const health = window._storeHealthMetrics || {};
             const hCart = document.getElementById('health-cart-count');
@@ -2599,22 +2659,39 @@
 
     // ── Quick order actions from dashboard list ────────────────────────────────
     async function quickAcceptOrder(orderId, evt) {
-        showConfirm('Confirm this order? You are committing to fulfil it.', async () => {
+        showConfirm('Accept this order? You are committing to fulfil it.', async () => {
             try {
-                const res = await fetch(`/api/orders/${orderId}/status`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ status: 'processing' })
+                const res = await fetch(`/api/orders/seller-orders/${orderId}/accept`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
-                showToast('Order accepted — now processing!', 'success', 3500, evt);
-                // Reload orders list
+                showToast('Order accepted!', 'success', 3500, evt);
                 ordersLoaded = false;
                 loadSellerOrders();
                 ordersLoaded = true;
+                renderOverviewOrders();
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
-        }, null, { confirmText: 'Confirm Order' });
+        }, null, { confirmText: 'Accept Order' });
+    }
+
+    async function quickRejectOrder(orderId, evt) {
+        showConfirm('Reject this order? The buyer will be notified and the payment will not be captured.', async () => {
+            try {
+                const res = await fetch(`/api/orders/seller-orders/${orderId}/reject`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+                showToast('Order rejected.', 'info', 3500, evt);
+                ordersLoaded = false;
+                loadSellerOrders();
+                ordersLoaded = true;
+                renderOverviewOrders();
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }, null, { confirmText: 'Reject Order', type: 'danger' });
     }
 
     async function buyerCancelOrder(orderId) {
@@ -2633,6 +2710,25 @@
                 purchasesLoaded = true;
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
         }, null, { confirmText: 'Cancel Order', type: 'danger' });
+    }
+
+    // S18 — COD cash collection quick-action
+    async function quickCodCollect(orderId, evt) {
+        if (evt) evt.stopPropagation();
+        showConfirm('Confirm that you have received cash payment from the buyer?', async () => {
+            try {
+                const res = await fetch(`/api/orders/seller-orders/${orderId}/cod-collected`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+                showToast('Cash collection recorded.', 'success');
+                ordersLoaded = false;
+                loadSellerOrders();
+                ordersLoaded = true;
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        });
     }
 
     async function quickCancelOrder(orderId) {
@@ -3363,9 +3459,35 @@ async function loadOpsPanel() {
         // Reviews needing reply
         loadOpsNeedsReply();
 
+        // S20 — Payout Account status
+        loadOpsConnectStatus();
+
     } catch (err) {
         console.error(err);
         showToast('Error loading operations details', 'error');
+    }
+}
+
+async function loadOpsConnectStatus() {
+    const wrap = document.getElementById('ops-payout-status-wrap');
+    if (!wrap) return;
+    try {
+        const r = await fetch('/api/seller/connect-status', { headers: { Authorization: `Bearer ${token}` } });
+        const d = r.ok ? await r.json() : {};
+        const status = d.stripeConnectStatus || 'not_connected';
+        const badges = {
+            not_connected: `<span style="background:#451a0355;color:#fb923c;border:1px solid #fb923c44;padding:0.15rem 0.5rem;border-radius:20px;font-size:0.7rem;font-weight:700;">Not Connected</span>`,
+            pending:       `<span style="background:#1e3a5f55;color:#60a5fa;border:1px solid #60a5fa44;padding:0.15rem 0.5rem;border-radius:20px;font-size:0.7rem;font-weight:700;">Under Review</span>`,
+            active:        `<span style="background:#052e1655;color:#4ade80;border:1px solid #4ade8044;padding:0.15rem 0.5rem;border-radius:20px;font-size:0.7rem;font-weight:700;"><i class="fa fa-check"></i> Active</span>`,
+        };
+        const messages = {
+            not_connected: `<p style="font-size:0.82rem;color:var(--text-muted);margin:0.5rem 0 0;">Connect your bank account to receive payouts. Full Stripe Connect onboarding coming soon.</p>`,
+            pending:       `<p style="font-size:0.82rem;color:var(--text-muted);margin:0.5rem 0 0;">Your payout account is under review. We'll notify you when it's approved.</p>`,
+            active:        `<p style="font-size:0.82rem;color:var(--text-muted);margin:0.5rem 0 0;">Payouts active ✓ — you will receive payments automatically after order completion.</p>`,
+        };
+        wrap.innerHTML = (badges[status] || badges.not_connected) + (messages[status] || messages.not_connected);
+    } catch (e) {
+        wrap.innerHTML = `<p style="font-size:0.8rem;color:var(--text-muted);">Unable to load payout status.</p>`;
     }
 }
 

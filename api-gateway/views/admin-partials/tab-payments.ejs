@@ -18,10 +18,42 @@
     <button class="sub-tab active" onclick="switchSubTab('pay','escrows',this);loadEscrows()">Escrows</button>
     <button class="sub-tab" onclick="switchSubTab('pay','disputes',this);if(!this.dataset.loaded){this.dataset.loaded=1;loadDisputes();}">Disputes</button>
     <button class="sub-tab" onclick="switchSubTab('pay','holds',this);if(!this.dataset.loaded){this.dataset.loaded=1;loadPayoutHolds();}">Payout Holds</button>
+    <button class="sub-tab" onclick="switchSubTab('pay','analytics',this);if(!this.dataset.loaded){this.dataset.loaded=1;loadPaymentAnalytics();}">Analytics</button>
+    <button class="sub-tab" onclick="switchSubTab('pay','remittances',this);if(!this.dataset.loaded){this.dataset.loaded=1;loadRemittances();}">Remittances</button>
   </div>
 
   <!-- Sub-panel: Escrows -->
   <div id="pay-escrows" class="sub-panel" style="display:block">
+    <!-- Filter controls -->
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:.75rem">
+      <div>
+        <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:2px">Status</label>
+        <select id="esc-filter-status" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface)">
+          <option value="">All</option>
+          <option value="held">Held</option>
+          <option value="released">Released</option>
+          <option value="refunded">Refunded</option>
+          <option value="disputed">Disputed</option>
+          <option value="split_resolved">Split Resolved</option>
+          <option value="authorizing">Authorizing</option>
+          <option value="cod_pending">COD Pending</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:2px">Seller ID</label>
+        <input id="esc-filter-seller" type="text" placeholder="Seller ID…" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);width:150px">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:2px">From</label>
+        <input id="esc-filter-from" type="date" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface)">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:2px">To</label>
+        <input id="esc-filter-to" type="date" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface)">
+      </div>
+      <button class="btn btn-sm" onclick="loadEscrows()" style="margin-bottom:0"><i class="fas fa-search"></i> Filter</button>
+      <button class="btn btn-sm btn-secondary" onclick="clearEscrowFilters()" style="margin-bottom:0"><i class="fas fa-times"></i> Clear</button>
+    </div>
     <div id="esc-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
     <div class="table-wrap">
       <table>
@@ -29,6 +61,7 @@
         <tbody id="esc-body"></tbody>
       </table>
     </div>
+    <div id="esc-pagination" style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.5rem"></div>
   </div>
 
   <!-- Sub-panel: Disputes -->
@@ -49,6 +82,72 @@
         <thead><tr><th>Seller ID</th><th>Reason</th><th>Held At</th><th>Held By</th><th>Actions</th></tr></thead>
         <tbody id="holds-body"></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- Sub-panel: Analytics -->
+  <div id="pay-analytics" class="sub-panel" style="display:none">
+    <div id="analytics-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <div id="analytics-body">
+      <div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading analytics…</div>
+    </div>
+  </div>
+
+  <!-- Sub-panel: Remittances -->
+  <div id="pay-remittances" class="sub-panel" style="display:none">
+    <!-- Create form -->
+    <div class="card" style="margin-bottom:1rem">
+      <div class="card-title"><i class="fas fa-money-bill-transfer"></i> Record Manual Remittance</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem;margin-bottom:.6rem">
+        <div class="form-group" style="margin:0">
+          <label style="font-size:.78rem">Seller ID</label>
+          <input type="text" id="rem-new-seller" placeholder="ObjectId…" style="font-size:.82rem">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:.78rem">Amount ($)</label>
+          <input type="number" id="rem-new-amount" min="0.01" step="0.01" placeholder="e.g. 150.00" style="font-size:.82rem">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:.78rem">Method</label>
+          <select id="rem-new-method" style="font-size:.82rem">
+            <option value="bank_transfer">Bank Transfer</option>
+            <option value="interac">Interac</option>
+            <option value="cheque">Cheque</option>
+            <option value="cash">Cash</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:.78rem">Reference #</label>
+          <input type="text" id="rem-new-ref" placeholder="e.g. TXN-20240416" style="font-size:.82rem">
+        </div>
+        <div class="form-group" style="margin:0;grid-column:span 2">
+          <label style="font-size:.78rem">Note (internal)</label>
+          <input type="text" id="rem-new-note" placeholder="Optional internal note…" style="font-size:.82rem">
+        </div>
+      </div>
+      <button class="btn btn-warn btn-sm" onclick="createRemittance()"><i class="fas fa-plus"></i> Create Remittance</button>
+    </div>
+
+    <!-- Filter + list -->
+    <div class="card">
+      <div class="card-title"><i class="fas fa-list"></i> Remittance History</div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:.75rem">
+        <div>
+          <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:2px">Seller ID</label>
+          <input type="text" id="rem-filter-seller" placeholder="Filter by seller…" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);width:180px">
+        </div>
+        <div>
+          <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:2px">Status</label>
+          <select id="rem-filter-status" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface)">
+            <option value="">All</option>
+            <option value="pending">Pending</option>
+            <option value="paid">Paid</option>
+          </select>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="loadRemittances()"><i class="fas fa-rotate-right"></i> Refresh</button>
+      </div>
+      <div id="rem-list"><div class="loading"><i class="fas fa-spinner fa-spin"></i></div></div>
     </div>
   </div>
 </div>
@@ -72,19 +171,54 @@ async function loadPaymentSummary() {
   } catch(err) { toast('Summary error: ' + err.message, 'warn'); }
 }
 
-async function loadEscrows() {
+let _escrowPage = 1;
+
+function clearEscrowFilters() {
+  document.getElementById('esc-filter-status').value = '';
+  document.getElementById('esc-filter-seller').value = '';
+  document.getElementById('esc-filter-from').value = '';
+  document.getElementById('esc-filter-to').value = '';
+  _escrowPage = 1;
+  loadEscrows();
+}
+
+async function loadEscrows(page) {
+  if (page) _escrowPage = page;
   hideErr('esc-error');
   const tbody = document.getElementById('esc-body');
   tbody.innerHTML = '<tr><td colspan="7" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
+
+  const params = new URLSearchParams({ limit: 30, page: _escrowPage });
+  const status = document.getElementById('esc-filter-status')?.value;
+  const seller = document.getElementById('esc-filter-seller')?.value.trim();
+  const from   = document.getElementById('esc-filter-from')?.value;
+  const to     = document.getElementById('esc-filter-to')?.value;
+  if (status) params.set('status', status);
+  if (seller) params.set('sellerId', seller);
+  if (from)   params.set('from', from);
+  if (to)     params.set('to', to);
+
   try {
-    const data = await adminApi('GET', '/proxy/payments/admin?limit=30');
+    const data = await adminApi('GET', `/proxy/payments/admin?${params}`);
     const escrows = data.escrows || [];
+    const total   = data.total   || 0;
+    const hasMore = data.hasMore  || false;
+
     if (!escrows.length) {
       tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No escrow records found.</td></tr>';
+      document.getElementById('esc-pagination').innerHTML = '';
       return;
     }
-    tbody.innerHTML = escrows.map(e => `
-      <tr>
+    tbody.innerHTML = escrows.map(e => {
+      const payoutsHtml = (e.sellerPayouts || []).map(p =>
+        `<div style="font-size:.72rem;color:var(--muted);padding:2px 0">
+          Seller ${trunc(p.sellerId?.toString()||'—',14)}
+          · Net ${fmt$(p.netCents||0)}
+          · ${p.released ? '<span style="color:var(--success)">Released</span>' : '<span style="color:var(--warn)">Pending</span>'}
+        </div>`
+      ).join('');
+      return `
+      <tr onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'table-row':'none'" style="cursor:pointer">
         <td style="font-family:monospace;font-size:.74rem">${trunc(e.orderId,18)}</td>
         <td><b>${fmt$(e.amountCents)}</b></td>
         <td><span style="background:${e.paymentMethod==='escrow'?'#6366f1':'#64748b'};color:#fff;padding:2px 7px;border-radius:9999px;font-size:.7rem;text-transform:uppercase">${e.paymentMethod||'—'}</span></td>
@@ -92,12 +226,36 @@ async function loadEscrows() {
         <td style="font-family:monospace;font-size:.74rem">${trunc(e.buyerId,16)}</td>
         <td>${fmtDate(e.createdAt)}</td>
         <td class="btn-gap">
-          <button class="btn btn-xs btn-success" onclick="releaseEscrow('${e.orderId}')"><i class="fas fa-unlock"></i></button>
-          <button class="btn btn-xs btn-warn" onclick="freezeEscrow('${e.orderId}')"><i class="fas fa-snowflake"></i></button>
-          <button class="btn btn-xs btn-danger" onclick="refundEscrow('${e.orderId}')"><i class="fas fa-rotate-left"></i></button>
-          <button class="btn btn-xs btn-purple" onclick="splitRefund('${e.orderId}')"><i class="fas fa-scissors"></i></button>
+          <button class="btn btn-xs btn-success" onclick="event.stopPropagation();releaseEscrow('${e.orderId}')"><i class="fas fa-unlock"></i></button>
+          ${e.frozen
+            ? `<button class="btn btn-xs btn-info" onclick="event.stopPropagation();unfreezeEscrow('${e.orderId}')"><i class="fas fa-fire-flame-curved"></i> Unfreeze</button>`
+            : `<button class="btn btn-xs btn-warn" onclick="event.stopPropagation();freezeEscrow('${e.orderId}')"><i class="fas fa-snowflake"></i></button>`}
+          <button class="btn btn-xs btn-danger" onclick="event.stopPropagation();refundEscrow('${e.orderId}')"><i class="fas fa-rotate-left"></i></button>
+          <button class="btn btn-xs btn-purple" onclick="event.stopPropagation();splitRefund('${e.orderId}')"><i class="fas fa-scissors"></i></button>
         </td>
-      </tr>`).join('');
+      </tr>
+      <tr style="display:none"><td colspan="7" style="padding:.5rem 1rem;background:var(--surface-2)">${payoutsHtml||'<span style="font-size:.75rem;color:var(--muted)">No seller payouts</span>'}</td></tr>`;
+    }).join('');
+
+    // Pagination
+    const pg = document.getElementById('esc-pagination');
+    pg.innerHTML = '';
+    if (_escrowPage > 1) {
+      const prev = document.createElement('button');
+      prev.className = 'btn btn-xs'; prev.textContent = '← Prev';
+      prev.onclick = () => loadEscrows(_escrowPage - 1);
+      pg.appendChild(prev);
+    }
+    pg.appendChild(Object.assign(document.createElement('span'), {
+      style: 'font-size:.8rem;color:var(--muted);align-self:center',
+      textContent: `Page ${_escrowPage} · ${total} total`
+    }));
+    if (hasMore) {
+      const next = document.createElement('button');
+      next.className = 'btn btn-xs'; next.textContent = 'Next →';
+      next.onclick = () => loadEscrows(_escrowPage + 1);
+      pg.appendChild(next);
+    }
   } catch(err) {
     showErr('esc-error', err.message);
     tbody.innerHTML = '';
@@ -168,6 +326,48 @@ async function loadPayoutHolds() {
   }
 }
 
+async function loadPaymentAnalytics() {
+  hideErr('analytics-error');
+  const body = document.getElementById('analytics-body');
+  body.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading analytics…</div>';
+  try {
+    const d = await adminApi('GET', '/proxy/payments/analytics');
+    const pct = v => (v != null ? v.toFixed(2) + '%' : '—');
+    body.innerHTML = `
+      <div class="stats-grid" style="margin-bottom:1.25rem">
+        <div class="stat-card"><div class="stat-label">GMV</div><div class="stat-value">${fmt$(d.gmvCents||0)}</div></div>
+        <div class="stat-card"><div class="stat-label">Platform Revenue</div><div class="stat-value">${fmt$(d.platformRevenueCents||0)}</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Order Value</div><div class="stat-value">${fmt$(d.avgOrderValueCents||0)}</div></div>
+        <div class="stat-card"><div class="stat-label">Refund Rate</div><div class="stat-value">${pct(d.refundRate)}</div></div>
+        <div class="stat-card"><div class="stat-label">Dispute Rate</div><div class="stat-value">${pct(d.disputeRate)}</div></div>
+        <div class="stat-card"><div class="stat-label">Total Orders</div><div class="stat-value">${d.orderCount!=null?d.orderCount:'—'}</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+        <div class="stat-card" style="padding:1rem">
+          <div style="font-weight:600;margin-bottom:.75rem;font-size:.9rem">Escrow Breakdown</div>
+          <div style="display:flex;flex-direction:column;gap:.4rem;font-size:.85rem">
+            <div style="display:flex;justify-content:space-between"><span>Held</span><b>${fmt$(d.totalHeldCents||0)}</b></div>
+            <div style="display:flex;justify-content:space-between"><span>Released</span><b style="color:var(--success)">${fmt$(d.totalReleasedCents||0)}</b></div>
+            <div style="display:flex;justify-content:space-between"><span>Refunded</span><b style="color:var(--danger)">${fmt$(d.totalRefundedCents||0)}</b></div>
+          </div>
+        </div>
+        <div class="stat-card" style="padding:1rem">
+          <div style="font-weight:600;margin-bottom:.75rem;font-size:.9rem">Payment Method Split</div>
+          <div style="display:flex;flex-direction:column;gap:.4rem;font-size:.85rem">
+            ${d.methodBreakdown ? `
+            <div style="display:flex;justify-content:space-between"><span>Card / Escrow</span><b>${d.methodBreakdown.escrow||0} orders</b></div>
+            <div style="display:flex;justify-content:space-between"><span>COD</span><b>${d.methodBreakdown.cod||0} orders</b></div>
+            ` : '<div style="color:var(--muted)">No data</div>'}
+          </div>
+        </div>
+      </div>`;
+  } catch(err) {
+    showErr('analytics-error', err.message);
+    body.innerHTML = '';
+    toast('Analytics error: ' + err.message, 'error');
+  }
+}
+
 async function releaseEscrow(orderId) {
   const {confirmed, reason} = await showConfirm({title:'Force Release to Seller?', body:'Funds will be released to the seller immediately.', withReason:true});
   if (!confirmed) return;
@@ -180,11 +380,21 @@ async function releaseEscrow(orderId) {
 }
 
 async function freezeEscrow(orderId) {
-  const {confirmed} = await showConfirm({title:'Freeze Escrow?', body:'The escrow for this order will be frozen pending review.', danger:true});
+  const {confirmed, reason} = await showConfirm({title:'Freeze Escrow?', body:'The escrow for this order will be frozen pending review.', withReason:true, danger:true});
   if (!confirmed) return;
   try {
-    await adminApi('PATCH', `/proxy/payments/${orderId}/freeze`);
+    await adminApi('PATCH', `/proxy/payments/${orderId}/freeze`, {reason: reason||'Admin hold'});
     toast('Escrow frozen', 'warn');
+    loadEscrows();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function unfreezeEscrow(orderId) {
+  const {confirmed} = await showConfirm({title:'Unfreeze Escrow?', body:'The escrow will be unfrozen and can be released or refunded again.'});
+  if (!confirmed) return;
+  try {
+    await adminApi('PATCH', `/proxy/payments/${orderId}/unfreeze`);
+    toast('Escrow unfrozen', 'success');
     loadEscrows();
   } catch(err) { toast('Error: ' + err.message, 'error'); }
 }
@@ -210,11 +420,11 @@ async function splitRefund(orderId) {
     withReason: true
   });
   if (!confirmed || !selected) return;
-  const buyerPct = parseInt(selected);
-  const sellerPct = 100 - buyerPct;
+  const buyerPercent = parseInt(selected);
+  const sellerPct = 100 - buyerPercent;
   try {
-    await adminApi('PATCH', `/proxy/payments/${orderId}/split-refund`, {buyerPct, sellerPct, reason: reason||'Split resolution'});
-    toast(`Split refund: Buyer ${buyerPct}% / Seller ${sellerPct}%`, 'success');
+    await adminApi('PATCH', `/proxy/payments/${orderId}/split-refund`, {buyerPercent, reason: reason||'Split resolution'});
+    toast(`Split refund: Buyer ${buyerPercent}% / Seller ${sellerPct}%`, 'success');
     loadEscrows();
     loadPaymentSummary();
   } catch(err) { toast('Error: ' + err.message, 'error'); }
@@ -269,6 +479,82 @@ async function liftPayoutHold(sellerId) {
     toast('Payout hold lifted', 'success');
     loadPayoutHolds();
     loadPaymentSummary();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+// ── Remittances ────────────────────────────────────────────────────────────────
+async function loadRemittances() {
+  const sellerId = document.getElementById('rem-filter-seller').value.trim();
+  const status   = document.getElementById('rem-filter-status').value;
+  const qs = new URLSearchParams();
+  if (sellerId) qs.set('sellerId', sellerId);
+  if (status)   qs.set('status', status);
+  document.getElementById('rem-list').innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i></div>';
+  try {
+    const data = await adminApi('GET', `/proxy/payments/remittances?${qs}`);
+    renderRemittances(data.rows || []);
+  } catch(err) { document.getElementById('rem-list').innerHTML = `<div style="color:var(--warn)">${err.message}</div>`; }
+}
+
+function renderRemittances(rows) {
+  const el = document.getElementById('rem-list');
+  if (!rows.length) { el.innerHTML = '<div style="color:var(--muted);font-size:.83rem">No remittances found.</div>'; return; }
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.82rem">
+    <thead><tr style="color:var(--muted);font-size:.74rem;border-bottom:1px solid var(--border)">
+      <th style="text-align:left;padding:.3rem .4rem">ID</th>
+      <th style="text-align:left;padding:.3rem .4rem">Seller</th>
+      <th style="text-align:right;padding:.3rem .4rem">Amount</th>
+      <th style="text-align:left;padding:.3rem .4rem">Method</th>
+      <th style="text-align:left;padding:.3rem .4rem">Ref #</th>
+      <th style="text-align:left;padding:.3rem .4rem">Status</th>
+      <th style="text-align:left;padding:.3rem .4rem">Created</th>
+      <th style="padding:.3rem .4rem"></th>
+    </tr></thead>
+    <tbody>` + rows.map(r => `
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:.35rem .4rem;color:var(--muted);font-family:monospace;font-size:.75rem">${r._id.slice(-8)}</td>
+        <td style="padding:.35rem .4rem;font-family:monospace;font-size:.75rem">${r.sellerId}</td>
+        <td style="text-align:right;padding:.35rem .4rem;font-weight:700">$${((r.amountCents||0)/100).toFixed(2)}</td>
+        <td style="padding:.35rem .4rem">${r.method}</td>
+        <td style="padding:.35rem .4rem;color:var(--muted)">${r.referenceNumber||'—'}</td>
+        <td style="padding:.35rem .4rem"><span style="padding:2px 7px;border-radius:999px;font-size:.72rem;background:${r.status==='paid'?'rgba(var(--rgb-green),.15)':'rgba(var(--rgb-warn),.15)'};color:${r.status==='paid'?'var(--green)':'var(--warn)'}">${r.status}</span></td>
+        <td style="padding:.35rem .4rem;color:var(--muted)">${new Date(r.createdAt).toLocaleDateString()}</td>
+        <td style="padding:.35rem .4rem">
+          ${r.status==='pending'?`<button class="btn btn-warn btn-sm" onclick="markRemittancePaid('${r._id}')"><i class="fas fa-check"></i> Mark Paid</button>`:''}
+        </td>
+      </tr>`).join('') + `</tbody></table>`;
+}
+
+async function createRemittance() {
+  const sellerId   = document.getElementById('rem-new-seller').value.trim();
+  const amountStr  = document.getElementById('rem-new-amount').value.trim();
+  const method     = document.getElementById('rem-new-method').value;
+  const ref        = document.getElementById('rem-new-ref').value.trim();
+  const note       = document.getElementById('rem-new-note').value.trim();
+  if (!sellerId) { toast('Seller ID is required', 'error'); return; }
+  const dollars = parseFloat(amountStr);
+  if (isNaN(dollars) || dollars <= 0) { toast('Enter a valid amount', 'error'); return; }
+  const amountCents = Math.round(dollars * 100);
+  const {confirmed} = await showConfirm({ title:'Create Remittance', body:`Record a manual payment of $${dollars.toFixed(2)} to seller ${sellerId}?`, danger: true });
+  if (!confirmed) return;
+  try {
+    await adminApi('POST', '/proxy/payments/remittances', { sellerId, amountCents, method, referenceNumber: ref, note });
+    toast('Remittance created', 'success');
+    document.getElementById('rem-new-seller').value = '';
+    document.getElementById('rem-new-amount').value = '';
+    document.getElementById('rem-new-ref').value    = '';
+    document.getElementById('rem-new-note').value   = '';
+    loadRemittances();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function markRemittancePaid(id) {
+  const {confirmed} = await showConfirm({ title:'Mark as Paid?', body:`Mark this remittance as paid? This will notify the seller.`, danger: true });
+  if (!confirmed) return;
+  try {
+    await adminApi('PATCH', `/proxy/payments/remittances/${id}/mark-paid`, {});
+    toast('Remittance marked as paid', 'success');
+    loadRemittances();
   } catch(err) { toast('Error: ' + err.message, 'error'); }
 }
 </script>

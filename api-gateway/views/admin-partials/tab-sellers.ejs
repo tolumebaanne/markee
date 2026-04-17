@@ -78,6 +78,7 @@ async function loadSellers() {
           <span style="background:${tc}22;color:${tc};border:1px solid ${tc}44;padding:0.1rem 0.45rem;border-radius:20px;font-size:0.63rem;font-weight:700;text-transform:uppercase">${s.tier||'standard'}</span>
           ${s.verified?`<span style="background:#052e1655;color:#4ade80;border:1px solid #4ade8044;padding:0.1rem 0.45rem;border-radius:20px;font-size:0.63rem;font-weight:700"><i class="fas fa-check"></i> Verified</span>`:`<span style="background:var(--bg2);color:var(--muted);border:1px solid var(--border);padding:0.1rem 0.45rem;border-radius:20px;font-size:0.63rem">Unverified</span>`}
           ${!isActive?`<span style="background:#450a0a55;color:#f87171;border:1px solid #f8717144;padding:0.1rem 0.45rem;border-radius:20px;font-size:0.63rem;font-weight:700"><i class="fas fa-ban"></i> Suspended</span>`:''}
+          ${s.stripeConnectStatus==='active'?`<span style="background:#052e1655;color:#4ade80;border:1px solid #4ade8044;padding:0.1rem 0.45rem;border-radius:20px;font-size:0.63rem;font-weight:700"><i class="fas fa-credit-card"></i> Payouts On</span>`:s.stripeConnectStatus==='pending'?`<span style="background:#1e3a5f55;color:#60a5fa;border:1px solid #60a5fa44;padding:0.1rem 0.45rem;border-radius:20px;font-size:0.63rem">Payouts Pending</span>`:`<span style="background:#451a0355;color:#fb923c;border:1px solid #fb923c44;padding:0.1rem 0.45rem;border-radius:20px;font-size:0.63rem">No Payouts</span>`}
         </div>
         <div style="display:flex;gap:1rem;font-size:0.7rem;color:var(--muted);margin-bottom:0.65rem">
           <span><strong style="color:var(--text);display:block;font-size:0.85rem">${s.totalOrders||0}</strong>Orders</span>
@@ -88,6 +89,7 @@ async function loadSellers() {
           ${s.verified?`<button class="btn btn-warn btn-xs" onclick="unverifyStore('${s._id}')"><i class="fas fa-badge-check"></i> Unverify</button>`:`<button class="btn btn-success btn-xs" onclick="verifyStore('${s._id}')"><i class="fas fa-badge-check"></i> Verify</button>`}
           ${isActive?`<button class="btn btn-danger btn-xs" onclick="suspendStore('${s._id}')"><i class="fas fa-ban"></i> Suspend</button>`:`<button class="btn btn-ghost btn-xs" onclick="restoreStore('${s._id}')"><i class="fas fa-rotate-right"></i> Restore</button>`}
           <button class="btn btn-purple btn-xs" onclick="changeTier('${s._id}','${s.tier||'standard'}')"><i class="fas fa-layer-group"></i> Tier</button>
+          <button class="btn btn-ghost btn-xs" onclick="setConnectStatus('${s._id}','${s.stripeConnectStatus||'not_connected'}')"><i class="fas fa-credit-card"></i> Payout</button>
           <button class="btn btn-info btn-xs" onclick="viewSellerProfile('${s._id}')"><i class="fas fa-eye"></i></button>
         </div>
       </div>`;
@@ -142,15 +144,29 @@ async function changeTier(id,currentTier){
   try{await adminApi('PATCH',`/proxy/sellers/${id}/tier`,{tier:r.selected});toast(`Tier → ${r.selected}.`,'success');loadSellers();}
   catch(err){toast('Error: '+err.message,'error');}
 }
+// S20 — set Stripe Connect status for a seller store
+async function setConnectStatus(id, currentStatus){
+  const opts=['not_connected','pending','active'].filter(s=>s!==currentStatus);
+  const labelMap={not_connected:'Not Connected',pending:'Under Review',active:'Active'};
+  const r=await showConfirm({title:'Update Payout Status',body:`Current: ${labelMap[currentStatus]||currentStatus}. Override Stripe Connect status.`,withSelect:opts.map(s=>({value:s,label:labelMap[s]})),selectLabel:'New Status'});
+  if(!r.confirmed)return;
+  try{
+    await adminApi('PATCH',`/proxy/sellers/${id}/connect-status`,{stripeConnectStatus:r.selected});
+    toast(`Payout status → ${labelMap[r.selected]||r.selected}.`,'success');
+    loadSellers();
+  }catch(err){toast('Error: '+err.message,'error');}
+}
+
 async function viewSellerProfile(id){
   const body=document.getElementById('sellerProfileBody');
   body.innerHTML=`<div class="loading"><i class="fas fa-spinner fa-spin"></i></div>`;
   openModal('sellerProfileModal');
   try {
     const p=await adminApi('GET',`/proxy/sellers/${id}/profile`); const s=p.store||p;
+    const csLabel={not_connected:'<span style="color:#fb923c">Not Connected</span>',pending:'<span style="color:#60a5fa">Under Review</span>',active:'<span style="color:var(--success)"><i class="fas fa-check"></i> Active</span>'};
     body.innerHTML=`<div class="grid-2">
-      <div>${['Name','Store ID','Tier','Verified','Status','Total Orders','Avg Rating','Joined'].map((l,i)=>{
-        const v=[s.name,trunc(s._id,20),badge(s.tier||'standard'),s.verified?'<span style="color:var(--success)"><i class="fas fa-check"></i> Yes</span>':'No',badge(s.active===false?'suspended':'active'),s.totalOrders||0,s.sellerAvgRating?s.sellerAvgRating.toFixed(2):'—',fmtDate(s.createdAt)];
+      <div>${['Name','Store ID','Tier','Verified','Status','Total Orders','Avg Rating','Joined','Payout Status'].map((l,i)=>{
+        const v=[s.name,trunc(s._id,20),badge(s.tier||'standard'),s.verified?'<span style="color:var(--success)"><i class="fas fa-check"></i> Yes</span>':'No',badge(s.active===false?'suspended':'active'),s.totalOrders||0,s.sellerAvgRating?s.sellerAvgRating.toFixed(2):'—',fmtDate(s.createdAt),(csLabel[s.stripeConnectStatus]||csLabel.not_connected)+` <button class="btn btn-ghost btn-xs" style="margin-left:0.4rem" onclick="setConnectStatus('${id}','${s.stripeConnectStatus||'not_connected'}');closeModal('sellerProfileModal')"><i class="fas fa-pencil"></i></button>`];
         return `<div class="order-detail-row"><div class="order-detail-label" style="min-width:100px">${l}</div><div style="font-size:0.83rem">${v[i]}</div></div>`;
       }).join('')}</div>
       <div>

@@ -41,6 +41,8 @@ const ProfileSchema = new mongoose.Schema({
     phone:       { type: String, default: '' },
     avatarUrl:   { type: String, default: '' },
     bio:         { type: String, default: '' },
+    country:     { type: String, default: 'CA' },
+    province:    { type: String, default: 'ON' },
 
     addresses: [AddressSchema],
 
@@ -68,6 +70,9 @@ const ProfileSchema = new mongoose.Schema({
 
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
+
+    // S21 — Stripe Customer ID (stored after first Stripe payment)
+    stripeCustomerId: { type: String },
 
     // Soft-delete fields — populated by user.self_deleted event
     softDeleted:    { type: Boolean, default: false },
@@ -149,6 +154,20 @@ bus.on('review.submitted', async (payload) => {
     } catch (err) { console.error('[USER] review.submitted buyerScore error:', err.message); }
 });
 
+// S21 — Store Stripe Customer ID after payment-service creates the Customer
+bus.on('user.stripe_customer_created', async (payload) => {
+    try {
+        const { userId, stripeCustomerId } = payload;
+        if (!userId || !stripeCustomerId) return;
+        await Profile.findOneAndUpdate(
+            { userId },
+            { stripeCustomerId },
+            { upsert: false }
+        );
+        console.log(`[USER] stripeCustomerId stored for user ${userId}`);
+    } catch (err) { console.error('[USER] user.stripe_customer_created error:', err.message); }
+});
+
 // ── Helper: get or create profile ────────────────────────────────────────────
 async function getOrCreate(userId) {
     let profile = await Profile.findOne({ userId });
@@ -172,7 +191,7 @@ app.get('/users/me', async (req, res) => {
 // PUT /users/me — partial update
 app.put('/users/me', async (req, res) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
-    const allowed = ['displayName', 'phone', 'avatarUrl', 'bio', 'notificationPreferences'];
+    const allowed = ['displayName', 'phone', 'avatarUrl', 'bio', 'country', 'province', 'notificationPreferences'];
     const update  = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
     update.updatedAt = new Date();
@@ -393,6 +412,28 @@ app.delete('/users/me/likes/:productId', async (req, res) => {
         profile.updatedAt = new Date();
         await profile.save();
         res.json(profile.likedProducts);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// S21 — GET /users/internal/:userId/stripe-data — service-to-service only
+// Used by payment-service to get stripeCustomerId and user email for Stripe Customer creation.
+// Guarded by x-internal-service header (set by payment-service) OR admin token.
+// NOT exposed to buyers via any public gateway path — the gateway proxies /api/users → /users
+// but callers would need a valid verifyToken to reach it. The x-internal-service header
+// provides a secondary guard since buyers cannot set that header from checkout.
+app.get('/users/internal/:userId/stripe-data', async (req, res) => {
+    const isInternal = req.headers['x-internal-service'] === 'payment-service';
+    const isAdmin    = req.user?.role === 'admin';
+    if (!isInternal && !isAdmin) return errorResponse(res, 403, 'Internal access only');
+    try {
+        const profile = await Profile.findOne({ userId: req.params.userId })
+            .select('stripeCustomerId email displayName').lean();
+        if (!profile) return errorResponse(res, 404, 'Profile not found');
+        res.json({
+            stripeCustomerId: profile.stripeCustomerId || null,
+            email:            profile.email            || '',
+            displayName:      profile.displayName      || '',
+        });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 

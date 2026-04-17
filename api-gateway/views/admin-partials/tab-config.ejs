@@ -41,8 +41,62 @@
     </div>
   </div>
 
+  <!-- Payment Business Rules -->
+  <div class="card" style="margin-top:1.25rem">
+    <div class="card-title"><i class="fas fa-clock"></i> Payment Business Rules
+      <span style="font-size:0.72rem;color:var(--muted);font-weight:400;margin-left:0.5rem">Changes take effect within 5 minutes</span>
+    </div>
+    <div id="cfg-pay-rules"><div class="loading"><i class="fas fa-spinner fa-spin"></i></div></div>
+    <div id="cfg-pay-rules-edit" style="display:none;margin-top:1rem;border-top:1px solid var(--border);padding-top:1rem">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;flex-wrap:wrap">
+        <div class="form-group" style="margin:0">
+          <label style="font-size:0.78rem">Seller Acceptance (hours)</label>
+          <div style="display:flex;gap:0.4rem">
+            <input type="number" id="cfg-seller-accept" min="1" max="168" placeholder="24" style="max-width:90px">
+            <button class="btn btn-warn btn-sm" onclick="savePayConfig('sellerAcceptanceHours','cfg-seller-accept')"><i class="fas fa-floppy-disk"></i></button>
+          </div>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:0.78rem">COD Expiry (days)</label>
+          <div style="display:flex;gap:0.4rem">
+            <input type="number" id="cfg-cod-expiry" min="1" max="90" placeholder="7" style="max-width:90px">
+            <button class="btn btn-warn btn-sm" onclick="savePayConfig('codExpiryDays','cfg-cod-expiry')"><i class="fas fa-floppy-disk"></i></button>
+          </div>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:0.78rem">Default Currency</label>
+          <div style="display:flex;gap:0.4rem">
+            <input type="text" id="cfg-currency" maxlength="3" placeholder="cad" style="max-width:70px;text-transform:lowercase">
+            <button class="btn btn-warn btn-sm" onclick="savePayConfigCurrency()"><i class="fas fa-floppy-disk"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tax Rates -->
+  <div class="card" style="margin-top:1.25rem">
+    <div class="card-title"><i class="fas fa-percent"></i> Tax Rates
+      <span style="font-size:0.72rem;color:var(--muted);font-weight:400;margin-left:0.5rem">Per-region rates (0–1, e.g. 0.13 = 13%)</span>
+    </div>
+    <div id="cfg-tax-rates"><div class="loading"><i class="fas fa-spinner fa-spin"></i></div></div>
+    <div id="cfg-tax-rates-edit" style="display:none;margin-top:1rem;border-top:1px solid var(--border);padding-top:0.75rem">
+      <div style="display:flex;gap:0.5rem;align-items:flex-end">
+        <div class="form-group" style="margin:0">
+          <label style="font-size:0.78rem">Region key</label>
+          <input type="text" id="cfg-tax-region" placeholder="ON" style="max-width:80px">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:0.78rem">Rate (0–1)</label>
+          <input type="number" id="cfg-tax-rate-val" min="0" max="1" step="0.001" placeholder="0.13" style="max-width:100px">
+        </div>
+        <button class="btn btn-warn btn-sm" onclick="saveTaxRate()" style="margin-bottom:0.1rem"><i class="fas fa-plus"></i> Add / Update</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Flag change note -->
-  <div class="card">
+  <div class="card" style="margin-top:1.25rem">
     <div class="card-title"><i class="fas fa-history"></i> Flag Change History</div>
     <p style="font-size:0.82rem;color:var(--muted2);margin-bottom:0.75rem">All configuration changes are recorded in the Audit Log with actor, timestamp, and previous/new values.</p>
     <button class="btn btn-ghost btn-sm" onclick="switchTab('audit',document.querySelectorAll('.sidebar-link')[22])"><i class="fas fa-scroll"></i> Open Audit Log</button>
@@ -73,6 +127,101 @@ async function loadConfig() {
     renderConfigFlags(data.flags || {});
     renderConfigLimits(data.limits || {});
   } catch (err) { showErr('cfg-error', 'Could not load config: ' + err.message); }
+  loadPaymentConfig();
+}
+
+async function loadPaymentConfig() {
+  document.getElementById('cfg-pay-rules-edit').style.display = 'block';
+  document.getElementById('cfg-tax-rates-edit').style.display = 'block';
+  try {
+    const cfg = await adminApi('GET', '/payments/platform-config');
+    renderPayRules(cfg);
+    renderTaxRates(cfg.taxRates || {});
+  } catch (err) {
+    document.getElementById('cfg-pay-rules').innerHTML = `<div style="color:var(--warn);font-size:0.82rem">Could not load: ${err.message}</div>`;
+    document.getElementById('cfg-tax-rates').innerHTML = '';
+  }
+}
+
+function renderPayRules(cfg) {
+  const el   = document.getElementById('cfg-pay-rules');
+  const rows = [
+    ['Seller Acceptance Window', cfg.sellerAcceptanceHours != null ? cfg.sellerAcceptanceHours + ' hours' : '—'],
+    ['COD Expiry',               cfg.codExpiryDays         != null ? cfg.codExpiryDays + ' days'          : '—'],
+    ['Default Currency',         cfg.defaultCurrency       || '—'],
+  ];
+  el.innerHTML = rows.map(([label, val]) => `
+    <div class="flag-row">
+      <div class="flag-name">${label}</div>
+      <span style="font-weight:700;color:var(--text)">${val}</span>
+    </div>`).join('');
+  if (cfg.sellerAcceptanceHours != null) document.getElementById('cfg-seller-accept').value = cfg.sellerAcceptanceHours;
+  if (cfg.codExpiryDays         != null) document.getElementById('cfg-cod-expiry').value    = cfg.codExpiryDays;
+  if (cfg.defaultCurrency)               document.getElementById('cfg-currency').value       = cfg.defaultCurrency;
+}
+
+function renderTaxRates(rates) {
+  const el      = document.getElementById('cfg-tax-rates');
+  const entries = Object.entries(rates);
+  if (!entries.length) {
+    el.innerHTML = `<div style="color:var(--muted);font-size:0.82rem">No tax rates configured.</div>`;
+    return;
+  }
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.84rem">
+    <thead><tr style="color:var(--muted);font-size:0.75rem">
+      <th style="text-align:left;padding:0.3rem 0">Region</th>
+      <th style="text-align:right;padding:0.3rem 0">Rate</th>
+      <th style="text-align:right;padding:0.3rem 0">Effective %</th>
+    </tr></thead>
+    <tbody>` +
+    entries.map(([region, rate]) => `
+      <tr style="border-top:1px solid var(--border)">
+        <td style="padding:0.35rem 0;font-weight:600">${region}</td>
+        <td style="text-align:right;padding:0.35rem 0">${rate}</td>
+        <td style="text-align:right;padding:0.35rem 0;color:var(--muted)">${(rate * 100).toFixed(2)}%</td>
+      </tr>`).join('') +
+    `</tbody></table>`;
+}
+
+async function savePayConfig(field, inputId) {
+  const raw = document.getElementById(inputId).value;
+  const val = Number(raw);
+  if (!Number.isFinite(val) || val < 1) { toast('Enter a valid positive number', 'error'); return; }
+  const r = await showConfirm({ title: 'Update Config', body: `Set ${field} to ${val}?`, danger: true });
+  if (!r.confirmed) return;
+  try {
+    await adminApi('PATCH', '/payments/platform-config', { [field]: val });
+    toast(`${field} updated.`, 'success');
+    loadPaymentConfig();
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function savePayConfigCurrency() {
+  const val = document.getElementById('cfg-currency').value.trim().toLowerCase();
+  if (!/^[a-z]{3}$/.test(val)) { toast('Currency must be a 3-letter ISO code (e.g. cad)', 'error'); return; }
+  const r = await showConfirm({ title: 'Update Currency', body: `Set default currency to "${val}"?`, danger: true });
+  if (!r.confirmed) return;
+  try {
+    await adminApi('PATCH', '/payments/platform-config', { defaultCurrency: val });
+    toast(`Default currency → ${val}.`, 'success');
+    loadPaymentConfig();
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function saveTaxRate() {
+  const region  = document.getElementById('cfg-tax-region').value.trim().toUpperCase();
+  const rateVal = parseFloat(document.getElementById('cfg-tax-rate-val').value);
+  if (!region) { toast('Region key is required', 'error'); return; }
+  if (!Number.isFinite(rateVal) || rateVal < 0 || rateVal > 1) { toast('Rate must be 0–1', 'error'); return; }
+  const r = await showConfirm({ title: 'Update Tax Rate', body: `Set ${region} tax rate to ${rateVal} (${(rateVal*100).toFixed(2)}%)?`, danger: true });
+  if (!r.confirmed) return;
+  try {
+    await adminApi('PATCH', '/payments/platform-config/tax-rates', { region, rate: rateVal });
+    toast(`Tax rate for ${region} → ${(rateVal*100).toFixed(2)}%.`, 'success');
+    document.getElementById('cfg-tax-region').value   = '';
+    document.getElementById('cfg-tax-rate-val').value = '';
+    loadPaymentConfig();
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
 }
 
 function renderConfigFlags(flags) {

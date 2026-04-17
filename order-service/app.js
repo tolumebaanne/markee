@@ -6,6 +6,7 @@ const errorResponse = require('../shared/utils/errorResponse');
 const parseUser = require('../shared/middleware/parseUser');
 const platformGuard = require('../shared/middleware/platformGuard');
 const bus = require('../shared/eventBus');
+const { getPlatformConfig } = require('../shared/utils/platformConfig');
 
 const app = express();
 app.use(express.json());
@@ -33,7 +34,7 @@ const OrderSchema = new mongoose.Schema({
     }],
     status: {
         type:    String,
-        enum:    ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled',
+        enum:    ['pending', 'authorizing', 'paid', 'processing', 'shipped', 'delivered', 'cancelled',
                   'ready_for_pickup', 'picked_up', 'self_fulfilled'],
         default: 'pending'
     },
@@ -57,7 +58,19 @@ const OrderSchema = new mongoose.Schema({
     },
     timeline:   [{ status: String, timestamp: Date }],
     totalAmount: Number,
-    paymentMethod: { type: String, enum: ['escrow', 'cod'], default: 'escrow' },
+    paymentMethod: { type: String, enum: ['stripe', 'cod', 'escrow'], default: 'stripe' },
+    // 'escrow' kept for legacy record migration (D4 — stripePaymentIntentId stores intent ID for Stripe orders)
+    stripePaymentIntentId: { type: String, default: null },
+    taxCents:              { type: Number, default: 0 },
+    taxBreakdown:          {
+        gst: { type: Number, default: 0 },
+        pst: { type: Number, default: 0 },
+        qst: { type: Number, default: 0 },
+        hst: { type: Number, default: 0 },
+    },
+    deliveryCents:         { type: Number, default: 0 },
+    discountCents:         { type: Number, default: 0 },
+    couponCode:            { type: String, default: null },
     // S3/R-O1 — Order notes: buyer note visible to seller; seller note hidden from buyer
     buyerNote:  { type: String, default: '', maxLength: 500 },
     sellerNote: { type: String, default: '', maxLength: 500 },
@@ -80,9 +93,70 @@ const OrderSchema = new mongoose.Schema({
 });
 const Order = db.model('Order', OrderSchema);
 
+// ── S16 — Jurisdiction-based tax ─────────────────────────────────────────────
+
+/**
+ * Canadian HST/GST+PST rates by province (2024).
+ * Used as defaults when PlatformConfig.taxRates map is empty.
+ */
+const CA_DEFAULT_RATES = {
+    'CA-AB': { rate: 0.05,    breakdown: { gst: 0.05 } },
+    'CA-BC': { rate: 0.12,    breakdown: { gst: 0.05, pst: 0.07 } },
+    'CA-MB': { rate: 0.12,    breakdown: { gst: 0.05, pst: 0.07 } },
+    'CA-NB': { rate: 0.15,    breakdown: { hst: 0.15 } },
+    'CA-NL': { rate: 0.15,    breakdown: { hst: 0.15 } },
+    'CA-NS': { rate: 0.15,    breakdown: { hst: 0.15 } },
+    'CA-NT': { rate: 0.05,    breakdown: { gst: 0.05 } },
+    'CA-NU': { rate: 0.05,    breakdown: { gst: 0.05 } },
+    'CA-ON': { rate: 0.13,    breakdown: { hst: 0.13 } },
+    'CA-PE': { rate: 0.15,    breakdown: { hst: 0.15 } },
+    'CA-QC': { rate: 0.14975, breakdown: { gst: 0.05, qst: 0.09975 } },
+    'CA-SK': { rate: 0.11,    breakdown: { gst: 0.05, pst: 0.06 } },
+    'CA-YT': { rate: 0.05,    breakdown: { gst: 0.05 } },
+};
+
+/**
+ * Look up the composite tax rate for a buyer's location.
+ * Reads from PlatformConfig.taxRates map first; falls back to CA_DEFAULT_RATES.
+ *
+ * @returns {{ rate: number, breakdown: { gst?: number, pst?: number, qst?: number, hst?: number } }}
+ */
+async function getTaxRate(country, province) {
+    // S4 — flat-rate override: PLATFORM_TAX_RATE env var takes precedence over all jurisdiction tables
+    const envOverride = process.env.PLATFORM_TAX_RATE;
+    if (envOverride !== undefined && envOverride !== '') {
+        const rate = parseFloat(envOverride) || 0.13;
+        return { rate, breakdown: { hst: rate } };
+    }
+    if (country && country !== 'CA') {
+        // Non-Canadian buyers: apply GST only (5%)
+        return { rate: 0.05, breakdown: { gst: 0.05 } };
+    }
+
+    const key = `CA-${(province || 'ON').toUpperCase()}`;
+    try {
+        const cfg = await getPlatformConfig();
+        if (cfg.taxRates && cfg.taxRates.size > 0 && cfg.taxRates.has(key)) {
+            const rate = cfg.taxRates.get(key);
+            // For custom rates we don't know the breakdown — return as HST
+            return { rate, breakdown: { hst: rate } };
+        }
+    } catch (err) {
+        console.warn('[ORDER] getPlatformConfig failed in getTaxRate, using defaults:', err.message);
+    }
+
+    const entry = CA_DEFAULT_RATES[key];
+    if (!entry) {
+        console.warn(`[ORDER] Unknown province key ${key} — falling back to CA-ON (0.13)`);
+        return CA_DEFAULT_RATES['CA-ON'];
+    }
+    return entry;
+}
+
 // ── State machine ─────────────────────────────────────────────────────────────
 const MANUAL_TRANSITIONS = {
     pending:          ['cancelled'],
+    authorizing:      ['cancelled'],   // awaiting card auth from Stripe — can cancel before webhook fires
     paid:             ['processing', 'cancelled'],
     processing:       [],
     shipped:          [],
@@ -94,10 +168,11 @@ const MANUAL_TRANSITIONS = {
 };
 
 const SYSTEM_TRANSITIONS = {
-    pending:    'paid',
-    paid:       'shipped',
-    processing: 'shipped',
-    shipped:    'delivered'
+    pending:      'authorizing',   // payment.authorized webhook advances pending → authorizing
+    authorizing:  'paid',          // seller accept advances authorizing → paid
+    paid:         'shipped',
+    processing:   'shipped',
+    shipped:      'delivered'
 };
 
 async function advanceStatus(orderId, newStatus, extra = {}) {
@@ -122,12 +197,14 @@ async function advanceStatus(orderId, newStatus, extra = {}) {
 
 // ── Event listeners ──────────────────────────────────────────────────────────
 
-bus.on('payment.captured', async (payload) => {
+// payment.authorized = Stripe webhook confirmed card is authorized (C6 rename)
+// Advances order pending → authorizing (awaiting seller acceptance)
+bus.on('payment.authorized', async (payload) => {
     try {
         const order = await Order.findById(payload.orderId);
         if (!order || order.status !== 'pending') return;
-        await advanceStatus(payload.orderId, 'paid');
-    } catch (err) { console.error('[ORDER] payment.captured error:', err.message); }
+        await advanceStatus(payload.orderId, 'authorizing');
+    } catch (err) { console.error('[ORDER] payment.authorized error:', err.message); }
 });
 
 bus.on('shipment.created', async (payload) => {
@@ -290,6 +367,21 @@ bus.on('user.deleted', async (payload) => {
     } catch (err) { console.error('[ORDER] user.deleted anonymization error:', err.message); }
 });
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+// Delivery fee constants — override via env if needed
+const STANDARD_DELIVERY_FEE_CENTS = parseInt(process.env.STANDARD_DELIVERY_FEE_CENTS || '599', 10);
+const FAST_DELIVERY_FEE_CENTS     = parseInt(process.env.FAST_DELIVERY_FEE_CENTS     || '1499', 10);
+
+/**
+ * Returns the server-authoritative delivery fee in cents.
+ * Pickup and self_fulfilled orders always have $0 delivery.
+ */
+function computeDeliveryFee(fulfillmentType, deliverySpeed) {
+    if (fulfillmentType === 'pickup' || fulfillmentType === 'self_fulfilled') return 0;
+    return deliverySpeed === 'fast' ? FAST_DELIVERY_FEE_CENTS : STANDARD_DELIVERY_FEE_CENTS;
+}
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 // Internal: check if a store has open seller orders — used by auth-service before allowing self-deletion
@@ -409,7 +501,13 @@ app.post('/', async (req, res) => {
             } catch { /* fail open — catalog unreachable */ }
         }
 
-        const { fulfillmentType, paymentMethod, selectedCarrier, selfFulfillmentAddress, selfFulfillmentInstructions, pickupLocationId } = req.body;
+        const {
+            fulfillmentType, paymentMethod, selectedCarrier,
+            selfFulfillmentAddress, selfFulfillmentInstructions, pickupLocationId,
+            stripePaymentIntentId,
+            couponCode,
+            discountCents: clientDiscountCents,
+        } = req.body;
         const sellerIds = [...new Set(items.map(i => i.sellerId?.toString()).filter(Boolean))];
 
         // S29 — Fetch seller stores: used for vacation mode, fulfillmentOptions, and enabledCarriers validation
@@ -506,16 +604,84 @@ app.post('/', async (req, res) => {
             ? String(selfFulfillmentInstructions || '').replace(/</g, '&lt;').trim().slice(0, 500)
             : '';
 
+        // ── Phase 7/6d: Server-side tax + total validation (S16 jurisdiction tax) ─
+        // S15 — read currency from PlatformConfig (cached; getTaxRate() also reads it below)
+        const platformCfg = await getPlatformConfig().catch(() => ({ defaultCurrency: 'cad' }));
+        const orderCurrency = (platformCfg.defaultCurrency || 'cad').toLowerCase();
+
+        const buyerCountry        = String(req.body.buyerCountry  || 'CA').trim();
+        const buyerProvince       = String(req.body.buyerProvince || 'ON').trim();
+        const taxInfo             = await getTaxRate(buyerCountry, buyerProvince);
+        const TAX_RATE            = taxInfo.rate;
+        const serverSubtotalCents = items.reduce((sum, item) => sum + Math.round((item.price || 0) * (item.qty || item.quantity || 1)), 0);
+
+        // Phase 6d — re-validate coupon server-side (cannot trust client-submitted discount)
+        let serverDiscountCents = 0;
+        if (couponCode) {
+            try {
+                const catalogUrl = process.env.CATALOG_SERVICE_URL || 'http://localhost:5002';
+                const controller = new AbortController();
+                setTimeout(() => controller.abort(), 2500);
+                const couponRes = await fetch(`${catalogUrl}/coupons/validate`, {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-user': req.headers['x-user'] || '' },
+                    body:    JSON.stringify({
+                        code:      couponCode,
+                        userId:    (req.user?.sub || req.body.buyerId)?.toString(),
+                        cartTotal: serverSubtotalCents,
+                        sellerId:  sellerIds.length === 1 ? sellerIds[0] : null,
+                    }),
+                    signal: controller.signal,
+                });
+                if (couponRes.ok) {
+                    const couponResult = await couponRes.json();
+                    if (!couponResult.valid) {
+                        return errorResponse(res, 400, couponResult.message || 'Invalid or expired coupon code');
+                    }
+                    serverDiscountCents = couponResult.discountCents || 0;
+                } else {
+                    return errorResponse(res, 400, 'Coupon validation failed — please re-apply the coupon');
+                }
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    // Catalog service unreachable — fail open (zero discount) and log
+                    console.warn('[ORDER] Coupon validation timeout — proceeding without discount');
+                    serverDiscountCents = 0;
+                } else {
+                    return errorResponse(res, 500, 'Coupon validation error');
+                }
+            }
+        }
+        const serverTaxCents      = Math.round((serverSubtotalCents - serverDiscountCents) * TAX_RATE);
+        const serverDeliveryCents = computeDeliveryFee(resolvedFulfillmentType, deliverySpeed || 'standard');
+        const serverTotalCents    = serverSubtotalCents - serverDiscountCents + serverTaxCents + serverDeliveryCents;
+
+        // Validate client total within 1% (handles rounding differences)
+        const clientTotalCents = Math.round(totalAmount || 0);
+        const totalTolerance   = Math.max(1, Math.ceil(serverTotalCents * 0.01));
+        if (Math.abs(clientTotalCents - serverTotalCents) > totalTolerance) {
+            return errorResponse(res, 400,
+                `Order total mismatch — expected ${serverTotalCents} cents, got ${clientTotalCents}. Please refresh and try again.`
+            );
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         const order = await Order.create({
             buyerId: req.user?.sub || req.body.buyerId,
             items,
             fulfillmentType: resolvedFulfillmentType,
             shippingAddress:  resolvedShippingAddress,
             billingAddress:   resolvedBillingAddress,
-            deliverySpeed:   deliverySpeed   || 'standard',
-            deliveryFee:     deliveryFee     || 0,
-            totalAmount,
-            paymentMethod:               paymentMethod   || 'escrow',
+            deliverySpeed:   deliverySpeed        || 'standard',
+            deliveryFee:     serverDeliveryCents,
+            totalAmount:     serverTotalCents,
+            taxCents:        serverTaxCents,
+            taxBreakdown:    taxInfo.breakdown,
+            deliveryCents:   serverDeliveryCents,
+            discountCents:   serverDiscountCents,
+            couponCode:      couponCode           || null,
+            paymentMethod:               paymentMethod   || 'stripe',
+            stripePaymentIntentId:       stripePaymentIntentId || null,
             buyerNote:                   (req.body.buyerNote || '').slice(0, 500),
             selectedCarrier:             resolvedCarrier,
             pickupLocationId:            resolvedFulfillmentType === 'pickup' ? (pickupLocationId || null) : null,
@@ -526,12 +692,19 @@ app.post('/', async (req, res) => {
         });
 
         bus.emit('order.placed', {
-            orderId:       order._id,
-            buyerId:       order.buyerId,
-            sellerIds:     [...new Set(order.items.map(i => i.sellerId?.toString()).filter(Boolean))],
-            items:         order.items,
-            totalAmount:   order.totalAmount,
-            paymentMethod: order.paymentMethod
+            orderId:               order._id,
+            buyerId:               order.buyerId,
+            sellerIds:             [...new Set(order.items.map(i => i.sellerId?.toString()).filter(Boolean))],
+            items:                 order.items,
+            totalAmount:           order.totalAmount,
+            taxCents:              order.taxCents,
+            taxBreakdown:          order.taxBreakdown,
+            deliveryCents:         order.deliveryCents,
+            discountCents:         order.discountCents,
+            couponCode:            order.couponCode    || null,
+            paymentMethod:         order.paymentMethod,
+            stripePaymentIntentId: order.stripePaymentIntentId || null,
+            currency:              orderCurrency,
         });
         res.status(201).json(order);
     } catch (err) { errorResponse(res, 500, err.message); }
@@ -585,6 +758,91 @@ app.get('/seller-orders', async (req, res) => {
             ...o.toObject(),
             items: o.items.filter(i => i.sellerId?.toString() === sellerId.toString())
         })));
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// S10 — Seller accept (authorizing → paid, Stripe-paid orders)
+app.post('/seller-orders/:id/accept', async (req, res) => {
+    try {
+        const storeId = req.user?.storeId;
+        if (!storeId) return errorResponse(res, 403, 'Seller token required');
+        const order = await Order.findById(req.params.id);
+        if (!order) return errorResponse(res, 404, 'Order not found');
+        if (!order.items.some(i => i.sellerId?.toString() === storeId.toString())) {
+            return errorResponse(res, 403, 'This order does not belong to your store');
+        }
+        if (order.status !== 'authorizing') {
+            return errorResponse(res, 400, `Order must be in 'authorizing' status to accept (current: ${order.status})`);
+        }
+        // Transition directly to 'paid' — do NOT call advanceStatus() to avoid double notification
+        order.status = 'paid';
+        order.timeline.push({ status: 'paid', timestamp: new Date() });
+        await order.save();
+        const sellerIds = [...new Set(order.items.map(i => i.sellerId?.toString()).filter(Boolean))];
+        bus.emit('order.seller_accepted', {
+            orderId:   order._id.toString(),
+            buyerId:   order.buyerId.toString(),
+            sellerIds,
+        });
+        bus.emit('order.status_updated', {
+            orderId:   order._id,
+            status:    'paid',
+            buyerId:   order.buyerId,
+            sellerIds,
+        });
+        console.log(`[ORDER] ${req.params.id} → paid (seller accepted)`);
+        res.json(order);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// S10 — Seller reject (authorizing → cancelled)
+app.post('/seller-orders/:id/reject', async (req, res) => {
+    try {
+        const storeId = req.user?.storeId;
+        if (!storeId) return errorResponse(res, 403, 'Seller token required');
+        const order = await Order.findById(req.params.id);
+        if (!order) return errorResponse(res, 404, 'Order not found');
+        if (!order.items.some(i => i.sellerId?.toString() === storeId.toString())) {
+            return errorResponse(res, 403, 'This order does not belong to your store');
+        }
+        const sellerIds = [...new Set(order.items.map(i => i.sellerId?.toString()).filter(Boolean))];
+        bus.emit('order.cancelled', {
+            orderId:   order._id.toString(),
+            reason:    'seller_rejected',
+            buyerId:   order.buyerId.toString(),
+            sellerIds,
+        });
+        console.log(`[ORDER] ${req.params.id} → cancelled (seller rejected)`);
+        res.json({ message: 'Order rejected', orderId: order._id });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// S18 — Seller marks COD cash as collected
+app.post('/seller-orders/:id/cod-collected', async (req, res) => {
+    try {
+        const storeId = req.user?.storeId;
+        if (!storeId) return errorResponse(res, 403, 'Seller token required');
+        const order = await Order.findById(req.params.id);
+        if (!order) return errorResponse(res, 404, 'Order not found');
+        if (!order.items.some(i => i.sellerId?.toString() === storeId.toString())) {
+            return errorResponse(res, 403, 'This order does not belong to your store');
+        }
+        if (order.paymentMethod !== 'cod') {
+            return errorResponse(res, 400, 'This action is only available for COD orders');
+        }
+        const qualifyingStatuses = ['delivered', 'picked_up', 'self_fulfilled'];
+        if (!qualifyingStatuses.includes(order.status)) {
+            return errorResponse(res, 400, `Order must be in one of [${qualifyingStatuses.join(', ')}] to mark collected (current: ${order.status})`);
+        }
+        const sellerIds = [...new Set(order.items.map(i => i.sellerId?.toString()).filter(Boolean))];
+        // Idempotency: check if escrow already released — done via event; listener is idempotent
+        bus.emit('payment.cod_collected', {
+            orderId:   order._id.toString(),
+            buyerId:   order.buyerId.toString(),
+            sellerIds,
+        });
+        console.log(`[ORDER] ${req.params.id} — COD cash collected by seller ${storeId}`);
+        res.json({ message: 'COD collection recorded', orderId: order._id });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
@@ -739,9 +997,10 @@ app.get('/:id/transitions', async (req, res) => {
         if (!order) return res.status(404).json({ error: true, message: 'Order not found' });
 
         let sellerTransitions = {
-            pending:    ['processing', 'cancelled'],
-            paid:       ['processing', 'cancelled'],
-            processing: ['cancelled']
+            authorizing: ['paid', 'cancelled'],
+            pending:     ['processing', 'cancelled'],
+            paid:        ['processing', 'cancelled'],
+            processing:  ['cancelled']
         };
         if (order.fulfillmentType === 'pickup') {
             sellerTransitions.processing       = [...(sellerTransitions.processing || []), 'ready_for_pickup'];
@@ -798,9 +1057,10 @@ app.patch('/:id/status', async (req, res) => {
         }
 
         let sellerTransitions = {
-            pending:    ['processing', 'cancelled'],
-            paid:       ['processing', 'cancelled'],
-            processing: ['cancelled']
+            authorizing: ['paid', 'cancelled'],
+            pending:     ['processing', 'cancelled'],
+            paid:        ['processing', 'cancelled'],
+            processing:  ['cancelled']
         };
         if (order.fulfillmentType === 'pickup') {
             sellerTransitions.processing       = [...(sellerTransitions.processing || []), 'ready_for_pickup'];
@@ -874,5 +1134,25 @@ app.patch('/:id/deliver', async (req, res) => {
 });
 
 
+
+// S10 — Auto-cancel authorizing orders that sellers have not accepted within SELLER_ACCEPTANCE_HOURS
+async function sweepExpiredAuthorizingOrders() {
+    try {
+        const cfg    = await getPlatformConfig().catch(() => ({ sellerAcceptanceHours: 24 }));
+        const hours  = cfg.sellerAcceptanceHours || 24;
+        const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
+        const expired = await Order.find({ status: 'authorizing', createdAt: { $lt: cutoff } });
+        for (const order of expired) {
+            bus.emit('order.cancelled', {
+                orderId:  order._id.toString(),
+                reason:   'seller_no_response',
+                buyerId:  order.buyerId.toString(),
+            });
+            console.log(`[ORDER] ${order._id} auto-cancelled — seller did not respond within ${hours}h`);
+        }
+    } catch (err) { console.error('[ORDER] authorizing sweep error:', err.message); }
+}
+// Run sweep every 15 minutes
+setInterval(sweepExpiredAuthorizingOrders, 15 * 60 * 1000);
 
 app.listen(process.env.PORT || 5003, () => console.log(`Order Service on port ${process.env.PORT || 5003}`));

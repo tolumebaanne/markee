@@ -1,0 +1,197 @@
+<!-- ══════════════════════ TAB: COUPONS ══════════════════════ -->
+<div class="tab-panel" id="tab-coupons">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-tag" style="color:var(--accent);margin-right:0.4rem;font-size:1.1rem"></i> Coupons</h1>
+      <p>Create and manage promotional discount codes</p>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="loadCoupons()"><i class="fas fa-rotate-right"></i> Refresh</button>
+  </div>
+
+  <!-- Create coupon form -->
+  <div class="card" style="margin-bottom:1.2rem">
+    <div class="card-title"><i class="fas fa-plus-circle"></i> Create Coupon</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0.75rem;align-items:end">
+      <div>
+        <label style="font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">Code *</label>
+        <input id="coup-code" placeholder="SUMMER20" style="width:100%;margin-top:0.25rem" />
+      </div>
+      <div>
+        <label style="font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">Type *</label>
+        <select id="coup-type" style="width:100%;margin-top:0.25rem">
+          <option value="percent">Percent</option>
+          <option value="fixed">Fixed (cents)</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">Value *</label>
+        <input id="coup-value" type="number" min="0" placeholder="20" style="width:100%;margin-top:0.25rem" />
+      </div>
+      <div>
+        <label style="font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">Min Order (cents)</label>
+        <input id="coup-min" type="number" min="0" placeholder="0" style="width:100%;margin-top:0.25rem" />
+      </div>
+      <div>
+        <label style="font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">Max Uses Total</label>
+        <input id="coup-max-total" type="number" min="1" placeholder="Unlimited" style="width:100%;margin-top:0.25rem" />
+      </div>
+      <div>
+        <label style="font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">Max Uses / User</label>
+        <input id="coup-max-user" type="number" min="1" value="1" style="width:100%;margin-top:0.25rem" />
+      </div>
+      <div>
+        <label style="font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">Expires At</label>
+        <input id="coup-expires" type="datetime-local" style="width:100%;margin-top:0.25rem" />
+      </div>
+      <div>
+        <label style="font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">Seller ID (optional)</label>
+        <input id="coup-seller" placeholder="Platform-wide" style="width:100%;margin-top:0.25rem" />
+      </div>
+    </div>
+    <div id="coup-create-error" class="error-banner" style="display:none;margin-top:0.75rem"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+    <button class="btn btn-success btn-sm" style="margin-top:0.9rem" onclick="createCoupon()"><i class="fas fa-plus"></i> Create Coupon</button>
+  </div>
+
+  <!-- Coupon list -->
+  <div id="coupons-error" class="error-banner" style="display:none"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+  <div id="coupons-table"><div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading coupons...</div></div>
+  <div class="pagination" id="coupons-pagination"></div>
+</div>
+
+<script>
+let _couponPage = 1;
+
+function loadCoupons(page) {
+  _couponPage = page || 1;
+  hideErr('coupons-error');
+  const el = document.getElementById('coupons-table');
+  el.innerHTML = `<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
+  adminApi('GET', `/proxy/catalog/admin/coupons?page=${_couponPage}&limit=50`)
+    .then(data => {
+      const coupons = data.coupons || [];
+      if (!coupons.length) {
+        el.innerHTML = `<div class="empty-state"><i class="fas fa-tag"></i>No coupons yet<p>Create one above to get started.</p></div>`;
+        document.getElementById('coupons-pagination').innerHTML = '';
+        return;
+      }
+      el.innerHTML = `<div class="table-wrap"><table>
+        <thead><tr><th>Code</th><th>Type</th><th>Value</th><th>Used / Max</th><th>Min Order</th><th>Expires</th><th>Seller</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${coupons.map(c => `<tr id="coup-row-${c.code}">
+          <td style="font-weight:700;font-family:monospace">${esc(c.code)}</td>
+          <td>${c.type}</td>
+          <td style="font-weight:700;color:var(--success)">${c.type === 'percent' ? c.value + '%' : '$' + (c.value / 100).toFixed(2)}</td>
+          <td style="color:var(--muted)">${c.usedCount} / ${c.maxUsesTotal ?? '∞'}</td>
+          <td style="color:var(--muted)">${c.minOrderCents ? '$' + (c.minOrderCents/100).toFixed(2) : '—'}</td>
+          <td style="color:var(--muted);font-size:0.72rem">${c.expiresAt ? fmtDate(c.expiresAt) : '—'}</td>
+          <td style="font-size:0.72rem;color:var(--muted)">${c.sellerId ? trunc(c.sellerId,14) : 'Platform'}</td>
+          <td><span style="padding:0.1rem 0.45rem;border-radius:5px;font-size:0.7rem;background:${c.active?'rgba(34,197,94,0.12)':'rgba(239,68,68,0.12)'};color:${c.active?'var(--success)':'var(--accent)'}">${c.active ? 'Active' : 'Inactive'}</span></td>
+          <td><div class="btn-gap">
+            <button class="btn btn-ghost btn-xs" onclick="toggleCouponUsages('${esc(c.code)}')"><i class="fas fa-chart-bar"></i> Usage</button>
+            ${c.active ? `<button class="btn btn-warn btn-xs" onclick="deactivateCoupon('${esc(c.code)}')"><i class="fas fa-ban"></i> Deactivate</button>` : ''}
+            <button class="btn btn-danger btn-xs" onclick="deleteCoupon('${esc(c.code)}')"><i class="fas fa-trash"></i></button>
+          </div></td>
+        </tr>
+        <tr id="coup-usage-row-${c.code}" style="display:none"><td colspan="9" style="padding:0"><div id="coup-usage-${c.code}" style="background:var(--bg-card);padding:0.75rem 1rem;border-top:1px solid var(--border-light);font-size:0.8rem"></div></td></tr>`).join('')}
+        </tbody></table></div>`;
+      // Pagination
+      const pages = data.pages || 1;
+      const pg = document.getElementById('coupons-pagination');
+      pg.innerHTML = pages > 1
+        ? Array.from({length: pages}, (_,i)=>i+1)
+            .map(p=>`<button class="btn btn-ghost btn-xs${p===_couponPage?' active':''}" onclick="loadCoupons(${p})">${p}</button>`)
+            .join('')
+        : '';
+    })
+    .catch(e => showErr('coupons-error', e.message));
+}
+
+async function createCoupon() {
+  hideErr('coup-create-error');
+  const code      = document.getElementById('coup-code').value.trim().toUpperCase();
+  const type      = document.getElementById('coup-type').value;
+  const value     = parseFloat(document.getElementById('coup-value').value);
+  const minOrder  = parseInt(document.getElementById('coup-min').value) || 0;
+  const maxTotal  = document.getElementById('coup-max-total').value ? parseInt(document.getElementById('coup-max-total').value) : null;
+  const maxUser   = parseInt(document.getElementById('coup-max-user').value) || 1;
+  const expiresAt = document.getElementById('coup-expires').value || null;
+  const sellerId  = document.getElementById('coup-seller').value.trim() || null;
+
+  if (!code || !type || isNaN(value)) {
+    showErr('coup-create-error', 'Code, type, and value are required.'); return;
+  }
+  try {
+    await adminApi('POST', '/proxy/catalog/admin/coupons', { code, type, value, minOrderCents: minOrder, maxUsesTotal: maxTotal, maxUsesPerUser: maxUser, expiresAt, sellerId, currency: 'cad' });
+    ['coup-code','coup-value','coup-min','coup-max-total','coup-expires','coup-seller'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+    document.getElementById('coup-max-user').value = '1';
+    loadCoupons(1);
+  } catch (e) { showErr('coup-create-error', e.message); }
+}
+
+async function deactivateCoupon(code) {
+  if (!await showConfirmAsync(`Deactivate coupon ${code}?`)) return;
+  try {
+    await adminApi('PATCH', `/proxy/catalog/admin/coupons/${encodeURIComponent(code)}/deactivate`);
+    loadCoupons(_couponPage);
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteCoupon(code) {
+  if (!await showConfirmAsync(`Permanently delete coupon ${code} and all its usage records?`)) return;
+  try {
+    await adminApi('DELETE', `/proxy/catalog/admin/coupons/${encodeURIComponent(code)}`);
+    loadCoupons(_couponPage);
+  } catch (e) { alert(e.message); }
+}
+
+function showConfirmAsync(msg) {
+  return new Promise(resolve => {
+    if (typeof window.showConfirm === 'function') {
+      window.showConfirm(msg, () => resolve(true), { onCancel: () => resolve(false) });
+    } else {
+      resolve(confirm(msg));
+    }
+  });
+}
+
+function hideErr(id) { const e=document.getElementById(id); if(e) e.style.display='none'; }
+function showErr(id, msg) { const e=document.getElementById(id); if(e){e.querySelector('span').textContent=msg;e.style.display='flex';} }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// S17 — Coupon usage expander
+function toggleCouponUsages(code) {
+  const row = document.getElementById(`coup-usage-row-${code}`);
+  if (!row) return;
+  const open = row.style.display !== 'none';
+  row.style.display = open ? 'none' : '';
+  if (!open) loadCouponUsages(code);
+}
+
+async function loadCouponUsages(code) {
+  const container = document.getElementById(`coup-usage-${code}`);
+  if (!container) return;
+  container.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Loading usage records...`;
+  try {
+    const data = await adminApi('GET', `/proxy/catalog/admin/coupons/${encodeURIComponent(code)}/usages?limit=20`);
+    const usages = data.usages || [];
+    if (!usages.length) {
+      container.innerHTML = `<span style="color:var(--muted)">0 uses — this coupon has never been redeemed.</span>`;
+      return;
+    }
+    container.innerHTML = `<strong style="color:var(--muted);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em">${data.total} use${data.total !== 1 ? 's' : ''}</strong>
+      <table style="margin-top:0.5rem;width:100%;border-collapse:collapse">
+        <thead><tr style="font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">
+          <th style="text-align:left;padding:0.2rem 0.5rem">Order ID</th>
+          <th style="text-align:left;padding:0.2rem 0.5rem">User</th>
+          <th style="text-align:left;padding:0.2rem 0.5rem">Used At</th>
+        </tr></thead>
+        <tbody>${usages.map(u => `<tr style="border-top:1px solid var(--border-light);font-size:0.75rem">
+          <td style="padding:0.25rem 0.5rem;font-family:monospace">${esc(u.orderId)}</td>
+          <td style="padding:0.25rem 0.5rem;font-family:monospace">${esc(String(u.userId).slice(0,4))}***</td>
+          <td style="padding:0.25rem 0.5rem;color:var(--muted)">${u.usedAt ? new Date(u.usedAt).toLocaleString() : '—'}</td>
+        </tr>`).join('')}</tbody>
+      </table>${data.total > 20 ? `<p style="margin:0.4rem 0 0;color:var(--muted);font-size:0.7rem">Showing first 20 of ${data.total}</p>` : ''}`;
+  } catch (e) {
+    container.innerHTML = `<span style="color:var(--accent)"><i class="fas fa-triangle-exclamation"></i> ${esc(e.message)}</span>`;
+  }
+}
+</script>

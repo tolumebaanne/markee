@@ -15,6 +15,15 @@ const PORT = process.env.PORT || 4000;
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ── EJS locals (available in all templates) ───────────────────────────────────
+app.locals.stripePublishableKey  = process.env.STRIPE_PUBLISHABLE_KEY  || '';
+app.locals.defaultCurrency       = (process.env.DEFAULT_CURRENCY || 'cad').toLowerCase();
+// Update defaultCurrency from PlatformConfig once DB is ready (env-var is the startup fallback)
+const { getPlatformConfig: _getGatewayCfg } = require('../shared/utils/platformConfig');
+_getGatewayCfg().then(cfg => {
+    app.locals.defaultCurrency = (cfg.defaultCurrency || 'cad').toLowerCase();
+}).catch(() => { /* keep env-var fallback */ });
 // app.use(express.urlencoded({ extended: true })); // Moved to targeted routes to prevent proxy body consumption
 app.use(cors());
 app.use(platformGuard);
@@ -23,10 +32,11 @@ const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 1000 });
 app.use('/api/', apiLimiter);
 
 // ── Proxy factory helpers ─────────────────────────────────────────────────────
-const proxy = (target) => createProxyMiddleware({
+const proxy = (target, options = {}) => createProxyMiddleware({
     target,
     changeOrigin: true,
-    on: { error: (err, req, res) => errorResponse(res, 502, `Service unreachable: ${target}`) }
+    ...options,
+    on: { error: (err, req, res) => errorResponse(res, 502, `Service unreachable: ${target}`) },
 });
 
 const authProxy = createProxyMiddleware({
@@ -67,7 +77,11 @@ app.use('/api/catalog', (req, res, next) => {
         (req.method === 'GET'  && /^\/products\/review\/(unassigned|history)$/.test(req.path)) ||
         (req.method === 'GET'  && /^\/products\/review\/assigned\//.test(req.path)) ||
         (req.method === 'POST' && /^\/products\/[^/]+\/(approve|disapprove|reject)$/.test(req.path)) ||
-        (req.method === 'POST' && /^\/products\/review\/(assign|reassign|pullback)$/.test(req.path));
+        (req.method === 'POST' && /^\/products\/review\/(assign|reassign|pullback)$/.test(req.path)) ||
+        (req.path.startsWith('/admin/coupons'));
+
+    // Phase 6 — Coupon validate: requires auth but NOT catalog:write scope (buyers call this)
+    const isCouponValidate = req.method === 'POST' && req.path === '/coupons/validate';
 
     // Public GETs: any GET except /my-products and admin review paths
     const isPublicGet = req.method === 'GET'
@@ -82,6 +96,8 @@ app.use('/api/catalog', (req, res, next) => {
             if (role !== 'admin' && role !== 'super') return errorResponse(res, 403, 'Admin only');
             return proxy(CATALOG_URL)(req, res, next);
         }
+        // Coupon validate: any authenticated user can call (scope-free)
+        if (isCouponValidate) return proxy(CATALOG_URL)(req, res, next);
         if (req.method !== 'GET') {
             enforceScope('catalog:write')(req, res, () => proxy(CATALOG_URL)(req, res, next));
         } else {
@@ -100,6 +116,17 @@ app.use('/api/orders/admin', verifyToken, (req, res, next) => {
 app.use('/api/orders', verifyToken, proxy(process.env.ORDER_SERVICE_URL || 'http://localhost:5003'));
 
 // ── Payments ──────────────────────────────────────────────────────────────────
+// Stripe webhook — raw body MUST reach payment-service unchanged for signature verification.
+// express.raw() prevents any body parser from consuming it. pathRewrite maps to /webhook/stripe.
+// This route is intentionally unauthenticated — security via Stripe signature only.
+app.post(
+    '/api/payments/webhook',
+    express.raw({ type: 'application/json' }),
+    proxy(process.env.PAYMENT_SERVICE_URL || 'http://localhost:5004', {
+        pathRewrite: { '^/api/payments/webhook': '/webhook/stripe' },
+    })
+);
+
 // Admin-only routes must be declared before the general catch-all (S19)
 app.use('/api/payments/admin', verifyToken, (req, res, next) => {
     if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
@@ -293,6 +320,7 @@ app.get('/store/:storeId', (req, res) => res.render('storefront', { storeId: req
 app.get('/profile',              (_req, res) => res.render('profile'));
 app.get('/account',              (_req, res) => res.render('account'));
 app.get('/account/addresses',    (_req, res) => res.render('account-addresses'));
+app.get('/account/wallet',       (_req, res) => res.render('wallet'));          // S21
 app.get('/orders',      (req, res) => res.render('orders'));
 app.get('/orders/:id',  (req, res) => res.render('order-detail', { orderId: req.params.id }));
 app.get('/purchases/history', (req, res) => res.render('purchases-history'));

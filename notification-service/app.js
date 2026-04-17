@@ -73,6 +73,7 @@ async function sendNotification(type, recipient, subject, body, eventData, inApp
             const recent = await Notification.findOne({
                 type,
                 userId: new mongoose.Types.ObjectId(inApp.userId.toString()),
+                ...(eventData?.orderId ? { 'eventData.orderId': eventData.orderId } : {}),
                 sentAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
             });
             if (recent) return; // Already notified recently — skip duplicate
@@ -170,7 +171,9 @@ bus.on('order.placed', async (payload) => {
     );
 });
 
-bus.on('payment.captured', async (payload) => {
+// payment.authorized = card authorized via Stripe webhook — notify sellers of new order (C6 rename)
+// payment.captured  = funds captured at escrow release — used for payout accounting (separate event)
+bus.on('payment.authorized', async (payload) => {
     const sellerIds = Array.isArray(payload.sellerIds) ? payload.sellerIds
         : (payload.sellerId ? [payload.sellerId] : []);
     for (const sellerId of sellerIds) {
@@ -180,7 +183,7 @@ bus.on('payment.captured', async (payload) => {
             'PAYMENT_CAPTURED',
             sellerEmail,
             `New Order Received — #${payload.orderId?.toString().slice(-8).toUpperCase()}`,
-            `You have a new paid order!\n\nOrder ID: ${payload.orderId}\nAmount: $${((payload.amount || 0) / 100).toFixed(2)}\n\nLog in to Markee to ship the order.`,
+            `You have a new paid order!\n\nOrder ID: ${payload.orderId}\nAmount: $${((payload.amountCents || 0) / 100).toFixed(2)}\n\nLog in to Markee to accept the order.`,
             { ...payload, sellerId },
             { userId: sellerId, link: `/orders/${payload.orderId}`, icon: 'fa-box' }
         );
@@ -273,7 +276,7 @@ bus.on('order.inventory_failed', async (payload) => {
         const { orderId, reason, productId } = payload;
         if (!orderId) return;
         // Fetch order from order-service internal port to get buyerId
-        const orderRes = await fetch(`http://localhost:5004/orders/${orderId}`).catch(() => null);
+        const orderRes = await fetch(`http://localhost:${process.env.ORDER_SERVICE_PORT || 5003}/orders/${orderId}`).catch(() => null);
         let buyerId = null;
         if (orderRes?.ok) {
             const order = await orderRes.json();
@@ -1122,44 +1125,78 @@ bus.on('seller.reviewed', async (payload) => {
     } catch (err) { console.error('[NOTIFY] seller.reviewed handler error:', err.message); }
 });
 
-// order.cancelled (standalone event) → seller: buyer or admin explicitly cancelled their order
+// order.cancelled (standalone event) → buyer + sellers: order cancelled for any reason
 bus.on('order.cancelled', async (payload) => {
     try {
         const { orderId, buyerId, sellerIds, sellerId, reason } = payload;
         const shortId = orderId?.toString().slice(-8).toUpperCase() || '';
+
+        // Human-readable buyer message keyed to cancellation reason
+        let buyerBody;
+        if (reason === 'seller_rejected') {
+            buyerBody = `Order #${shortId} was unable to be fulfilled by the seller. You will not be charged. We apologise for the inconvenience.`;
+        } else if (reason === 'seller_no_response') {
+            buyerBody = `Order #${shortId} has been cancelled because the seller did not respond in time. You will not be charged.`;
+        } else if (reason === 'payment_failed') {
+            buyerBody = `Order #${shortId} was cancelled because the payment could not be processed. Please check your payment details and try again.`;
+        } else {
+            buyerBody = `Your order #${shortId} has been cancelled.${reason ? ` Reason: ${reason}` : ''} If you were charged, a refund will be processed automatically.`;
+        }
+
         // Buyer notification
         if (buyerId) {
             await sendNotification(
                 'ORDER_CANCELLED_BUYER',
                 `buyer-${buyerId}@markee.local`,
                 `Order #${shortId} Has Been Cancelled`,
-                `Your order #${shortId} has been cancelled.${reason ? ` Reason: ${reason}` : ''} If you were charged, a refund will be processed automatically.`,
+                buyerBody,
                 payload,
                 { userId: buyerId, link: `/orders/${orderId}`, icon: 'fa-times-circle', priority: 'high' }
             );
-            // Cascade
+            // Cascade — mark related notifications read
             Notification.updateMany(
                 { userId: new mongoose.Types.ObjectId(buyerId.toString()), type: { $in: ['ORDER_PLACED', 'ORDER_ACCEPTED', 'SHIPMENT_CREATED'] }, read: false, 'eventData.orderId': orderId },
                 { $set: { read: true } }
             ).catch(() => {});
         }
-        // Seller notification(s)
-        const sids = Array.isArray(sellerIds) ? sellerIds : (sellerId ? [sellerId] : []);
-        for (const sid of sids) {
-            await sendNotification(
-                'ORDER_CANCELLED_SELLER',
-                `seller-${sid}@markee.local`,
-                `Order #${shortId} Has Been Cancelled`,
-                `Order #${shortId} has been cancelled. No further action is required.${reason ? ` Reason: ${reason}` : ''}`,
-                payload,
-                { userId: sid, link: `/orders/${orderId}`, icon: 'fa-times-circle', priority: 'medium' }
-            );
-            Notification.updateMany(
-                { userId: new mongoose.Types.ObjectId(sid.toString()), type: { $in: ['PAYMENT_CAPTURED', 'ORDER_ACCEPTED'] }, read: false, 'eventData.orderId': orderId },
-                { $set: { read: true } }
-            ).catch(() => {});
+
+        // Seller notification(s) — only when it's not a seller-initiated rejection
+        if (reason !== 'seller_rejected') {
+            const sids = Array.isArray(sellerIds) ? sellerIds : (sellerId ? [sellerId] : []);
+            for (const sid of sids) {
+                await sendNotification(
+                    'ORDER_CANCELLED_SELLER',
+                    `seller-${sid}@markee.local`,
+                    `Order #${shortId} Has Been Cancelled`,
+                    `Order #${shortId} has been cancelled. No further action is required.${reason ? ` Reason: ${reason}` : ''}`,
+                    payload,
+                    { userId: sid, link: `/orders/${orderId}`, icon: 'fa-times-circle', priority: 'medium' }
+                );
+                Notification.updateMany(
+                    { userId: new mongoose.Types.ObjectId(sid.toString()), type: { $in: ['PAYMENT_CAPTURED', 'ORDER_ACCEPTED'] }, read: false, 'eventData.orderId': orderId },
+                    { $set: { read: true } }
+                ).catch(() => {});
+            }
         }
     } catch (err) { console.error('[NOTIFY] order.cancelled handler error:', err.message); }
+});
+
+// order.seller_accepted → buyer: seller has confirmed and is preparing their order
+bus.on('order.seller_accepted', async (payload) => {
+    try {
+        const { orderId, buyerId } = payload;
+        if (!buyerId) return;
+        if (!await isNotifAllowed('ORDER_ACCEPTED', buyerId)) return;
+        const shortId = orderId?.toString().slice(-8).toUpperCase() || '';
+        await sendNotification(
+            'ORDER_ACCEPTED',
+            `buyer-${buyerId}@markee.local`,
+            `Order #${shortId} Accepted`,
+            `Great news! The seller has accepted your order #${shortId} and is now preparing your items. You will be notified when it ships.`,
+            payload,
+            { userId: buyerId, link: `/orders/${orderId}`, icon: 'fa-check-circle', priority: 'high' }
+        );
+    } catch (err) { console.error('[NOTIFY] order.seller_accepted handler error:', err.message); }
 });
 
 // shipment.auto_cancelled → buyer + seller: shipment automatically voided (e.g. stale)
@@ -1262,6 +1299,42 @@ bus.on('payment.split_resolved', async (payload) => {
     } catch (err) { console.error('[NOTIFY] payment.split_resolved handler error:', err.message); }
 });
 
+// payment.dispute_resolved → buyer + all sellers: admin dispute resolution outcome
+bus.on('payment.dispute_resolved', async (payload) => {
+    try {
+        const { orderId, buyerId, sellerIds, sellerId, decision, adminNote, amountCents } = payload;
+        const shortId = orderId?.toString().slice(-8).toUpperCase() || '';
+        const amount  = amountCents ? `$${((amountCents || 0) / 100).toFixed(2)}` : '';
+        const decisionText = {
+            buyer_correct:  'resolved in your favour',
+            seller_correct: 'resolved in the seller\'s favour',
+            split:          'resolved with a split payment'
+        }[decision] || 'resolved';
+
+        if (buyerId) {
+            await sendNotification(
+                'DISPUTE_RESOLVED',
+                `buyer-${buyerId}@markee.local`,
+                `Dispute Resolved — Order #${shortId}`,
+                `Your dispute for order #${shortId} has been ${decisionText}.${amount ? ` Amount: ${amount}.` : ''} ${adminNote || ''}`.trim(),
+                payload,
+                { userId: buyerId, link: `/orders/${orderId}`, icon: 'fa-gavel', priority: 'high' }
+            );
+        }
+        const sids = Array.isArray(sellerIds) ? sellerIds : (sellerId ? [sellerId] : []);
+        for (const sid of sids) {
+            await sendNotification(
+                'DISPUTE_RESOLVED',
+                `seller-${sid}@markee.local`,
+                `Dispute Resolved — Order #${shortId}`,
+                `The dispute for order #${shortId} has been ${decisionText}.${amount ? ` Amount: ${amount}.` : ''} ${adminNote || ''}`.trim(),
+                payload,
+                { userId: sid, link: `/orders/${orderId}`, icon: 'fa-gavel', priority: 'high' }
+            );
+        }
+    } catch (err) { console.error('[NOTIFY] payment.dispute_resolved handler error:', err.message); }
+});
+
 // payment.pending → seller: new COD order pending collection
 bus.on('payment.pending', async (payload) => {
     try {
@@ -1280,6 +1353,25 @@ bus.on('payment.pending', async (payload) => {
             );
         }
     } catch (err) { console.error('[NOTIFY] payment.pending handler error:', err.message); }
+});
+
+// payment.remitted → seller: admin has manually remitted payment off-platform
+bus.on('payment.remitted', async (payload) => {
+    try {
+        const { sellerId, amountCents, method, referenceNumber, paidAt } = payload;
+        if (!sellerId) return;
+        const amount = `$${((amountCents || 0) / 100).toFixed(2)}`;
+        const ref    = referenceNumber ? ` (ref: ${referenceNumber})` : '';
+        const date   = paidAt ? new Date(paidAt).toLocaleDateString() : 'today';
+        await sendNotification(
+            'PAYMENT_CAPTURED',
+            `seller-${sellerId}@markee.local`,
+            `Payment Remitted — ${amount}`,
+            `A manual payment of ${amount} has been remitted to you via ${method}${ref} on ${date}. Please check your records.`,
+            payload,
+            { userId: sellerId, link: '/seller/payouts', icon: 'fa-money-bill-transfer', priority: 'high' }
+        );
+    } catch (err) { console.error('[NOTIFY] payment.remitted handler error:', err.message); }
 });
 
 // order.reservation_expired → buyer: payment window timed out, order cancelled

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wallet | Markee</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js"></script>
+    <script src="/js/confirm.js"></script>
+    <style>
+        .wallet-section       { margin-bottom: 2.5rem; }
+        .wallet-section h3    { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
+        .card-list            { display: flex; flex-direction: column; gap: 0.75rem; }
+        .card-item            { border: 1.5px solid var(--border); border-radius: 10px; padding: 1rem 1.1rem; background: var(--surface2); display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; }
+        .card-info            { display: flex; align-items: center; gap: 0.75rem; }
+        .card-brand           { font-size: 1.3rem; width: 1.8rem; text-align: center; }
+        .card-detail          { font-size: 0.88rem; }
+        .card-detail strong   { display: block; font-size: 0.95rem; }
+        .card-expiry          { font-size: 0.78rem; color: var(--muted); }
+        .empty-state          { text-align: center; padding: 2.5rem 1rem; color: var(--muted); }
+        .empty-state i        { font-size: 2.2rem; display: block; margin-bottom: 0.6rem; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="brand-combo">
+        <a href="/"><span class="brand">Markee</span></a>
+    </div>
+    <%- include('_nav') %>
+</nav>
+
+<div class="container py-4 animate-fade">
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.75rem">
+        <a href="/account" style="color:var(--muted);text-decoration:none;font-size:0.85rem"><i class="fa fa-arrow-left"></i> Account</a>
+        <span style="color:var(--border)">/</span>
+        <h2 style="margin:0">Wallet</h2>
+    </div>
+
+    <!-- ── Saved Cards ─────────────────────────────────────────────────────────── -->
+    <div class="wallet-section">
+        <h3><i class="fa fa-credit-card" style="color:var(--accent);margin-right:0.4rem"></i> Saved Cards</h3>
+        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">
+            Cards are saved automatically when you complete a card payment. Remove a card to stop it appearing at checkout.
+        </p>
+        <div id="cards-loading" style="color:var(--muted);font-size:0.9rem"><i class="fa fa-spinner fa-spin"></i> Loading...</div>
+        <div id="cards-error"   style="display:none" class="error-banner"></div>
+        <div id="cards-list"    class="card-list"    style="display:none"></div>
+        <div id="cards-empty"   class="empty-state"  style="display:none">
+            <i class="fa fa-credit-card"></i>
+            No saved cards yet. Cards are saved when you check out with a card payment.
+        </div>
+    </div>
+
+    <!-- ── Payout Account (sellers only) ─────────────────────────────────────── -->
+    <div class="wallet-section" id="payout-section" style="display:none">
+        <h3><i class="fa fa-building-columns" style="color:var(--accent);margin-right:0.4rem"></i> Payout Account</h3>
+        <div id="payout-body"></div>
+    </div>
+</div>
+
+<script>
+const _brandIcons = { visa:'💳', mastercard:'💳', amex:'💳', discover:'💳' };
+
+async function loadSavedCards() {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        document.getElementById('cards-loading').style.display = 'none';
+        document.getElementById('cards-empty').style.display   = 'block';
+        return;
+    }
+    try {
+        const res  = await fetch('/api/payments/saved-cards', { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        document.getElementById('cards-loading').style.display = 'none';
+        if (!res.ok) throw new Error(data.error || 'Failed to load cards');
+        const cards = data.cards || [];
+        if (!cards.length) {
+            document.getElementById('cards-empty').style.display = 'block';
+            return;
+        }
+        const list = document.getElementById('cards-list');
+        list.style.display = 'flex';
+        list.innerHTML = cards.map(c => `
+            <div class="card-item" id="card-${c.id}">
+                <div class="card-info">
+                    <div class="card-brand">${_brandIcons[c.brand] || '💳'}</div>
+                    <div class="card-detail">
+                        <strong>${c.brand.charAt(0).toUpperCase() + c.brand.slice(1)} •••• ${c.last4}</strong>
+                        <span class="card-expiry">Expires ${String(c.expMonth).padStart(2,'0')}/${c.expYear}</span>
+                    </div>
+                </div>
+                <button class="btn btn-danger btn-xs" onclick="removeCard('${c.id}')">
+                    <i class="fa fa-trash"></i> Remove
+                </button>
+            </div>
+        `).join('');
+    } catch (err) {
+        document.getElementById('cards-loading').style.display = 'none';
+        const errEl = document.getElementById('cards-error');
+        errEl.style.display = 'block';
+        errEl.textContent   = err.message;
+    }
+}
+
+async function removeCard(pmId) {
+    const r = await showConfirm({ title: 'Remove Card', body: 'Remove this saved card from your account?', danger: true });
+    if (!r.confirmed) return;
+    try {
+        const token = localStorage.getItem('access_token');
+        const res   = await fetch(`/api/payments/saved-cards/${pmId}/delete`, {
+            method:  'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        });
+        if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Remove failed'); }
+        document.getElementById(`card-${pmId}`)?.remove();
+        toast('Card removed.', 'success');
+        // If list is now empty, show empty state
+        if (!document.getElementById('cards-list').children.length) {
+            document.getElementById('cards-list').style.display  = 'none';
+            document.getElementById('cards-empty').style.display = 'block';
+        }
+    } catch (err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function loadPayoutSection() {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    try {
+        const payload  = JSON.parse(atob(token.split('.')[1]));
+        const isSeller = payload.capabilities?.includes('seller:manage') || payload.role === 'seller';
+        if (!isSeller) return;
+        document.getElementById('payout-section').style.display = 'block';
+        const res  = await fetch('/api/sellers/my-store', { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        const store = data.store || data;
+        const cs    = store.stripeConnectStatus || 'not_connected';
+        const labels= { not_connected:'Not Connected', pending:'Under Review', active:'Active — Payouts Enabled' };
+        const colors= { not_connected:'var(--warn)', pending:'#60a5fa', active:'var(--success)' };
+        document.getElementById('payout-body').innerHTML = `
+            <div style="font-size:0.88rem;margin-bottom:0.6rem">
+                Status: <strong style="color:${colors[cs]}">${labels[cs] || cs}</strong>
+            </div>
+            <p style="font-size:0.82rem;color:var(--muted)">
+                Payout account status is managed by Markee staff. Contact support to connect your bank account.
+            </p>`;
+    } catch (err) { /* non-critical — hide payout section */ }
+}
+
+loadSavedCards();
+loadPayoutSection();
+</script>
+</body>
+</html>

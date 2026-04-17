@@ -161,6 +161,10 @@ const StoreSchema = new mongoose.Schema({
         totalFulfilledOrders: { type: Number, default: 0 }
     },
 
+    // Stripe Connect — for future seller payouts via Stripe Connect (Phase 11)
+    stripeConnectAccountId: { type: String, default: null },
+    stripeConnectStatus:    { type: String, enum: ['not_connected', 'pending', 'active'], default: 'not_connected' },
+
     createdAt: { type: Date, default: Date.now }
 });
 
@@ -251,18 +255,19 @@ bus.on('user.deletion_cancelled', async (payload) => {
 
 bus.on('payment.captured', async (payload) => {
     try {
-        if (payload.sellerId) {
-            // R-S2 fix: use amountCents with dual-read shim for old documents
-            const amountCents = payload.amountCents ?? payload.amount ?? 0;
+        // payment.captured carries sellerIds (array) — iterate over each seller
+        const ids = payload.sellerIds || (payload.sellerId ? [payload.sellerId] : []);
+        const amountCents = payload.amountCents ?? payload.amount ?? 0;
+        for (const sid of ids) {
             await Store.findOneAndUpdate(
-                { sellerId: payload.sellerId },
+                { sellerId: sid },
                 {
                     $inc: { totalOrders: 1, totalSales: amountCents },
                     $set: { 'setupChecklist.firstSaleMade': true } // S28
                 }
             );
         }
-        console.log(`[SELLER] Order confirmed: orderId=${payload.orderId}, sellerId=${payload.sellerId}`);
+        console.log(`[SELLER] Order confirmed: orderId=${payload.orderId}, sellerIds=${ids.join(',')}`);
     } catch (err) { console.error('[SELLER] payment.captured stats error:', err.message); }
 });
 
@@ -764,6 +769,36 @@ app.get('/admin/stores/dormant', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
+// S19 — GET /analytics — seller earnings overview (totalSales, totalOrders, pendingPayouts)
+app.get('/analytics', async (req, res) => {
+    try {
+        const storeId = req.user?.storeId;
+        if (!storeId) return errorResponse(res, 401, 'Seller authentication required');
+
+        const store = await Store.findById(storeId).select('totalSales totalOrders').lean();
+        if (!store) return errorResponse(res, 404, 'Store not found');
+
+        // Fetch pending payouts from payment-service internal route
+        const pmPort = process.env.PAYMENT_PORT || 5004;
+        let pendingPayouts = 0;
+        try {
+            const pmRes = await fetch(`http://localhost:${pmPort}/seller-summary/${storeId}`);
+            if (pmRes.ok) {
+                const data = await pmRes.json();
+                pendingPayouts = data.pendingPayouts || 0;
+            }
+        } catch (e) {
+            console.warn('[seller/analytics] pendingPayouts fetch failed:', e.message);
+        }
+
+        res.json({
+            totalSales:    store.totalSales    || 0,
+            totalOrders:   store.totalOrders   || 0,
+            pendingPayouts,
+        });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
 // GET /admin/stores/:storeId/profile — full admin profile of a store
 app.get('/admin/stores/:storeId/profile', async (req, res) => {
     if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
@@ -774,6 +809,37 @@ app.get('/admin/stores/:storeId/profile', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
+// S20 — GET /connect-status — seller payout account status
+app.get('/connect-status', async (req, res) => {
+    try {
+        const storeId = req.user?.storeId;
+        if (!storeId) return errorResponse(res, 401, 'Seller authentication required');
+        const store = await Store.findById(storeId).select('stripeConnectStatus stripeConnectAccountId').lean();
+        if (!store) return errorResponse(res, 404, 'Store not found');
+        res.json({
+            stripeConnectStatus:    store.stripeConnectStatus    || 'not_connected',
+            stripeConnectAccountId: store.stripeConnectAccountId || null,
+        });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// S20 — PATCH /admin/stores/:storeId/connect-status — admin update of seller connect status
+app.patch('/admin/stores/:storeId/connect-status', async (req, res) => {
+    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    const VALID_STATUSES = ['not_connected', 'pending', 'active'];
+    const { stripeConnectStatus, stripeConnectAccountId } = req.body;
+    if (!stripeConnectStatus || !VALID_STATUSES.includes(stripeConnectStatus)) {
+        return errorResponse(res, 400, `stripeConnectStatus must be one of: ${VALID_STATUSES.join(', ')}`);
+    }
+    try {
+        const update = { stripeConnectStatus };
+        if (stripeConnectAccountId !== undefined) update.stripeConnectAccountId = stripeConnectAccountId || null;
+        const store = await Store.findByIdAndUpdate(req.params.storeId, update, { new: true, runValidators: true })
+            .select('stripeConnectStatus stripeConnectAccountId').lean();
+        if (!store) return errorResponse(res, 404, 'Store not found');
+        res.json({ stripeConnectStatus: store.stripeConnectStatus, stripeConnectAccountId: store.stripeConnectAccountId });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
 
 
 app.listen(process.env.PORT || 5005, () => console.log(`Seller Service on port ${process.env.PORT || 5005}`));

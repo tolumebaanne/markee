@@ -337,6 +337,7 @@
       <i class="fas fa-wallet"></i> Payments
       <span class="sidebar-badge" id="badge-pay" style="display:none"></span>
     </button>
+    <button class="sidebar-link" onclick="switchTab('coupons',this)"><i class="fas fa-tag"></i> Coupons</button>
 
     <div class="sidebar-section">Operations</div>
     <button class="sidebar-link" onclick="switchTab('inventory',this)"><i class="fas fa-warehouse"></i> Inventory</button>
@@ -380,6 +381,7 @@
     <%- include('admin-partials/tab-listing-review') %>
     <%- include('admin-partials/tab-orders') %>
     <%- include('admin-partials/tab-payments') %>
+    <%- include('admin-partials/tab-coupons') %>
     <%- include('admin-partials/tab-inventory') %>
     <%- include('admin-partials/tab-shipping') %>
     <%- include('admin-partials/tab-reviews') %>
@@ -559,6 +561,7 @@ const tabLoaders = {
   'listing-review': loadListingReview,
   orders:         () => loadOrders(),
   payments:       loadPayments,
+  coupons:        () => loadCoupons(1),
   inventory:      loadInventory,
   shipping:       loadShipping,
   reviews:        loadReviews,

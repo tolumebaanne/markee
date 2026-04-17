@@ -234,6 +234,51 @@
                 </div>
             </div>
 
+            <!-- Locale Preferences card -->
+            <div class="profile-card" style="margin-bottom:1.5rem;">
+                <div class="profile-card-header">
+                    <i class="fa fa-globe" style="color:var(--accent-red);"></i>
+                    <h4>Locale Preferences</h4>
+                </div>
+                <div class="profile-card-body">
+                    <p style="font-size:0.82rem; color:var(--text-muted); margin:0 0 1rem;">Used to calculate the correct tax rate at checkout.</p>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                        <div class="store-form-group">
+                            <label>Country</label>
+                            <select id="locale-country" onchange="toggleProvinceRow()">
+                                <option value="CA">Canada</option>
+                                <option value="US">United States</option>
+                                <option value="OTHER">Other</option>
+                            </select>
+                        </div>
+                        <div class="store-form-group" id="locale-province-row">
+                            <label>Province / Territory</label>
+                            <select id="locale-province">
+                                <option value="AB">Alberta</option>
+                                <option value="BC">British Columbia</option>
+                                <option value="MB">Manitoba</option>
+                                <option value="NB">New Brunswick</option>
+                                <option value="NL">Newfoundland and Labrador</option>
+                                <option value="NS">Nova Scotia</option>
+                                <option value="NT">Northwest Territories</option>
+                                <option value="NU">Nunavut</option>
+                                <option value="ON" selected>Ontario</option>
+                                <option value="PE">Prince Edward Island</option>
+                                <option value="QC">Quebec</option>
+                                <option value="SK">Saskatchewan</option>
+                                <option value="YT">Yukon</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="locale-save-error" style="display:none; color:var(--accent-red); font-size:0.8rem; margin-top:0.5rem;"></div>
+                </div>
+                <div style="border-top:1px solid var(--border-light); padding:1rem 1.25rem; display:flex; justify-content:flex-end;">
+                    <button class="btn" style="background:var(--accent-red); width:auto;" onclick="saveLocale(event)">
+                        <i class="fa fa-save" style="margin-right:0.4rem;"></i> Save Preferences
+                    </button>
+                </div>
+            </div>
+
             <!-- Addresses link card -->
             <div class="profile-card" style="margin-bottom:1.5rem;">
                 <a href="/account/addresses" style="display:flex; align-items:center; justify-content:space-between; padding:1rem 1.25rem; text-decoration:none; color:inherit;">
@@ -988,6 +1033,51 @@
         showToast('Bio saved!', 'success', 3500, evt);
     }
 
+    // ── Locale Preferences ───────────────────────────────────────────────────
+    function toggleProvinceRow() {
+        const country = document.getElementById('locale-country').value;
+        document.getElementById('locale-province-row').style.display = country === 'CA' ? '' : 'none';
+    }
+
+    async function loadLocale() {
+        try {
+            const res = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
+            if (!res.ok) return;
+            const profile = await res.json();
+            const countrySel = document.getElementById('locale-country');
+            const provinceSel = document.getElementById('locale-province');
+            if (profile.country && countrySel) {
+                countrySel.value = profile.country;
+                toggleProvinceRow();
+            }
+            if (profile.province && provinceSel) provinceSel.value = profile.province;
+        } catch {}
+    }
+
+    async function saveLocale(evt) {
+        const errEl = document.getElementById('locale-save-error');
+        errEl.style.display = 'none';
+        const country  = document.getElementById('locale-country').value;
+        const province = country === 'CA' ? document.getElementById('locale-province').value : '';
+        try {
+            const res = await fetch('/api/users/me', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ country, province })
+            });
+            if (!res.ok) {
+                const d = await res.json().catch(() => ({}));
+                errEl.textContent = d.error || 'Failed to save';
+                errEl.style.display = 'block';
+                return;
+            }
+            showToast('Locale preferences saved!', 'success', 3500, evt);
+        } catch (err) {
+            errEl.textContent = err.message;
+            errEl.style.display = 'block';
+        }
+    }
+
     // ── Reviewer score + own reviews (B.5) ───────────────────────────────────
     function renderReviewStars(rating) {
         return ['','','','',''].map((_,i) =>
@@ -1085,6 +1175,7 @@
     // ── Boot ──────────────────────────────────────────────────────────────────
     loadAvatar();
     loadBio();
+    loadLocale();
     loadReviewerScore();
     loadMyReviews();
     if (window.MarkeeCart) MarkeeCart.updateAllCartBadges();

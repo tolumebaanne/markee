@@ -37,7 +37,7 @@ function emptyPermissions() {
     catalog:       make('read', 'write', 'approve', 'reject', 'feature', 'categoryMgmt', 'bulk'),
     listingReview: make('canReview', 'canAssign', 'canUseTemplates', 'canViewOwnActivityLog'),
     orders:        make('read', 'forceStatus', 'cancel', 'bulk'),
-    payments:      make('read', 'refund', 'release', 'partialRefund', 'freeze', 'splitRefund', 'resolveDisputes', 'payoutHold'),
+    payments:      make('read', 'refund', 'release', 'partialRefund', 'freeze', 'splitRefund', 'resolveDisputes', 'payoutHold', 'remit'),
     sellers:       make('read', 'write', 'verify', 'suspend', 'ban', 'regApproval', 'tier'),
     reviews:       make('read', 'moderate', 'delete', 'bulk'),
     messages:      make('read', 'moderate', 'inject', 'ban'),

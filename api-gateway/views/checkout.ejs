@@ -7,6 +7,7 @@
     <meta name="description" content="Complete your purchase securely on Markee.">
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://js.stripe.com/v3/"></script>
     <script src="/js/toast.js"></script>
     <script src="/js/address-selector.js"></script>
     <script src="/js/cart.js"></script>
@@ -295,24 +296,10 @@
                     </div>
 
                     <div id="card-fields">
-                        <div class="form-group mb-3">
-                            <label>Card Number</label>
-                            <input type="text" id="card-number" placeholder="4242 4242 4242 4242" maxlength="19" oninput="formatCard(this)">
+                        <div id="stripe-payment-element" style="min-height:40px;"></div>
+                        <div id="stripe-loading" class="text-muted small" style="text-align:center; padding:1.25rem 0;">
+                            <i class="fa fa-spinner fa-spin" style="margin-right:0.4rem;"></i> Loading secure payment form...
                         </div>
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
-                            <div class="form-group">
-                                <label>Expiry</label>
-                                <input type="text" id="card-expiry" placeholder="MM / YY" maxlength="7" oninput="formatExpiry(this)">
-                            </div>
-                            <div class="form-group">
-                                <label>CVC</label>
-                                <input type="text" id="card-cvc" placeholder="123" maxlength="4">
-                            </div>
-                        </div>
-                        <p class="text-muted small" style="margin-top:0.5rem;">
-                            <i class="fa fa-lock mr-2" style="color:#22c55e;"></i>
-                            Mock payment — no real charges. Use any test card number.
-                        </p>
                     </div>
 
                     <div id="cod-note" style="display:none;" class="alert alert-info">
@@ -347,14 +334,30 @@
                         <span class="text-muted">Delivery</span>
                         <span id="summary-delivery" style="color:#16a34a; font-weight:600;">Free</span>
                     </div>
+                    <div class="flex-between mb-2" id="summary-discount-row" style="display:none;">
+                        <span style="color:#16a34a; font-weight:600;">Promo discount</span>
+                        <span id="summary-discount" style="color:#16a34a; font-weight:600;">-$0.00</span>
+                    </div>
                     <div class="flex-between mb-3">
-                        <span class="text-muted">Tax (13% HST)</span>
+                        <span class="text-muted" id="summary-tax-label">Tax (13% HST)</span>
                         <span id="summary-tax" style="font-weight:600;">$0.00</span>
                     </div>
                     <hr style="margin:0 0 1rem; border:none; border-top:1px solid var(--border-light);">
                     <div class="flex-between">
                         <span style="font-weight:700; font-size:1.1rem;">Total</span>
                         <span id="summary-total" style="font-weight:800; font-size:1.3rem; color:var(--accent-red);">$0.00</span>
+                    </div>
+                    <p style="text-align:right; font-size:0.75rem; color:var(--text-muted); margin:0.35rem 0 0;">
+                        You will be charged in <strong><%- (locals.defaultCurrency || 'cad').toUpperCase() %></strong>
+                    </p>
+
+                    <div style="margin-top:1rem;">
+                        <div style="display:flex; gap:0.5rem; align-items:center;">
+                            <input id="coupon-code" placeholder="Promo code" style="flex:1; width:auto;" />
+                            <button onclick="applyCoupon()" class="btn btn-sm" style="background:var(--accent-red); color:#fff; white-space:nowrap;">Apply</button>
+                            <button onclick="removeCoupon()" id="remove-coupon-btn" class="btn btn-sm" style="display:none; background:#f1f5f9; color:#475569;" title="Remove coupon">&#x2715;</button>
+                        </div>
+                        <span id="coupon-status" class="small" style="display:block; margin-top:0.35rem;"></span>
                     </div>
 
                     <div style="border:1px solid #bbf7d0; border-radius:8px; padding:0.75rem; background:#f0fdf4; margin-top:1.25rem;">
@@ -373,6 +376,16 @@
 <script>
 // ── Constants ─────────────────────────────────────────────────────────
 const FAST_DELIVERY_DEFAULT_CENTS = 999; // $9.99 fallback when no seller has set a fee
+
+// ── Inline error helpers ──────────────────────────────────────────────
+function showInlineError(elId, msg) {
+    const el = document.getElementById(elId);
+    if (el) { el.textContent = msg; el.style.color = '#dc2626'; el.style.fontSize = '0.82rem'; el.style.marginTop = '0.25rem'; }
+}
+function clearInlineError(elId) {
+    const el = document.getElementById(elId);
+    if (el) el.textContent = '';
+}
 
 // ── Auth helpers ──────────────────────────────────────────────────────
 function getToken() {
@@ -398,6 +411,17 @@ let availableFulfillmentOptions = ['shipping'];  // computed from intersection
 let selectedBillingAddr      = null;   // address object chosen via modal
 let selectedShippingAddr     = null;   // null = use billing
 let selectedSelfFulfillAddr  = null;   // shown to seller for self_fulfilled orders
+// Phase 6 — coupon state
+let appliedCouponCode    = null;
+let appliedDiscountCents = 0;
+
+// Phase 3 — Stripe state
+let _stripe               = null;
+let _stripeElements       = null;
+let _stripeIntentId       = null;
+let _stripeMounting       = false;
+let _lastMountedAmountCents = 0;
+let _selectedSavedPmId    = null;  // S21 — set when buyer picks a saved card
 
 // ── Address selector helpers ──────────────────────────────────────────
 function renderSelectedAddrCard(type, addr) {
@@ -648,12 +672,50 @@ function togglePaymentMethod() {
     const isCod = val === 'cod';
     document.getElementById('card-fields').style.display = isCod ? 'none' : 'block';
     document.getElementById('cod-note').style.display    = isCod ? 'block' : 'none';
+    if (!isCod) mountStripeElement();
 }
 
 function useNewCard() {
+    _selectedSavedPmId = null;  // S21 — clear saved card selection
     document.getElementById('saved-payments-section').style.display = 'none';
     document.getElementById('payment-type-row').style.display = 'flex';
     document.getElementById('card-fields').style.display = 'block';
+}
+
+// S21 — Load saved cards and show them above the payment type selector
+async function loadSavedCards() {
+    const token = getToken();
+    if (!token) return;
+    try {
+        const res  = await fetch('/api/payments/saved-cards', { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const data = await res.json();
+        const cards = data.cards || [];
+        if (!cards.length) return;
+
+        const section = document.getElementById('saved-payments-section');
+        const list    = document.getElementById('saved-payments-list');
+
+        list.innerHTML = cards.map((c, idx) => {
+            const brand = c.brand.charAt(0).toUpperCase() + c.brand.slice(1);
+            return `<label class="payment-option${idx === 0 ? ' selected' : ''}" style="margin-bottom:0.4rem;cursor:pointer;">
+                <input type="radio" name="saved-card" value="${c.id}" ${idx === 0 ? 'checked' : ''}
+                       onchange="_selectedSavedPmId='${c.id}';document.getElementById('payment-type-row').style.display='none';document.getElementById('card-fields').style.display='none';">
+                <i class="fa fa-credit-card" style="margin-right:0.35rem"></i>
+                ${brand} •••• ${c.last4} &nbsp;<span style="color:var(--muted);font-size:0.78rem">exp ${String(c.expMonth).padStart(2,'0')}/${c.expYear}</span>
+            </label>`;
+        }).join('');
+
+        // Auto-select the first saved card
+        _selectedSavedPmId = cards[0].id;
+        section.style.display = 'block';
+        // Hide the new-card Elements and payment-type row when saved cards are shown
+        document.getElementById('payment-type-row').style.display = 'none';
+        document.getElementById('card-fields').style.display      = 'none';
+    } catch (err) {
+        // Non-fatal — fall through to standard card entry
+        console.warn('[checkout] loadSavedCards failed:', err.message);
+    }
 }
 
 // ── Cart / product loading ────────────────────────────────────────────
@@ -705,14 +767,26 @@ function loadCheckoutItems() {
 function updateTotals() {
     const subtotalCents  = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
     const deliveryCost   = deliveryCents();
-    const taxCents       = Math.round(subtotalCents * 0.13);
-    const totalCents     = subtotalCents + taxCents + deliveryCost;
+    const discountedSub  = Math.max(0, subtotalCents - appliedDiscountCents);
+    const taxCents       = Math.round(discountedSub * getLocaleTaxRate().rate);
+    const totalCents     = discountedSub + taxCents + deliveryCost;
     const totalCount     = checkoutItems.reduce((s, i) => s + i.qty, 0);
 
-    document.getElementById('item-count').textContent      = totalCount;
+    document.getElementById('item-count').textContent       = totalCount;
     document.getElementById('summary-subtotal').textContent = `$${(subtotalCents / 100).toFixed(2)}`;
     document.getElementById('summary-tax').textContent      = `$${(taxCents / 100).toFixed(2)}`;
     document.getElementById('summary-total').textContent    = `$${(totalCents / 100).toFixed(2)}`;
+
+    // Discount row — show only when a coupon is applied
+    const discountRow = document.getElementById('summary-discount-row');
+    if (discountRow) {
+        if (appliedDiscountCents > 0) {
+            discountRow.style.display = '';
+            document.getElementById('summary-discount').textContent = `-$${(appliedDiscountCents / 100).toFixed(2)}`;
+        } else {
+            discountRow.style.display = 'none';
+        }
+    }
 
     const delivEl = document.getElementById('summary-delivery');
     if (deliveryCost > 0) {
@@ -722,6 +796,71 @@ function updateTotals() {
         delivEl.textContent = 'Free';
         delivEl.style.color = '#16a34a';
     }
+
+    // Phase 3: remount Stripe element if amount changed and card is selected
+    const payMethod = document.querySelector('input[name="payment"]:checked')?.value;
+    if (payMethod === 'card' && totalCents !== _lastMountedAmountCents && totalCents >= 50) {
+        mountStripeElement();
+    }
+}
+
+// Phase 6 — Coupon application
+async function applyCoupon() {
+    const input  = document.getElementById('coupon-code');
+    const status = document.getElementById('coupon-status');
+    const code   = (input?.value || '').trim().toUpperCase();
+    if (!code) { if (status) status.textContent = 'Please enter a promo code.'; return; }
+
+    const token = getToken();
+    if (!token) { if (status) status.textContent = 'Please log in to apply a coupon.'; return; }
+
+    if (status) { status.textContent = 'Checking…'; status.style.color = 'var(--text-muted)'; }
+
+    const subtotalCents = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
+    const sellerIds     = [...new Set(checkoutItems.map(i => i.sellerId).filter(Boolean))];
+
+    try {
+        const user = JSON.parse(atob(token.split('.')[1]));
+        const res  = await fetch('/api/catalog/coupons/validate', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                code,
+                userId:    user.sub,
+                cartTotal: subtotalCents,
+                sellerId:  sellerIds.length === 1 ? sellerIds[0] : null,
+            }),
+        });
+        const data = await res.json();
+        const removeBtn = document.getElementById('remove-coupon-btn');
+        if (!res.ok || !data.valid) {
+            appliedCouponCode    = null;
+            appliedDiscountCents = 0;
+            if (status)    { status.textContent = data.message || 'Invalid coupon.'; status.style.color = 'var(--accent-red)'; }
+            if (removeBtn) removeBtn.style.display = 'none';
+        } else {
+            appliedCouponCode    = code;
+            appliedDiscountCents = data.discountCents;
+            if (status)    { status.textContent = data.message; status.style.color = '#16a34a'; }
+            if (removeBtn) removeBtn.style.display = '';
+            if (input)     input.disabled = true;
+        }
+    } catch {
+        if (status) { status.textContent = 'Could not check coupon — try again.'; status.style.color = 'var(--accent-red)'; }
+    }
+    updateTotals();
+}
+
+function removeCoupon() {
+    appliedCouponCode    = null;
+    appliedDiscountCents = 0;
+    const input     = document.getElementById('coupon-code');
+    const status    = document.getElementById('coupon-status');
+    const removeBtn = document.getElementById('remove-coupon-btn');
+    if (input)     { input.value = ''; input.disabled = false; }
+    if (status)    { status.textContent = 'Coupon removed.'; status.style.color = 'var(--text-muted)'; }
+    if (removeBtn) removeBtn.style.display = 'none';
+    updateTotals();
 }
 
 function renderSummary() {
@@ -744,6 +883,63 @@ function renderSummary() {
     `).join('');
 
     updateTotals();
+}
+
+// ── Stripe Payment Element ────────────────────────────────────────────
+function computeFinalAmountCents() {
+    const subtotalCents = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
+    const deliveryCost  = deliveryCents();
+    const discountedSub = Math.max(0, subtotalCents - appliedDiscountCents);
+    const taxCents      = Math.round(discountedSub * getLocaleTaxRate().rate);
+    return discountedSub + taxCents + deliveryCost;
+}
+
+async function mountStripeElement() {
+    const pubKey = '<%- locals.stripePublishableKey || "" %>';
+    if (!pubKey) return; // Stripe not configured on this deployment
+    if (_stripeMounting) return;
+
+    const totalCents = computeFinalAmountCents();
+    if (totalCents < 50) return; // Stripe minimum
+
+    // Skip remount if amount unchanged and element already mounted
+    if (totalCents === _lastMountedAmountCents && _stripeElements) return;
+
+    _stripeMounting = true;
+    const loadingEl = document.getElementById('stripe-loading');
+    const elementEl = document.getElementById('stripe-payment-element');
+    if (loadingEl) loadingEl.style.display = 'block';
+    if (elementEl) elementEl.innerHTML = '';
+    _stripeElements = null;
+
+    try {
+        const token = getToken();
+        const res = await fetch('/api/payments/create-intent', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body:    JSON.stringify({ amountCents: totalCents, currency: _platformCurrency }),
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Payment setup failed');
+        }
+        const { clientSecret, intentId } = await res.json();
+        _stripeIntentId         = intentId;
+        _lastMountedAmountCents = totalCents;
+
+        if (!_stripe) _stripe = Stripe(pubKey);
+        _stripeElements = _stripe.elements({ clientSecret });
+        const payEl = _stripeElements.create('payment');
+        payEl.mount('#stripe-payment-element');
+        if (loadingEl) loadingEl.style.display = 'none';
+    } catch (err) {
+        console.error('[Stripe] mount failed:', err);
+        if (loadingEl) {
+            loadingEl.innerHTML = '<i class="fa fa-exclamation-circle" style="color:var(--accent-red);margin-right:0.4rem;"></i> Secure payment form unavailable — please refresh and try again.';
+        }
+    } finally {
+        _stripeMounting = false;
+    }
 }
 
 // ── Card formatters ───────────────────────────────────────────────────
@@ -798,12 +994,7 @@ function validate() {
         if (emptyEl) emptyEl.style.outline = '';
     }
 
-    const payMethod = document.querySelector('input[name="payment"]:checked').value;
-    if (payMethod === 'card') {
-        const card = document.getElementById('card-number').value.replace(/\s/g,'');
-        if (card.length < 13) { document.getElementById('card-number').classList.add('error-field'); ok = false; }
-        else document.getElementById('card-number').classList.remove('error-field');
-    }
+    // Card validation is handled by Stripe Payment Element — no inline check needed
     if (!ok && errors.length) showInlineError('checkout-error-container', errors[0]);
     return ok;
 }
@@ -847,9 +1038,76 @@ async function placeOrder(evt) {
 
     btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Processing...';
 
-    const subtotalCents = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
-    const deliveryCost  = deliveryCents();
-    const taxCents      = Math.round(subtotalCents * 0.13);
+    const payMethod      = document.querySelector('input[name="payment"]:checked').value;
+    const subtotalCents  = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
+    const deliveryCost   = deliveryCents();
+    const discountedSub  = Math.max(0, subtotalCents - appliedDiscountCents);
+    const taxCents       = Math.round(discountedSub * getLocaleTaxRate().rate);
+
+    // ── Stripe card authorization ─────────────────────────────────────
+    let stripePaymentIntentId = null;
+    if (payMethod === 'card' || _selectedSavedPmId) {
+        const currentTotal = discountedSub + taxCents + deliveryCost;
+
+        if (_selectedSavedPmId) {
+            // S21 — Saved card path: create intent then confirmCardPayment with saved PM
+            btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Setting up payment...';
+            const intentRes = await fetch('/api/payments/create-intent', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body:    JSON.stringify({ amountCents: currentTotal }),
+            });
+            const intentData = await intentRes.json();
+            if (!intentRes.ok) {
+                showInlineError('checkout-error-container', intentData.error || 'Could not set up payment.');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa fa-lock" style="margin-right:0.5rem;"></i> Place Order';
+                return;
+            }
+            if (!_stripe) {
+                showInlineError('checkout-error-container', 'Stripe not loaded — please refresh.');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa fa-lock" style="margin-right:0.5rem;"></i> Place Order';
+                return;
+            }
+            btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Authorizing payment...';
+            const result = await _stripe.confirmCardPayment(intentData.clientSecret, {
+                payment_method: _selectedSavedPmId,
+            });
+            if (result.error) {
+                showInlineError('checkout-error-container', result.error.message || 'Payment authorization failed.');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa fa-lock" style="margin-right:0.5rem;"></i> Place Order';
+                return;
+            }
+            stripePaymentIntentId = result.paymentIntent.id;
+        } else {
+            // New card path — use Stripe Elements
+            if (currentTotal !== _lastMountedAmountCents || !_stripeElements) {
+                btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Setting up payment...';
+                await mountStripeElement();
+            }
+            if (!_stripe || !_stripeElements) {
+                showInlineError('checkout-error-container', 'Payment form not ready — please refresh and try again.');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa fa-lock" style="margin-right:0.5rem;"></i> Place Order';
+                return;
+            }
+            btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Authorizing payment...';
+            const result = await _stripe.confirmPayment({
+                elements:  _stripeElements,
+                redirect:  'if_required',
+            });
+            if (result.error) {
+                showInlineError('checkout-error-container', result.error.message || 'Payment authorization failed.');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa fa-lock" style="margin-right:0.5rem;"></i> Place Order';
+                return;
+            }
+            stripePaymentIntentId = result.paymentIntent.id;
+        }
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Placing order...';
+    }
 
     const billingAddress = {
         street:     selectedBillingAddr?.street     || '',
@@ -892,7 +1150,13 @@ async function placeOrder(evt) {
         shippingAddress,
         deliverySpeed:  selectedDelivery,
         deliveryFee:    deliveryCost,
-        totalAmount:    subtotalCents + taxCents + deliveryCost,
+        totalAmount:    discountedSub + taxCents + deliveryCost,
+        couponCode:            appliedCouponCode  || null,
+        discountCents:         appliedDiscountCents,
+        paymentMethod:         payMethod === 'cod' ? 'cod' : 'stripe',
+        stripePaymentIntentId: stripePaymentIntentId,
+        buyerCountry:  _userLocale.country  || 'CA',
+        buyerProvince: _userLocale.province || 'ON',
         fulfillmentType,
         selectedCarrier: fulfillmentType === 'shipping'
             ? (document.getElementById('carrier-select')?.value || null)
@@ -942,6 +1206,52 @@ async function placeOrder(evt) {
     }
 }
 
+// ── Platform currency (injected from server-side EJS local) ──────────
+const _platformCurrency = '<%- (locals.defaultCurrency || "cad").toLowerCase() %>';
+
+// ── User locale (for tax) ──────────────────────────────────────────────
+let _userLocale = { country: 'CA', province: 'ON' };
+
+// Client-side CA province tax rates — mirrors order-service CA_DEFAULT_RATES
+const _CA_PROVINCE_TAX = {
+    'AB': { rate: 0.05,    label: '5% GST'        },
+    'BC': { rate: 0.12,    label: '12% GST+PST'   },
+    'MB': { rate: 0.12,    label: '12% GST+PST'   },
+    'NB': { rate: 0.15,    label: '15% HST'        },
+    'NL': { rate: 0.15,    label: '15% HST'        },
+    'NS': { rate: 0.15,    label: '15% HST'        },
+    'NT': { rate: 0.05,    label: '5% GST'         },
+    'NU': { rate: 0.05,    label: '5% GST'         },
+    'ON': { rate: 0.13,    label: '13% HST'        },
+    'PE': { rate: 0.15,    label: '15% HST'        },
+    'QC': { rate: 0.14975, label: '14.975% GST+QST'},
+    'SK': { rate: 0.11,    label: '11% GST+PST'   },
+    'YT': { rate: 0.05,    label: '5% GST'         },
+};
+function getLocaleTaxRate() {
+    if (_userLocale.country !== 'CA') return { rate: 0.05, label: '5% GST' };
+    return _CA_PROVINCE_TAX[_userLocale.province] || { rate: 0.13, label: '13% HST' };
+}
+function updateTaxLabel() {
+    const { label } = getLocaleTaxRate();
+    const el = document.getElementById('summary-tax-label');
+    if (el) el.textContent = `Tax (${label})`;
+}
+
+async function loadUserLocale() {
+    try {
+        const token = getToken();
+        if (!token) return;
+        const res = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const profile = await res.json();
+        if (profile.country)  _userLocale.country  = profile.country;
+        if (profile.province) _userLocale.province = profile.province;
+        updateTaxLabel();
+        updateTotals(); // recalc with correct province rate
+    } catch {}
+}
+
 // ── Init ──────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
     MarkeeCart.updateAllCartBadges();
@@ -953,6 +1263,8 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     loadCheckoutItems();
+    loadUserLocale();
+    loadSavedCards();  // S21 — populate saved cards if buyer has any
 
 });
 </script>

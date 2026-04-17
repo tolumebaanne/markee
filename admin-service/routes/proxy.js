@@ -78,6 +78,47 @@ router.post('/catalog/products/:id/feature',
   }
 );
 
+// ── Catalog Admin Coupons ─────────────────────────────────────────────────────
+
+router.get('/catalog/admin/coupons', requirePermission('catalog', 'approve'), async (req, res) => {
+  const qs = new URLSearchParams(req.query).toString();
+  const r = await callService('GET', `${catalogUrl()}/admin/coupons?${qs}`, null, req.admin.email);
+  res.status(r.status).json(r.data);
+});
+
+router.post('/catalog/admin/coupons',
+  requirePermission('catalog', 'approve'),
+  auditLog('catalog.coupon.create', 'Coupon'),
+  async (req, res) => {
+    const r = await callService('POST', `${catalogUrl()}/admin/coupons`, req.body, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+router.patch('/catalog/admin/coupons/:code/deactivate',
+  requirePermission('catalog', 'approve'),
+  auditLog('catalog.coupon.deactivate', 'Coupon'),
+  async (req, res) => {
+    const r = await callService('PATCH', `${catalogUrl()}/admin/coupons/${encodeURIComponent(req.params.code)}/deactivate`, null, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+router.delete('/catalog/admin/coupons/:code',
+  requirePermission('catalog', 'approve'),
+  auditLog('catalog.coupon.delete', 'Coupon'),
+  async (req, res) => {
+    const r = await callService('DELETE', `${catalogUrl()}/admin/coupons/${encodeURIComponent(req.params.code)}`, null, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+router.get('/catalog/admin/coupons/:code/usages', requirePermission('catalog', 'approve'), async (req, res) => {
+  const qs = new URLSearchParams(req.query).toString();
+  const r = await callService('GET', `${catalogUrl()}/admin/coupons/${encodeURIComponent(req.params.code)}/usages?${qs}`, null, req.admin.email);
+  res.status(r.status).json(r.data);
+});
+
 // ── Listing Review (reviewer-facing catalog proxy routes) ─────────────────────
 
 router.get('/catalog/products/review/unassigned',
@@ -213,11 +254,25 @@ router.get('/payments/summary', requirePermission('payments', 'read'), async (re
   res.status(r.status).json(r.data);
 });
 
+router.get('/payments/analytics', requirePermission('payments', 'read'), async (req, res) => {
+  const r = await callService('GET', `${paymentUrl()}/analytics`, null, req.admin.email);
+  res.status(r.status).json(r.data);
+});
+
 router.patch('/payments/:orderId/freeze',
   requirePermission('payments', 'freeze'),
   auditLog('payment.freeze', 'Payment'),
   async (req, res) => {
     const r = await callService('PATCH', `${paymentUrl()}/admin/escrows/${req.params.orderId}/freeze`, req.body, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+router.patch('/payments/:orderId/unfreeze',
+  requirePermission('payments', 'freeze'),
+  auditLog('payment.unfreeze', 'Payment'),
+  async (req, res) => {
+    const r = await callService('PATCH', `${paymentUrl()}/admin/escrows/${req.params.orderId}/unfreeze`, req.body, req.admin.email);
     res.status(r.status).json(r.data);
   }
 );
@@ -678,6 +733,12 @@ router.get('/sellers/:storeId/profile', requirePermission('sellers', 'read'), as
   res.status(r.status).json(r.data);
 });
 
+// S20 — Update seller Stripe Connect status
+router.patch('/sellers/:storeId/connect-status', requirePermission('sellers', 'verify'), auditLog('seller.connectStatus', 'Store'), async (req, res) => {
+  const r = await callService('PATCH', `${sellerUrl()}/admin/stores/${req.params.storeId}/connect-status`, req.body, req.admin.email);
+  res.status(r.status).json(r.data);
+});
+
 // ── Catalog (extended) ────────────────────────────────────────────────────────
 router.patch('/catalog/products/:id/force-status', requirePermission('catalog', 'approve'), auditLog('catalog.forceStatus', 'Product'), async (req, res) => {
   const r = await callService('PATCH', `${catalogUrl()}/admin/products/${req.params.id}/force-status`, req.body, req.admin.email);
@@ -725,6 +786,53 @@ router.get('/payments/payout-holds', requirePermission('payments', 'payoutHold')
   const r = await callService('GET', `${paymentUrl()}/admin/payments/payout-holds`, null, req.admin.email);
   res.status(r.status).json(r.data);
 });
+
+// S22 — Payment business rules config (sellerAcceptanceHours, codExpiryDays, defaultCurrency, taxRates)
+router.get('/payments/platform-config', requirePermission('payments', 'read'), async (req, res) => {
+  const r = await callService('GET', `${paymentUrl()}/admin/platform-config`, null, req.admin.email);
+  res.status(r.status).json(r.data);
+});
+
+router.patch('/payments/platform-config',
+  requirePermission('payments', 'read'),
+  auditLog('payment.platformConfigUpdate', 'PlatformConfig'),
+  async (req, res) => {
+    const r = await callService('PATCH', `${paymentUrl()}/admin/platform-config`, req.body, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+router.patch('/payments/platform-config/tax-rates',
+  requirePermission('payments', 'read'),
+  auditLog('payment.taxRateUpdate', 'PlatformConfig'),
+  async (req, res) => {
+    const r = await callService('PATCH', `${paymentUrl()}/admin/platform-config/tax-rates`, req.body, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+// S23 — Manual Remittance
+router.get('/payments/remittances', requirePermission('payments', 'remit'), async (req, res) => {
+  const qs = new URLSearchParams(req.query).toString();
+  const r  = await callService('GET', `${paymentUrl()}/admin/payments/remittances${qs ? '?' + qs : ''}`, null, req.admin.email);
+  res.status(r.status).json(r.data);
+});
+router.post('/payments/remittances',
+  requirePermission('payments', 'remit'),
+  auditLog('payment.remittanceCreated', 'Remittance'),
+  async (req, res) => {
+    const r = await callService('POST', `${paymentUrl()}/admin/payments/remittances`, req.body, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+router.patch('/payments/remittances/:id/mark-paid',
+  requirePermission('payments', 'remit'),
+  auditLog('payment.remittanceMarkedPaid', 'Remittance'),
+  async (req, res) => {
+    const r = await callService('PATCH', `${paymentUrl()}/admin/payments/remittances/${req.params.id}/mark-paid`, req.body, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
 
 // ── Search (extended) ─────────────────────────────────────────────────────────
 router.get('/search/health', requirePermission('search', 'read'), async (req, res) => {

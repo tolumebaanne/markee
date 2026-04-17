@@ -65,12 +65,13 @@
             display: inline-block;
         }
 
-        .status-pending    { background: #fefce8; color: #a16207; border: 1px solid #fde68a; }
-        .status-paid       { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-        .status-processing { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
-        .status-shipped    { background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; }
-        .status-delivered  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
-        .status-cancelled  { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+        .status-pending      { background: #fefce8; color: #a16207; border: 1px solid #fde68a; }
+        .status-authorizing  { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
+        .status-paid         { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .status-processing   { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
+        .status-shipped      { background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; }
+        .status-delivered    { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+        .status-cancelled    { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
 
         /* ── Timeline stepper ────────────────────────────────────────────────── */
         .timeline {
@@ -425,15 +426,28 @@
                 </div>
                 <div class="section-card-body" style="display:flex; flex-direction:column; gap:0.85rem;">
 
-                    <!-- Seller: Accept (pending → processing) -->
+                    <!-- Seller: Accept (authorizing → paid) -->
                     <div id="action-accept" style="display:none;">
                         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
                             <div>
                                 <div style="font-weight:600; font-size:0.875rem;"><i class="fa fa-check-circle" style="color:#15803d; margin-right:0.4rem;"></i>Accept & Confirm</div>
-                                <div class="text-muted small">Confirm you have the item and are preparing it for shipment.</div>
+                                <div class="text-muted small">Confirm you have the item and are ready to fulfil this order.</div>
                             </div>
                             <button class="btn" style="background:#15803d; width:auto; padding:0.5rem 1.1rem; font-size:0.82rem;" onclick="acceptOrder(event)">
                                 <i class="fa fa-check" style="margin-right:0.4rem;"></i> Accept Order
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Seller: Reject (authorizing → cancelled) -->
+                    <div id="action-reject" style="display:none; border-top:1px solid var(--border-light); padding-top:0.85rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
+                            <div>
+                                <div style="font-weight:600; font-size:0.875rem;"><i class="fa fa-times-circle" style="color:#b91c1c; margin-right:0.4rem;"></i>Reject Order</div>
+                                <div class="text-muted small">Cannot fulfil this order. The payment will not be captured and the buyer will be notified.</div>
+                            </div>
+                            <button class="btn" style="background:#b91c1c; width:auto; padding:0.5rem 1.1rem; font-size:0.82rem;" onclick="rejectOrder(event)">
+                                <i class="fa fa-times" style="margin-right:0.4rem;"></i> Reject Order
                             </button>
                         </div>
                     </div>
@@ -713,6 +727,7 @@
     // ── State ────────────────────────────────────────────────────────────────
     let _order = null;
     let _shipment = null;
+    let _escrowStatus = null; // S11 — set by loadEscrowCard; used by renderActions to gate confirm-receipt
     let _reviewProductId = null;
     let _reviewProductName = '';
     let _selectedRating = 0;
@@ -752,14 +767,27 @@
     }
 
     // ── Status ordering for timeline ──────────────────────────────────────────
-    const STATUS_ORDER = ['pending','paid','processing','shipped','delivered'];
+    const STATUS_ORDER = ['pending','authorizing','paid','processing','shipped','delivered'];
+    const STATUS_LABEL = {
+        pending:     'Pending',
+        authorizing: 'Awaiting Seller Response',
+        paid:        'Paid',
+        processing:  'Processing',
+        shipped:     'Shipped',
+        delivered:   'Delivered',
+        cancelled:   'Cancelled',
+        ready_for_pickup: 'Ready for Pickup',
+        picked_up:   'Picked Up',
+        self_fulfilled: 'Fulfilled'
+    };
     const STATUS_ICONS = {
-        pending:    'fa-clock',
-        paid:       'fa-credit-card',
-        processing: 'fa-cog fa-spin',
-        shipped:    'fa-truck',
-        delivered:  'fa-check-circle',
-        cancelled:  'fa-times-circle'
+        pending:     'fa-clock',
+        authorizing: 'fa-hourglass-half',
+        paid:        'fa-credit-card',
+        processing:  'fa-cog fa-spin',
+        shipped:     'fa-truck',
+        delivered:   'fa-check-circle',
+        cancelled:   'fa-times-circle'
     };
 
     // ── Render timeline ───────────────────────────────────────────────────────
@@ -987,9 +1015,10 @@
 
         let showCard = false;
 
-        // Seller: Accept (pending → processing, COD confirm)
-        if (isSeller && order.status === 'pending') {
+        // Seller: Accept / Reject (authorizing — awaiting seller decision on Stripe-paid order)
+        if (isSeller && order.status === 'authorizing') {
             document.getElementById('action-accept').style.display = 'block';
+            document.getElementById('action-reject').style.display = 'block';
             showCard = true;
         }
 
@@ -1059,9 +1088,9 @@
             showCard = true;
         }
 
-        // Buyer: Confirm Receipt (delivered / picked_up / self_fulfilled)
-        if (isBuyer && ['delivered','picked_up','self_fulfilled'].includes(order.status)) {
-            if (_shipment && !_shipment.buyerConfirmedAt) {
+        // Buyer: Confirm Receipt (delivered / picked_up / self_fulfilled, escrow explicitly held)
+        if (isBuyer && ['delivered','picked_up','self_fulfilled'].includes(order.status) && _escrowStatus === 'held') {
+            if (!_shipment?.buyerConfirmedAt) {
                 const confirmWrap = document.createElement('div');
                 confirmWrap.id = 'confirm-receipt-wrap';
                 confirmWrap.innerHTML = `
@@ -1500,6 +1529,14 @@
                                     </button>
                                 ` : ''}
                             </div>
+                            ${_order.paymentMethod === 'cod' && ['delivered','picked_up','self_fulfilled'].includes(_order.status) ? `
+                                <div style="margin-bottom:1rem;padding:0.75rem;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.4);border-radius:6px">
+                                    <p style="margin:0 0 0.5rem;font-size:0.85rem;color:var(--text-muted)"><i class="fas fa-money-bill-wave" style="color:#d97706;margin-right:0.35rem;"></i> COD order — collect cash from buyer and confirm below.</p>
+                                    <button id="cod-collect-btn" class="btn btn-warn btn-sm" onclick="markCodCollected('${_order._id}')">
+                                        <i class="fas fa-hand-holding-dollar"></i> Mark Cash as Collected
+                                    </button>
+                                </div>
+                            ` : ''}
                             <button class="btn btn-sm btn-outline" onclick="msgBuyer('${_order.buyerId}', '${_order._id}')">
                                 <i class="fa fa-comment"></i> Message Buyer
                             </button>
@@ -1636,21 +1673,36 @@
         }
     }
 
-    // ── Accept order (seller: pending → processing) ───────────────────────────
+    // ── Accept order (seller: authorizing → paid) ────────────────────────────
     async function acceptOrder(evt) {
-        showConfirm('Confirm this order? You are committing to fulfil it.', async () => {
+        showConfirm('Accept this order? You are committing to fulfil it.', async () => {
             try {
-                const res = await fetch(`/api/orders/${ORDER_ID}/status`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ status: 'processing' })
+                const res = await fetch(`/api/orders/seller-orders/${ORDER_ID}/accept`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
-                showToast('Order confirmed — now processing.', 'success', 3500, evt);
+                showToast('Order accepted!', 'success', 3500, evt);
                 setTimeout(() => window.location.reload(), 800);
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
-        }, null, { confirmText: 'Confirm Order' });
+        }, null, { confirmText: 'Accept Order' });
+    }
+
+    // ── Reject order (seller: authorizing → cancelled) ───────────────────────
+    async function rejectOrder(evt) {
+        showConfirm('Reject this order? The buyer will be notified and the payment will not be captured.', async () => {
+            try {
+                const res = await fetch(`/api/orders/seller-orders/${ORDER_ID}/reject`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+                showToast('Order rejected.', 'info', 3500, evt);
+                setTimeout(() => window.location.reload(), 800);
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }, null, { confirmText: 'Reject Order', type: 'danger' });
     }
 
     // ── Mark delivered (seller: shipped → delivered, COD) ────────────────────
@@ -1930,6 +1982,23 @@
         } catch (err) { if (typeof showToast === 'function') showToast('Request failed', 'error'); }
     }
 
+    // S18 — COD collection
+    async function markCodCollected(orderId) {
+        const btn = document.getElementById('cod-collect-btn');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Recording...'; }
+        try {
+            const r = await fetch(`/api/orders/seller-orders/${orderId}/cod-collected`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+            });
+            if (!r.ok) { const d = await r.json().catch(()=>{}); throw new Error(d?.message || d?.error || 'Failed'); }
+            if (btn) { btn.innerHTML = '<i class="fas fa-check"></i> Cash collected ✓'; btn.className = 'btn btn-success btn-sm'; }
+        } catch (e) {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-hand-holding-dollar"></i> Mark Cash as Collected'; }
+            alert('Error: ' + e.message);
+        }
+    }
+
     function msgBuyer(buyerId, orderId) {
         window.location.href = `/messages?with=${buyerId}&re=${orderId}&type=order`;
     }
@@ -1976,7 +2045,9 @@
             if (!res.ok) return; // not a party to this escrow — hide card silently
 
             const esc = await res.json();
+            _escrowStatus = esc.status || null; // S11 — cache for renderActions
             card.style.display = 'block';
+            if (_order) renderActions(_order); // re-render now that escrow status is known
 
             const amountCents = esc.amountCents ?? esc.amount ?? 0;
             const isBuyer  = esc.buyerId?.toString() === user.sub;

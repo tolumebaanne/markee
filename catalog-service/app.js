@@ -158,6 +158,35 @@ ProductSchema.index({ reviewStatus: 1, assignedTo: 1 });                   // Re
 ProductSchema.index({ displayStatus: 1, status: 1, createdAt: -1 });       // Buyer routes: visible + active
 const Product = db.model('Product', ProductSchema);
 
+// ── Phase 6 — Coupon models ───────────────────────────────────────────────────
+
+const CouponSchema = new mongoose.Schema({
+    code:          { type: String, required: true, unique: true, uppercase: true, trim: true },
+    type:          { type: String, enum: ['percent', 'fixed'], required: true },
+    value:         { type: Number, required: true },    // percent 0-100 or fixed cents
+    currency:      { type: String, default: 'cad' },
+    minOrderCents: { type: Number, default: 0 },
+    maxUsesTotal:  { type: Number, default: null },     // null = unlimited
+    maxUsesPerUser:{ type: Number, default: 1 },
+    usedCount:     { type: Number, default: 0 },
+    expiresAt:     { type: Date, default: null },
+    sellerId:      { type: String, default: null },     // null = platform-wide
+    active:        { type: Boolean, default: true },
+    createdBy:     { type: String },                    // admin userId
+    createdAt:     { type: Date, default: Date.now },
+});
+CouponSchema.index({ code: 1 });
+const Coupon = db.model('Coupon', CouponSchema);
+
+const CouponUsageSchema = new mongoose.Schema({
+    couponCode: { type: String, required: true, index: true },
+    userId:     { type: String, required: true },
+    orderId:    { type: String, required: true },
+    usedAt:     { type: Date, default: Date.now },
+});
+CouponUsageSchema.index({ couponCode: 1, userId: 1 });
+const CouponUsage = db.model('CouponUsage', CouponUsageSchema);
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // Computes the effective discount on a product, taking the higher of product-level
@@ -1328,5 +1357,169 @@ app.get('/admin/products/stale', async (req, res) => {
 });
 
 
+
+// ── Phase 6 — Coupon routes ───────────────────────────────────────────────────
+
+/**
+ * POST /coupons/validate
+ * Validates a coupon code against a cart. Does NOT record usage.
+ * Called by checkout (client) and order-service (server re-validation).
+ * Auth: verifyToken (no scope enforcement — buyers can call this)
+ *
+ * Body: { code, userId, cartTotal (cents), sellerId? }
+ */
+app.post('/coupons/validate', async (req, res) => {
+    try {
+        if (!req.user) return errorResponse(res, 401, 'Authentication required');
+        const { code, cartTotal, sellerId } = req.body;
+        const userId = req.user.sub || req.user.id;
+        if (!code || !userId || cartTotal === undefined) {
+            return errorResponse(res, 400, 'code, userId, and cartTotal are required');
+        }
+
+        const normalizedCode = String(code).toUpperCase().trim();
+        const coupon = await Coupon.findOne({ code: normalizedCode });
+
+        if (!coupon || !coupon.active) {
+            return res.json({ valid: false, discountCents: 0, message: 'Coupon not found or inactive' });
+        }
+        if (coupon.expiresAt && coupon.expiresAt < new Date()) {
+            return res.json({ valid: false, discountCents: 0, message: 'Coupon has expired' });
+        }
+        if (cartTotal < coupon.minOrderCents) {
+            return res.json({ valid: false, discountCents: 0, message: `Minimum order of $${(coupon.minOrderCents / 100).toFixed(2)} required` });
+        }
+        if (coupon.sellerId && sellerId && coupon.sellerId !== sellerId.toString()) {
+            return res.json({ valid: false, discountCents: 0, message: 'Coupon is not valid for this seller' });
+        }
+        if (coupon.maxUsesTotal !== null && coupon.usedCount >= coupon.maxUsesTotal) {
+            return res.json({ valid: false, discountCents: 0, message: 'Coupon usage limit has been reached' });
+        }
+        const userUsageCount = await CouponUsage.countDocuments({ couponCode: normalizedCode, userId: userId.toString() });
+        if (userUsageCount >= coupon.maxUsesPerUser) {
+            return res.json({ valid: false, discountCents: 0, message: 'You have already used this coupon' });
+        }
+
+        const discountCents = coupon.type === 'percent'
+            ? Math.round(cartTotal * (coupon.value / 100))
+            : Math.min(coupon.value, cartTotal);  // fixed discount capped at cart total
+
+        return res.json({ valid: true, discountCents, message: `Coupon applied: ${coupon.type === 'percent' ? `${coupon.value}%` : `$${(coupon.value / 100).toFixed(2)}`} off` });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// POST /admin/coupons — admin creates a new coupon
+app.post('/admin/coupons', async (req, res) => {
+    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    try {
+        const { code, type, value, currency, minOrderCents, maxUsesTotal, maxUsesPerUser, expiresAt, sellerId } = req.body;
+        if (!code || !type || value === undefined) return errorResponse(res, 400, 'code, type, and value are required');
+        const coupon = await Coupon.create({
+            code: String(code).toUpperCase().trim(),
+            type, value,
+            currency:       currency || 'cad',
+            minOrderCents:  minOrderCents  || 0,
+            maxUsesTotal:   maxUsesTotal   ?? null,
+            maxUsesPerUser: maxUsesPerUser || 1,
+            expiresAt:      expiresAt      ? new Date(expiresAt) : null,
+            sellerId:       sellerId       || null,
+            createdBy:      req.user?.sub?.toString() || 'admin',
+        });
+        res.status(201).json(coupon);
+    } catch (err) {
+        if (err.code === 11000) return errorResponse(res, 409, 'Coupon code already exists');
+        errorResponse(res, 500, err.message);
+    }
+});
+
+// GET /admin/coupons — paginated coupon list
+app.get('/admin/coupons', async (req, res) => {
+    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    try {
+        const page  = Math.max(1, parseInt(req.query.page)  || 1);
+        const limit = Math.min(100, parseInt(req.query.limit) || 50);
+        const skip  = (page - 1) * limit;
+        const [coupons, total] = await Promise.all([
+            Coupon.find().sort({ createdAt: -1 }).skip(skip).limit(limit),
+            Coupon.countDocuments(),
+        ]);
+        res.json({ coupons, total, page, pages: Math.ceil(total / limit) });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// PATCH /admin/coupons/:code/deactivate — set active:false
+app.patch('/admin/coupons/:code/deactivate', async (req, res) => {
+    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    try {
+        const coupon = await Coupon.findOneAndUpdate(
+            { code: req.params.code.toUpperCase() },
+            { $set: { active: false } },
+            { new: true }
+        );
+        if (!coupon) return errorResponse(res, 404, 'Coupon not found');
+        res.json(coupon);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// DELETE /admin/coupons/:code — permanently delete coupon and its usage records
+app.delete('/admin/coupons/:code', async (req, res) => {
+    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    try {
+        const code = req.params.code.toUpperCase();
+        const coupon = await Coupon.findOneAndDelete({ code });
+        if (!coupon) return errorResponse(res, 404, 'Coupon not found');
+        await CouponUsage.deleteMany({ couponCode: code });
+        res.json({ deleted: true });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// GET /admin/coupons/:code/usages — S17: paginated usage records for a coupon
+app.get('/admin/coupons/:code/usages', async (req, res) => {
+    if (req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
+    try {
+        const code  = req.params.code.toUpperCase();
+        const page  = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(50, parseInt(req.query.limit) || 20);
+        const skip  = (page - 1) * limit;
+        const [usages, total] = await Promise.all([
+            CouponUsage.find({ couponCode: code }).sort({ usedAt: -1 }).skip(skip).limit(limit).lean(),
+            CouponUsage.countDocuments({ couponCode: code }),
+        ]);
+        res.json({ usages, total, page, pages: Math.ceil(total / limit) });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// ── Phase 6 — Record coupon usage on order.placed ────────────────────────────
+
+bus.on('order.placed', async (payload) => {
+    if (!payload.couponCode || !payload.orderId || !payload.buyerId) return;
+    try {
+        const normalizedCode = String(payload.couponCode).toUpperCase().trim();
+        // Increment usedCount on the coupon (atomic to avoid race conditions)
+        await Coupon.updateOne({ code: normalizedCode }, { $inc: { usedCount: 1 } });
+        await CouponUsage.create({
+            couponCode: normalizedCode,
+            userId:     payload.buyerId.toString(),
+            orderId:    payload.orderId.toString(),
+        });
+        console.log(`[CATALOG] CouponUsage recorded: ${normalizedCode} for order ${payload.orderId}`);
+    } catch (err) {
+        console.error('[CATALOG] CouponUsage recording error:', err.message);
+    }
+});
+
+// ── Phase 6 — Reverse coupon usage on order.cancelled ────────────────────────
+bus.on('order.cancelled', async (payload) => {
+    if (!payload.orderId) return;
+    try {
+        const usage = await CouponUsage.findOneAndDelete({ orderId: payload.orderId.toString() });
+        if (usage) {
+            await Coupon.updateOne({ code: usage.couponCode }, { $inc: { usedCount: -1 } });
+            console.log(`[CATALOG] CouponUsage reversed: ${usage.couponCode} for order ${payload.orderId}`);
+        }
+    } catch (err) {
+        console.error('[CATALOG] CouponUsage reversal error:', err.message);
+    }
+});
 
 app.listen(process.env.PORT || 5002, () => console.log(`Catalog Service on port ${process.env.PORT || 5002}`));
