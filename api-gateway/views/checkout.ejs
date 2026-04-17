@@ -393,7 +393,11 @@
 
 <script>
 // ── Constants ─────────────────────────────────────────────────────────
-const FAST_DELIVERY_DEFAULT_CENTS = 999; // $9.99 fallback when no seller has set a fee
+// Server-authoritative delivery fee constants — injected at render time so client and
+// server always agree. Must match STANDARD_DELIVERY_FEE_CENTS / FAST_DELIVERY_FEE_CENTS
+// env vars in order-service/app.js (both default to 599 / 1499).
+const SERVER_STANDARD_DELIVERY_CENTS = <%- standardDeliveryFeeCents %>;
+const SERVER_FAST_DELIVERY_CENTS     = <%- fastDeliveryFeeCents %>;
 
 // ── Inline error helpers ──────────────────────────────────────────────
 function showInlineError(elId, msg) {
@@ -676,15 +680,22 @@ function selectDelivery(speed) {
 }
 
 function deliveryCents() {
-    if (selectedDelivery !== 'fast') return 0;
-    // Use the max fastDeliveryFee set by any seller in the cart; fall back to default
-    const maxFee = checkoutItems.reduce((m, i) => Math.max(m, i.fastDeliveryFee || 0), 0);
-    return maxFee > 0 ? maxFee : FAST_DELIVERY_DEFAULT_CENTS;
+    // Pickup and self_fulfilled orders carry $0 delivery — matches server computeDeliveryFee()
+    const ft = document.getElementById('fulfillment-type-select')?.value || 'shipping';
+    if (ft === 'pickup' || ft === 'self_fulfilled') return 0;
+
+    if (selectedDelivery === 'fast') {
+        // Use the max fastDeliveryFee set by any seller in the cart; fall back to server constant
+        const maxFee = checkoutItems.reduce((m, i) => Math.max(m, i.fastDeliveryFee || 0), 0);
+        return maxFee > 0 ? maxFee : SERVER_FAST_DELIVERY_CENTS;
+    }
+    // Standard shipping — must match server STANDARD_DELIVERY_FEE_CENTS
+    return SERVER_STANDARD_DELIVERY_CENTS;
 }
 
 function updateFastDeliveryLabel() {
     const fee = checkoutItems.reduce((m, i) => Math.max(m, i.fastDeliveryFee || 0), 0);
-    const cents = fee > 0 ? fee : FAST_DELIVERY_DEFAULT_CENTS;
+    const cents = fee > 0 ? fee : SERVER_FAST_DELIVERY_CENTS;
     const el = document.getElementById('fast-delivery-price');
     if (el) el.textContent = `+$${(cents / 100).toFixed(2)}`;
 }

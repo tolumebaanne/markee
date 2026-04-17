@@ -321,7 +321,10 @@ app.get('/dashboard',   (req, res) => res.render('dashboard'));
 app.get('/inventory',   (req, res) => res.render('inventory'));
 app.get('/messages',       (_req, res) => res.render('messages', {}));
 app.get('/notifications',  (_req, res) => res.render('notifications'));
-app.get('/checkout',    (req, res) => res.render('checkout'));
+app.get('/checkout',    (req, res) => res.render('checkout', {
+    standardDeliveryFeeCents: parseInt(process.env.STANDARD_DELIVERY_FEE_CENTS || '599',  10),
+    fastDeliveryFeeCents:     parseInt(process.env.FAST_DELIVERY_FEE_CENTS     || '1499', 10),
+}));
 app.get('/cart',        (req, res) => res.render('cart'));
 app.get('/product/:id',    (req, res) => res.render('product',    { productId: req.params.id }));
 app.get('/store/:storeId', (req, res) => res.render('storefront', { storeId: req.params.storeId }));
