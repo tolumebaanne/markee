@@ -6,7 +6,7 @@
   </div>
 
   <div class="sub-tabs" id="rev-tabs">
-    <button class="sub-tab active" onclick="switchSubTab('rev','queue',this);renderReviews(window._revData||[],'rev-queue')">Queue (All)</button>
+    <button class="sub-tab active" onclick="switchSubTab('rev','queue',this);renderReviews(window._revData||[],'rev-queue')">All Reviews</button>
     <button class="sub-tab" onclick="switchSubTab('rev','pending',this);renderReviews((window._revData||[]).filter(r=>r.status==='pending'),'rev-pending')">Pending</button>
     <button class="sub-tab" onclick="switchSubTab('rev','flagged',this);renderReviews((window._revData||[]).filter(r=>r.status==='flagged'),'rev-flagged')">Flagged</button>
     <button class="sub-tab" onclick="switchSubTab('rev','buyer',this);loadBuyerReviews()">Buyer Reviews</button>
@@ -51,7 +51,9 @@
       const data = await adminApi('GET', '/proxy/reviews/pending');
       const pending = data.pending || (Array.isArray(data) ? data : []);
       const flagged = data.flagged || [];
-      window._revData = [...pending, ...flagged];
+      const all     = Array.isArray(data.all) ? data.all : [];
+      // If the backend returned all reviews, show them in the queue; fall back to pending+flagged only
+      window._revData = all.length ? all : [...pending, ...flagged];
       loading.style.display = 'none';
       renderReviews(window._revData, 'rev-queue');
       renderReviews(window._revData.filter(r => r.status === 'pending'), 'rev-pending');

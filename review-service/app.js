@@ -699,14 +699,15 @@ app.get('/buyer-review/:buyerId', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// GET /pending — admin moderation queue (pending + flagged)
+// GET /pending — admin moderation queue (pending + flagged + all approved)
 app.get('/pending', async (req, res) => {
     try {
-        const [pending, flagged] = await Promise.all([
+        const [pending, flagged, all] = await Promise.all([
             Review.find({ status: 'pending' }).sort({ createdAt: -1 }),
-            Review.find({ status: 'flagged' }).sort({ createdAt: -1 })
+            Review.find({ status: 'flagged' }).sort({ createdAt: -1 }),
+            Review.find({}).sort({ createdAt: -1 }).limit(500)
         ]);
-        res.json({ pending, flagged });
+        res.json({ pending, flagged, all });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
