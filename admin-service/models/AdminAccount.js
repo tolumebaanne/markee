@@ -33,7 +33,7 @@ const AdminAccountSchema = new mongoose.Schema({
       canViewOwnActivityLog: { type: Boolean, default: false }   // view own assignment history
     },
     orders:        permissionFields(['read', 'forceStatus', 'cancel', 'bulk']),
-    payments:      permissionFields(['read', 'refund', 'release', 'partialRefund', 'freeze', 'splitRefund', 'resolveDisputes', 'payoutHold']),
+    payments:      permissionFields(['read', 'refund', 'release', 'partialRefund', 'freeze', 'splitRefund', 'resolveDisputes', 'payoutHold', 'remit']),
     sellers:       permissionFields(['read', 'write', 'verify', 'suspend', 'ban', 'regApproval', 'tier']),
     reviews:       permissionFields(['read', 'moderate', 'delete', 'bulk']),
     messages:      permissionFields(['read', 'moderate', 'inject', 'ban']),

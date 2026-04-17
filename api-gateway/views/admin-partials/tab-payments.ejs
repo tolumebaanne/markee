@@ -213,7 +213,7 @@ async function loadEscrows(page) {
       const payoutsHtml = (e.sellerPayouts || []).map(p =>
         `<div style="font-size:.72rem;color:var(--muted);padding:2px 0">
           Seller ${trunc(p.sellerId?.toString()||'—',14)}
-          · Net ${fmt$(p.netCents||0)}
+          · Net ${fmt$(p.netAmountCents||0)}
           · ${p.released ? '<span style="color:var(--success)">Released</span>' : '<span style="color:var(--warn)">Pending</span>'}
         </div>`
       ).join('');

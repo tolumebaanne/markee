@@ -369,7 +369,14 @@ bus.on('order.placed', async (payload) => {
             // Mock / other provider path — escrow held immediately
             console.log(`[PAYMENT] Escrow (${esc.status}) for order ${payload.orderId}, total: ${totalAmount}`);
         }
-    } catch (err) { console.error('[PAYMENT] order.placed error:', err.message); }
+    } catch (err) {
+        console.error('[PAYMENT] order.placed error — escrow creation failed for order', payload.orderId, ':', err.message);
+        bus.emit('payment.escrow_failed', {
+            orderId:  payload.orderId,
+            buyerId:  payload.buyerId,
+            reason:   err.message
+        });
+    }
 });
 
 // S7 — shipment.delivered: start dispute window instead of immediate release
