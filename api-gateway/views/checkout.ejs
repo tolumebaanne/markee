@@ -434,6 +434,7 @@ let appliedCouponCode    = null;
 let appliedDiscountCents = 0;
 
 // Phase 3 — Stripe state
+const _stripeKey          = '<%- locals.stripePublishableKey || "" %>';
 let _stripe               = null;
 let _stripeElements       = null;
 let _stripeIntentId       = null;
@@ -980,8 +981,7 @@ function computeFinalAmountCents() {
 }
 
 async function mountStripeElement() {
-    const pubKey = '<%- locals.stripePublishableKey || "" %>';
-    if (!pubKey) return; // Stripe not configured on this deployment
+    if (!_stripeKey) return; // Stripe not configured on this deployment
     if (_stripeMounting) return;
 
     const totalCents = computeFinalAmountCents();
@@ -1018,7 +1018,7 @@ async function mountStripeElement() {
         _stripeIntentId         = intentId;
         _lastMountedAmountCents = totalCents;
 
-        if (!_stripe) _stripe = Stripe(pubKey);
+        if (!_stripe) _stripe = Stripe(_stripeKey);
         _stripeElements = _stripe.elements({ clientSecret });
         const payEl = _stripeElements.create('payment');
         payEl.mount('#stripe-payment-element');
@@ -1151,7 +1151,7 @@ async function placeOrder(evt) {
         }
 
         if (_selectedSavedPmId) {
-            // S21 — Saved card path: create intent then confirmCardPayment with saved PM
+            // S21 — Saved card path: create intent then confirm with the saved PM id
             btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Setting up payment...';
             const intentRes = await fetch('/api/payments/create-intent', {
                 method:  'POST',
@@ -1165,15 +1165,19 @@ async function placeOrder(evt) {
                 btn.innerHTML = '<i class="fa fa-lock" style="margin-right:0.5rem;"></i> Place Order';
                 return;
             }
+            // Initialize _stripe here — mountStripeElement() is never called on the saved-card path
+            if (!_stripe && _stripeKey) _stripe = Stripe(_stripeKey);
             if (!_stripe) {
-                showInlineError('checkout-error-container', 'Stripe not loaded — please refresh.');
+                showInlineError('checkout-error-container', 'Stripe not configured — please refresh.');
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fa fa-lock" style="margin-right:0.5rem;"></i> Place Order';
                 return;
             }
             btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Authorizing payment...';
-            const result = await _stripe.confirmCardPayment(intentData.clientSecret, {
-                payment_method: _selectedSavedPmId,
+            const result = await _stripe.confirmPayment({
+                clientSecret:  intentData.clientSecret,
+                confirmParams: { payment_method: _selectedSavedPmId },
+                redirect:      'if_required',
             });
             if (result.error) {
                 showInlineError('checkout-error-container', result.error.message || 'Payment authorization failed.');
