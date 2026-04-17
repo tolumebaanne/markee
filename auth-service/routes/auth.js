@@ -386,6 +386,19 @@ router.post('/admin/users/:id/revoke-sessions', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── Admin: hard-delete user record + all refresh tokens ──────────────────────
+router.delete('/admin/users/:id', async (req, res) => {
+  if (!req.headers['x-admin-email']) return res.status(403).json({ error: 'Admin only' });
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const tokenResult = await RefreshToken.deleteMany({ userId: user._id });
+    console.log(`[AUTH] Admin ${req.headers['x-admin-email']} hard-deleted user ${user.email} — ${tokenResult.deletedCount} refresh token(s) purged`);
+    bus.emit('user.deleted', { userId: req.params.id, email: user.email });
+    res.json({ userId: req.params.id, deleted: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ── Forgot Password ───────────────────────────────────────────────────────────
 // m0t.AUTH.3.5  — same response whether email exists or not (no enumeration)
 // m0t.AUTH.3.4  — crypto.randomBytes(32); only SHA-256 hash stored in DB
