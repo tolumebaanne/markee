@@ -1320,3 +1320,112 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 .addr-card-street { font-size: 0.82rem; font-weight: 400; color: var(--text-muted); }
 .addr-card-line2, .addr-card-country { font-size: 0.82rem; color: var(--text-muted); }
 .addr-meta { display: block; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem; }
+
+
+/* ── Payment Selector Modal ──────────────────────────────────────────────────── */
+.payment-selector-overlay {
+    /* positioning */
+    position: fixed; inset: 0; z-index: 9999;
+
+    /* color */
+    background: rgba(0,0,0,0.5);
+
+    /* display */
+    display: flex; align-items: center; justify-content: center;
+
+    /* box model */
+    padding: 1rem;
+}
+.payment-selector-modal {
+    /* color */
+    background: var(--bg-primary);
+
+    /* box model */
+    width: 100%; max-width: 480px; max-height: 80vh;
+
+    /* border */
+    border-radius: 12px;
+
+    /* display */
+    display: flex; flex-direction: column;
+
+    /* other */
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25); overflow: hidden;
+}
+.payment-selector-header {
+    /* display */
+    display: flex; align-items: center; justify-content: space-between;
+
+    /* box model */
+    padding: 1rem 1.25rem;
+
+    /* border */
+    border-bottom: 1px solid var(--border-light);
+}
+.payment-selector-header h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+.payment-selector-close {
+    /* color */
+    background: none; color: var(--text-muted);
+
+    /* box model */
+    padding: 0 0.25rem;
+
+    /* border */
+    border: none;
+
+    /* other */
+    font-size: 1.3rem; cursor: pointer; line-height: 1;
+}
+.payment-selector-close:hover { color: var(--text-main); }
+.payment-selector-body {
+    /* box model */
+    padding: 0.75rem;
+
+    /* display */
+    display: flex; flex-direction: column; gap: 0.5rem;
+
+    /* other */
+    overflow-y: auto;
+}
+.payment-selector-loading { padding: 2rem; text-align: center; color: var(--text-muted); }
+.payment-selector-empty   { padding: 2rem; text-align: center; color: var(--text-muted); }
+.payment-selector-card {
+    /* border */
+    border: 1.5px solid var(--border-light); border-radius: 8px;
+
+    /* box model */
+    padding: 0.875rem 1rem;
+
+    /* other */
+    cursor: pointer; transition: border-color 0.15s, background 0.15s;
+}
+.payment-selector-card:hover,
+.payment-selector-card:focus { border-color: var(--accent-red); background: var(--bg-secondary); outline: none; }
+.payment-selector-card.selected { border-color: var(--accent-red); background: #fff5f5; }
+.pm-card-brand {
+    /* text */
+    font-size: 0.95rem; font-weight: 700;
+
+    /* color */
+    color: var(--text-main);
+
+    /* box model */
+    margin-bottom: 0.2rem;
+}
+.pm-card-number {
+    /* text */
+    font-size: 0.82rem;
+
+    /* color */
+    color: var(--text-muted);
+}
+.pm-card-expiry {
+    /* text */
+    font-size: 0.78rem;
+
+    /* color */
+    color: var(--text-muted);
+
+    /* box model */
+    margin-top: 0.15rem;
+}
