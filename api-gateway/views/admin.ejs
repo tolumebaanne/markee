@@ -444,6 +444,10 @@ async function _tryRefreshToken() {
   return _refreshing;
 }
 
+// Background interval: refresh the JWT every 8 minutes while the page is open.
+// Superuser JWTs expire in 10 minutes — this keeps the token alive without any user action.
+setInterval(() => { _tryRefreshToken(); }, 8 * 60 * 1000);
+
 async function adminApi(method, path, body) {
   // Pro-active refresh: if the stored JWT expires within 60 seconds, refresh it first
   const parsed = parseJwt(_adminToken);

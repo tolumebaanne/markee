@@ -14,7 +14,10 @@ module.exports = async function sessionActivity(req, res, next) {
     if (!session) return errorResponse(res, 401, 'Session not found');
 
     const account = req.admin._account;
-    const timeoutMs = (account.inactivityTimeoutMinutes || 30) * 60 * 1000;
+    // Superuser default: 3 days (matches refresh token TTL — TOTP only asked once per session).
+    // Spawned admin default: 8 hours. Both overridable via inactivityTimeoutMinutes.
+    const defaultMinutes = account.isSuperuser ? 4320 : 480;
+    const timeoutMs = (account.inactivityTimeoutMinutes || defaultMinutes) * 60 * 1000;
     const now = new Date();
 
     // Inactivity check

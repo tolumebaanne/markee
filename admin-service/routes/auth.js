@@ -249,8 +249,13 @@ router.post('/refresh', async (req, res) => {
   try {
     const hash    = hashToken(refresh_token);
     const session = await AdminSession.model.findOne({ refreshTokenHash: hash });
-    if (!session || session.revoked || session.refreshExpiresAt < new Date()) {
+    if (!session || session.refreshExpiresAt < new Date()) {
       return errorResponse(res, 401, 'Invalid or expired refresh token');
+    }
+    // Allow recovery from inactivity revocation — the refresh token is the long-lived credential.
+    // Deny only explicit terminations (logout, superseded by new login).
+    if (session.revoked && session.invalidatedReason !== 'inactivity') {
+      return errorResponse(res, 401, 'Session terminated');
     }
 
     const account = await AdminAccount.model.findById(session.adminId);
