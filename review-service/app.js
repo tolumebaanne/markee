@@ -245,22 +245,24 @@ app.post('/', async (req, res) => {
         const existing = await Review.findOne({ productId, buyerId: req.user.sub, orderId });
         if (existing) return errorResponse(res, 409, 'You have already reviewed this product for this order');
 
-        // Resolve sellerId from catalog if missing
+        // Resolve sellerId from catalog if client did not include it
         if (!sellerId) {
             try {
-                const pRes = await fetch(`http://localhost:5002/products/${productId}`);
+                const catalogUrl = process.env.CATALOG_SERVICE_URL || 'http://localhost:5003';
+                const pRes = await fetch(`${catalogUrl}/products/${productId}`);
                 if (pRes.ok) {
                     const p = await pRes.json();
                     sellerId = p.sellerId;
                 }
             } catch {}
         }
+        if (!sellerId) return errorResponse(res, 422, 'Could not determine seller for this product — please try again');
 
         const qualityScore = computeQualityScore(body, imageUrl, rating);
 
         const rev = await Review.create({
             productId, orderId, rating, body, imageUrl, qualityScore,
-            sellerId: sellerId || null,
+            sellerId,
             buyerId:  req.user.sub,
             status:   'approved',
             statusHistory: [{ status: 'approved', reason: 'auto_approved' }]

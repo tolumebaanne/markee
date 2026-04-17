@@ -191,9 +191,15 @@ app.use('/api/shipping', verifyToken, (req, res, next) => {
 // ── Reviews (A.12 — specific routes before catch-all) ────────────────────────
 const REVIEW_URL = process.env.REVIEW_SERVICE_URL || 'http://localhost:5008';
 
-// Public seller review routes (no auth required) — MUST be before catch-all
-app.use('/api/reviews/seller',        proxy(REVIEW_URL));
+// Seller review routes:
+//   GET  /api/reviews/seller/*         — public (storefront display, stats)
+//   POST /api/reviews/seller           — authenticated (buyer submits seller review)
+//   GET  /api/reviews/seller-reviews/* — public (storefront review list)
 app.use('/api/reviews/seller-reviews', proxy(REVIEW_URL));
+app.use('/api/reviews/seller', (req, res, next) => {
+    if (req.method === 'GET') return proxy(REVIEW_URL)(req, res, next);
+    verifyToken(req, res, () => proxy(REVIEW_URL)(req, res, next));
+});
 
 // Authenticated-only sub-routes
 app.use('/api/reviews/my-reviews', verifyToken, proxy(REVIEW_URL));

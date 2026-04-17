@@ -519,6 +519,7 @@
     let _escrowStatus = null; // S11 — set by loadEscrowCard; used by renderActions to gate confirm-receipt
     let _reviewProductId = null;
     let _reviewProductName = '';
+    let _reviewSellerId = null;
     let _selectedRating = 0;
     const _reviewed = new Set(); // productIds already reviewed this session
 
@@ -638,7 +639,7 @@
             const reviewBtnHtml = reviewable
                 ? alreadyReviewed
                     ? `<span class="review-btn reviewed"><i class="fa fa-check"></i> Reviewed</span>`
-                    : `<button class="review-btn" onclick="openReviewModal('${item.productId}', '${title.replace(/'/g, "\\'")}')">
+                    : `<button class="review-btn" onclick="openReviewModal('${item.productId}', '${title.replace(/'/g, "\\'")}', '${item.sellerId || ''}')">
                            <i class="fa fa-star"></i> Review
                        </button>`
                 : '';
@@ -787,7 +788,7 @@
 
     // ── Show seller shipment form ─────────────────────────────────────────────
     function showShipmentForm(order) {
-        const isSeller = order.items.some(i => i.sellerId?.toString() === user.storeId);
+        const isSeller = user.storeActive && order.items.some(i => i.sellerId?.toString() === user.storeId);
         if (!isSeller) return;
         const canShip = ['paid', 'processing'].includes(order.status);
         if (!canShip) return;
@@ -801,7 +802,7 @@
     // ── Render all available order actions (role-aware) ───────────────────────
     function renderActions(order) {
         const isBuyer  = order.buyerId?.toString() === user.sub;
-        const isSeller = user.storeId && order.items.some(i => i.sellerId?.toString() === user.storeId);
+        const isSeller = user.storeActive && user.storeId && order.items.some(i => i.sellerId?.toString() === user.storeId);
 
         let showCard = false;
 
@@ -948,7 +949,7 @@
         const order = window._currentOrder;
         if (!order) return;
         const isBuyer  = order.buyerId?.toString() === user.sub;
-        const isSeller = user.storeId && order.items.some(i => i.sellerId?.toString() === user.storeId);
+        const isSeller = user.storeActive && user.storeId && order.items.some(i => i.sellerId?.toString() === user.storeId);
         if (!isBuyer && !isSeller) return;
 
         // For buyer: find a seller from order items; for seller: use buyerId
@@ -1293,9 +1294,9 @@
             }
 
             // ── Seller action panel (Task 5) ─────────────────────────────────────
-            const myItems = (_order.items || []).filter(i =>
-                i.sellerId?.toString() === user.storeId?.toString()
-            );
+            const myItems = (user.storeActive && user.storeId)
+                ? (_order.items || []).filter(i => i.sellerId?.toString() === user.storeId?.toString())
+                : [];
             const isSellerOfThisOrder = myItems.length > 0;
 
             if (isSellerOfThisOrder) {
@@ -1732,9 +1733,10 @@
     }
 
     // ── Review modal ──────────────────────────────────────────────────────────
-    function openReviewModal(productId, productName) {
+    function openReviewModal(productId, productName, sellerId) {
         _reviewProductId = productId;
         _reviewProductName = productName;
+        _reviewSellerId = sellerId || null;
         _selectedRating = 0;
         document.getElementById('review-product-name').textContent = productName;
         document.getElementById('review-body').value = '';
@@ -1780,6 +1782,7 @@
                 body: JSON.stringify({
                     orderId:   ORDER_ID,
                     productId: _reviewProductId,
+                    sellerId:  _reviewSellerId,
                     rating:    _selectedRating,
                     body
                 })
