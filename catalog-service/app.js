@@ -955,7 +955,8 @@ app.post('/products/:id/approve', async (req, res) => {
         p.status            = 'active'; // keep legacy field in sync
         appendReviewEvent(p, {
             fromStatus: prev, toStatus: 'published',
-            reviewerId: req.user.sub, comment: (req.body.comment || '').trim()
+            reviewerId: req.headers['x-admin-email'] || req.user?.sub,
+            comment: (req.body.comment || '').trim()
         });
         await p.save();
         bus.emit('product.approved', { productId: p._id, sellerId: p.sellerId, title: p.title });
@@ -988,7 +989,7 @@ app.post('/products/:id/disapprove', async (req, res) => {
         p.reviewCompletedAt = new Date();
         appendReviewEvent(p, {
             fromStatus: prev, toStatus: 'needs_changes',
-            reviewerId: req.user.sub,
+            reviewerId: req.headers['x-admin-email'] || req.user?.sub,
             comment:    comment.trim(),
             templateId: templateId || null
         });
@@ -1028,7 +1029,8 @@ app.post('/products/:id/reject', async (req, res) => {
         p.status            = 'rejected'; // keep legacy field in sync
         appendReviewEvent(p, {
             fromStatus: prev, toStatus: 'rejected',
-            reviewerId: req.user.sub, comment: rejectionNote
+            reviewerId: req.headers['x-admin-email'] || req.user?.sub,
+            comment: rejectionNote
         });
         await p.save();
         bus.emit('product.rejected', {
@@ -1230,7 +1232,7 @@ app.post('/products/review/assign', async (req, res) => {
         );
         bus.emit('listing.review_assigned', {
             adminId:       assignedTo,
-            assignedBy:    req.user.sub,
+            assignedBy:    req.headers['x-admin-email'] || req.user?.sub,
             assignedCount: listingIds.length,
             note:          note || ''
         });
@@ -1251,7 +1253,7 @@ app.post('/products/review/reassign', async (req, res) => {
         );
         bus.emit('listing.review_assigned', {
             adminId:       assignedTo,
-            assignedBy:    req.user.sub,
+            assignedBy:    req.headers['x-admin-email'] || req.user?.sub,
             assignedCount: listingIds.length,
             note:          note || '',
             type:          'reassign'
@@ -1323,7 +1325,7 @@ app.patch('/admin/products/:id/force-status', async (req, res) => {
             sellerId:  p.sellerId,
             status,
             reason:    reason || '',
-            adminId:   req.user.sub || req.user.email
+            adminId:   req.headers['x-admin-email'] || req.user?.sub || req.user?.email
         });
         res.json(p);
     } catch (err) { errorResponse(res, 500, err.message); }
