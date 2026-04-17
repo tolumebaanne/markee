@@ -561,6 +561,99 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 .nav-dropdown-item.logout { color: #b91c1c; border-top: 1px solid var(--border-light); }
 .nav-dropdown-item.logout i { color: #b91c1c; }
 
+/* ── Global Search Bar (Global Nav) ─────────────────────────────────────── */
+.nav-search-bar {
+    position: relative;
+    flex: 1;
+    max-width: 500px;
+    margin: 0 1.5rem;
+    display: flex;
+    align-items: center;
+}
+
+.nav-search-bar input {
+    width: 100%;
+    padding: 0.55rem 1rem 0.55rem 2.5rem;
+    border-radius: 20px;
+    border: 1.5px solid var(--border-light);
+  background: transparent; border: none; padding: 0.6rem 0.75rem;
+  width: 100%; font-size: 0.9rem; outline: none; color: var(--text-main);
+}
+.nav-search-clear {
+    right: 0.75rem;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    display: none;
+    padding: 0.2rem;
+}
+
+.nav-search-clear:hover { color: var(--accent-red); }
+
+/* Autocomplete results */
+.nav-search-results {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.12);
+    z-index: 500;
+    overflow: hidden;
+    display: none;
+}
+
+.nav-search-results h5 {
+    padding: 0.65rem 1rem 0.35rem;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    margin: 0;
+}
+
+.search-result-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 1rem;
+    color: var(--text-main);
+    text-decoration: none;
+    font-size: 0.875rem;
+    border-bottom: 1px solid var(--bg-secondary);
+    transition: background 0.1s;
+}
+
+.search-result-item:last-child { border-bottom: none; }
+.search-result-item:hover { background: var(--bg-secondary); }
+
+.search-result-item i {
+    width: 14px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.search-result-cat {
+    margin-left: auto;
+    font-size: 0.7rem;
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+}
+
+/* Hide global search bar on homepage if hero is present */
+.is-home-page .nav-search-bar { display: none; }
+@media (max-width: 768px) {
+    .nav-search-bar { display: none; } /* Show in a separate drawer or mobile search bar if needed */
+}
+
 /* ========================================
    TOAST NOTIFICATIONS
    ======================================== */

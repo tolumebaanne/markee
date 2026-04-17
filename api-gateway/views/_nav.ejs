@@ -1,4 +1,13 @@
 <%# Unified nav partial — included by all pages %>
+    <div class="nav-search-bar">
+        <i class="fa fa-search nav-search-icon"></i>
+        <input type="text" id="nav-search-input" placeholder="Search products & categories..." 
+               oninput="onNavSearchInput()" 
+               onkeydown="if(event.key==='Enter') executeNavSearch()">
+        <button class="nav-search-clear" id="nav-search-clear" onclick="clearNavSearch()">&times;</button>
+        <div class="nav-search-results" id="nav-search-results"></div>
+    </div>
+
     <div class="nav-links">
         <a href="/cart" class="nav-cart-btn" id="nav-cart-link" title="View Cart">
             <i class="fa fa-shopping-cart"></i>
@@ -406,6 +415,75 @@ async function submitSignIn(e) {
         btn.textContent = 'Sign In';
     }
 }
+
+// ── Global Search Autocomplete Logic ─────────────────────────────────────────
+let _navSearchDebounce = null;
+function onNavSearchInput() {
+    const q = document.getElementById('nav-search-input').value.trim();
+    const results = document.getElementById('nav-search-results');
+    const clearBtn = document.getElementById('nav-search-clear');
+    
+    clearBtn.style.display = q ? 'block' : 'none';
+    
+    if (q.length < 2) {
+        results.style.display = 'none';
+        return;
+    }
+    
+    clearTimeout(_navSearchDebounce);
+    _navSearchDebounce = setTimeout(async () => {
+        try {
+            const res = await fetch(`/api/search/suggest?q=${encodeURIComponent(q)}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            renderNavSuggestions(data);
+        } catch {}
+    }, 250);
+}
+
+function renderNavSuggestions(data) {
+    const results = document.getElementById('nav-search-results');
+    const { products = [], categories = [] } = data;
+    
+    if (!products.length && !categories.length) {
+        results.style.display = 'none';
+        return;
+    }
+    
+    if (products.length) {
+        html += `<h5>Products</h5>`;
+        products.forEach(p => {
+            html += `<a href="/product/${p.productId}" class="search-result-item">
+                <i class="fa fa-tag"></i>
+                <span>${p.title}</span>
+                <span class="search-result-cat">${p.category}</span>
+            </a>`;
+        });
+    }
+    
+    results.innerHTML = html;
+    results.style.display = 'block';
+}
+
+function executeNavSearch() {
+    const q = document.getElementById('nav-search-input').value.trim();
+    if (q) window.location.href = `/?q=${encodeURIComponent(q)}`;
+}
+
+function clearNavSearch() {
+    const input = document.getElementById('nav-search-input');
+    input.value = '';
+    onNavSearchInput();
+    input.focus();
+}
+
+// Close results on outside click
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.nav-search-bar')) {
+        document.getElementById('nav-search-results').style.display = 'none';
+    }
+});
+
 </script>
 
 <%# ── Sign-in modal (rendered on every page via _nav.ejs) ── %>

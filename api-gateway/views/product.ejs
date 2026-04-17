@@ -433,6 +433,12 @@
 
     <!-- Anchor for jump-to-reviews -->
     <div id="reviews-section-anchor"></div>
+
+    <!-- Related Products -->
+    <div id="related-products-section" style="display:none;" class="py-5 border-top-light mt-5">
+        <h3 class="font-bold mb-3" style="font-size:1.1rem;">People who viewed this also liked</h3>
+        <div class="product-grid" id="related-products-list"></div>
+    </div>
 </div>
 
 <!-- ============ REVIEW MODAL ============ -->
@@ -1303,10 +1309,55 @@
         window.location.href = `/messages?with=${sid}&re=${PRODUCT_ID}&type=product`;
     }
 
+    async function trackRelatedClick(productId) {
+        try {
+            fetch(`/api/search/click`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId, boost: 2 })
+            });
+        } catch {}
+        window.location.href = `/product/${productId}`;
+    }
+
+    async function loadRelatedProducts() {
+        const list = document.getElementById('related-products-list');
+        const section = document.getElementById('related-products-section');
+        if (!list || !section) return;
+
+        try {
+            const res = await fetch(`/api/search/related?productId=${PRODUCT_ID}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            
+            const results = data.results || [];
+            if (!results.length) return;
+
+            list.innerHTML = results.map(p => `
+                <div class="product-card" onclick="trackRelatedClick('${p._id}')">
+                    <div class="product-img-wrapper">
+                        <img src="${(p.images && p.images[0]) || 'https://via.placeholder.com/300?text=No+Image'}" alt="${p.title.replace(/"/g, '&quot;')}" loading="lazy">
+                    </div>
+                    <div class="product-info">
+                        <span class="price-pill">$${((p.price || 0) / 100).toLocaleString()}</span>
+                        <h4>${p.title}</h4>
+                        <p class="text-muted small">${p.category || '—'}</p>
+                    </div>
+                </div>
+            `).join('');
+            
+            section.style.display = 'block';
+        } catch (err) {
+            console.error('Related products failed:', err);
+        }
+    }
+
     window.addEventListener('load', () => {
         loadProduct();
+        loadRelatedProducts();
         if (window.MarkeeCart) MarkeeCart.updateAllCartBadges();
     });
+
 </script>
 </body>
 </html>
