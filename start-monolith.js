@@ -42,28 +42,42 @@ function loadEnv(serviceDir) {
     }
 }
 
+/** Extract just the host portion of a MongoDB URI for safe diagnostic logging. */
+function mongoHost(uri) {
+    if (!uri) return '(not set)';
+    try {
+        // Strip credentials: mongodb[+srv]://user:pass@host/db → host/db
+        const noScheme = uri.replace(/^mongodb(\+srv)?:\/\//, '');
+        const atIdx = noScheme.indexOf('@');
+        const hostPart = atIdx >= 0 ? noScheme.slice(atIdx + 1) : noScheme;
+        // Drop trailing /database?options
+        return hostPart.split('?')[0] || '(parse error)';
+    } catch { return '(parse error)'; }
+}
+
 console.log('=== Markee Monolith Starting ===');
 console.log('All services share one EventBus — event chains will work correctly.\n');
 
 // Auth service uses the global mongoose connection — must be required first
 loadEnv('auth-service');
+console.log(`[ENV] auth-service        → DB host: ${mongoHost(process.env.MONGODB_URI)}`);
 require('./auth-service/server');
 
 // All other services use mongoose.createConnection() — each gets its own
 // MONGODB_URI and PORT injected via loadEnv() before the require().
-loadEnv('catalog-service');      require('./catalog-service/app');
-loadEnv('order-service');        require('./order-service/app');
-loadEnv('payment-service');      require('./payment-service/app');
-loadEnv('seller-service');       require('./seller-service/app');
-loadEnv('inventory-service');    require('./inventory-service/app');
-loadEnv('shipping-service');     require('./shipping-service/app');
-loadEnv('review-service');       require('./review-service/app');
-loadEnv('messaging-service');    require('./messaging-service/app');
-loadEnv('notification-service'); require('./notification-service/app');
-loadEnv('analytics-service');    require('./analytics-service/app');
-loadEnv('search-service');       require('./search-service/app');
-loadEnv('user-service');         require('./user-service/app');
-loadEnv('admin-service');        require('./admin-service/app');
+loadEnv('catalog-service');      console.log(`[ENV] catalog-service      → DB host: ${mongoHost(process.env.MONGODB_URI)}`); require('./catalog-service/app');
+loadEnv('order-service');        console.log(`[ENV] order-service        → DB host: ${mongoHost(process.env.MONGODB_URI)}`); require('./order-service/app');
+loadEnv('payment-service');      console.log(`[ENV] payment-service      → DB host: ${mongoHost(process.env.MONGODB_URI)}`); require('./payment-service/app');
+loadEnv('seller-service');       console.log(`[ENV] seller-service       → DB host: ${mongoHost(process.env.MONGODB_URI)}`); require('./seller-service/app');
+loadEnv('inventory-service');    console.log(`[ENV] inventory-service    → DB host: ${mongoHost(process.env.MONGODB_URI)}`); require('./inventory-service/app');
+loadEnv('shipping-service');     console.log(`[ENV] shipping-service     → DB host: ${mongoHost(process.env.MONGODB_URI)}`); require('./shipping-service/app');
+loadEnv('review-service');       console.log(`[ENV] review-service       → DB host: ${mongoHost(process.env.MONGODB_URI)}`); require('./review-service/app');
+loadEnv('messaging-service');    console.log(`[ENV] messaging-service    → DB host: ${mongoHost(process.env.MONGODB_URI)}`); require('./messaging-service/app');
+loadEnv('notification-service'); console.log(`[ENV] notification-service → DB host: ${mongoHost(process.env.MONGODB_URI)}`); require('./notification-service/app');
+loadEnv('analytics-service');    console.log(`[ENV] analytics-service    → DB host: ${mongoHost(process.env.MONGODB_URI)}`); require('./analytics-service/app');
+loadEnv('search-service');       console.log(`[ENV] search-service       → DB host: ${mongoHost(process.env.MONGODB_URI)}`); require('./search-service/app');
+loadEnv('user-service');         console.log(`[ENV] user-service         → DB host: ${mongoHost(process.env.MONGODB_URI)}`); require('./user-service/app');
+loadEnv('admin-service');        console.log(`[ENV] admin-service        → DB host: ${mongoHost(process.env.MONGODB_URI)}`); require('./admin-service/app');
 
 // Gateway last — it serves the frontend and proxies to all running services
 loadEnv('api-gateway');
