@@ -123,6 +123,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 .btn-red:hover { background: var(--accent-red-hover); }
 .btn-outline { background: transparent; color: var(--text-main); border: 2px solid var(--border-light); }
 .btn-outline:hover { background: var(--bg-secondary); border-color: var(--text-main); color: var(--text-main);}
+.btn-sm { padding: 0.375rem 0.75rem; font-size: 0.82rem; width: auto; }
+.btn-ghost { background: transparent; color: var(--text-main); border: 1.5px solid var(--border-light); width: auto; }
+.btn-ghost:hover { background: var(--bg-secondary); border-color: var(--text-main); }
 
 /* Sidebar Layout Core (Dashboard/Profile) */
 .dashboard-layout { display: flex; gap: 2rem; min-height: calc(100vh - 150px); }

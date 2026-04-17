@@ -263,23 +263,28 @@ async function loadSavedCards() {
     }
 }
 
-async function removeCard(pmId) {
-    const r = await showConfirm({ title: 'Remove Card', body: 'Remove this saved card from your account?', danger: true });
-    if (!r.confirmed) return;
-    try {
-        const token = localStorage.getItem('access_token') || localStorage.getItem('authToken') || localStorage.getItem('token') || '';
-        const res   = await fetch(`/api/payments/saved-cards/${pmId}/delete`, {
-            method:  'POST',
-            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        });
-        if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Remove failed'); }
-        document.getElementById(`card-${pmId}`)?.remove();
-        toast('Card removed.', 'success');
-        if (!document.getElementById('cards-list').children.length) {
-            document.getElementById('cards-list').style.display  = 'none';
-            document.getElementById('cards-empty').style.display = 'block';
-        }
-    } catch (err) { toast('Error: ' + err.message, 'error'); }
+function removeCard(pmId) {
+    showConfirm(
+        'Remove this saved card from your account?',
+        async function () {
+            try {
+                const token = localStorage.getItem('access_token') || localStorage.getItem('authToken') || localStorage.getItem('token') || '';
+                const res   = await fetch(`/api/payments/saved-cards/${pmId}/delete`, {
+                    method:  'POST',
+                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                });
+                if (!res.ok) { const d = await res.json(); throw new Error(typeof d.error === 'string' ? d.error : 'Remove failed'); }
+                document.getElementById(`card-${pmId}`)?.remove();
+                toast('Card removed.', 'success');
+                if (!document.getElementById('cards-list').children.length) {
+                    document.getElementById('cards-list').style.display  = 'none';
+                    document.getElementById('cards-empty').style.display = 'block';
+                }
+            } catch (err) { toast('Error: ' + err.message, 'error'); }
+        },
+        null,
+        { confirmText: 'Remove', cancelText: 'Cancel', type: 'danger' }
+    );
 }
 
 async function loadPayoutSection() {
