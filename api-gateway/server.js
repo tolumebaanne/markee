@@ -255,10 +255,17 @@ app.use('/api/search', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost
 
 // ── User profiles (JWT required, users manage own data) ───────────────────────
 
+// http-proxy-middleware v3 with app.use() mount: Express strips the mount prefix
+// (/api/users, /api/users/watching, /api/users/watching-store) before the proxy
+// sees req.url, so req.url is already e.g. /me/addresses — NOT /api/users/me/addresses.
+// The old rewrite '^/api/users' never matched, forwarding bare /me/addresses to the
+// user-service which registers all its routes under /users/*, causing Express 5's
+// default HTML 404 ("Cannot POST /me/addresses") and the downstream JSON parse error.
+// Fix: prepend /users to whatever stripped path Express hands the proxy.
 const userProxy = createProxyMiddleware({
-    target: process.env.USER_SERVICE_URL || 'http://localhost:5002',
+    target: process.env.USER_SERVICE_URL || 'http://localhost:5013',
     changeOrigin: true,
-    pathRewrite: { '^/api/users': '/users' },
+    pathRewrite: { '^': '/users' },
     on: { error: (err, req, res) => errorResponse(res, 502, 'User service unreachable') }
 });
 
