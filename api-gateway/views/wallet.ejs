@@ -314,7 +314,7 @@ async function loadPayoutSection() {
     if (!token) return;
     try {
         const payload  = JSON.parse(atob(token.split('.')[1]));
-        const isSeller = payload.capabilities?.includes('seller:manage') || payload.role === 'seller';
+        const isSeller = payload.storeActive === true;
         if (!isSeller) return;
         document.getElementById('payout-section').style.display = 'block';
         const res  = await fetch('/api/sellers/my-store', { headers: { Authorization: `Bearer ${token}` } });

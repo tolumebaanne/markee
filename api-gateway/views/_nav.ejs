@@ -54,8 +54,8 @@
 
             <span id="nav-admin" style="display:none;"></span>
 
-            <%# Sell %>
-            <button type="button" class="nav-pill nav-pill-red" style="margin-left:0.15rem;" onclick="navigateSell()">
+            <%# Sell — only visible to active sellers (storeActive gated in initNav) %>
+            <button type="button" id="nav-sell-btn" class="nav-pill nav-pill-red" style="display:none;margin-left:0.15rem;" onclick="navigateSell()">
                 <i class="fa fa-tag" style="margin-right:0.4rem;"></i> Sell
             </button>
 
@@ -109,6 +109,12 @@
         if (dn) dn.textContent = name;
         const dr = document.getElementById('nav-display-role');
         if (dr) dr.textContent = u.role || 'buyer';
+
+        // Show Sell button only for active sellers
+        if (u.storeActive === true) {
+            const sellBtn = document.getElementById('nav-sell-btn');
+            if (sellBtn) sellBtn.style.display = '';
+        }
 
         if (u.role === 'admin') {
             const adminBadge = document.getElementById('nav-admin');

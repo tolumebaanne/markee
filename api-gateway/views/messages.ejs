@@ -848,8 +848,8 @@ async function openThread(threadId) {
         renderThreadHeader(thread);
         renderContextCard(thread);
 
-        // Load templates for sellers
-        if (user.storeId) loadTemplates();
+        // Load templates for active sellers only
+        if (user.storeActive === true) loadTemplates();
 
         var chatBody = document.getElementById('chat-body');
         chatBody.innerHTML = '';

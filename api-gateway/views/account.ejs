@@ -100,7 +100,7 @@
         const r = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
         if (!r.ok) return;
         const p = await r.json();
-        if (p.storeActive || p.storeId) {
+        if (p.storeActive === true) {
             document.getElementById('store-card').style.display = '';
         }
     } catch (_) {}

@@ -545,8 +545,8 @@
                 `).join('');
             }
 
-            // Show edit button if viewer owns this product
-            if (user && user.storeId && data.sellerId?.toString() === user.storeId?.toString()) {
+            // Show edit button if viewer is the active seller who owns this product
+            if (user && user.storeActive && user.storeId && data.sellerId?.toString() === user.storeId?.toString()) {
                 document.getElementById('edit-own-btn-wrap').style.display = 'block';
                 document.getElementById('add-cart-btn').style.display = 'none';
                 document.getElementById('reveal-btn').style.display   = 'none';
@@ -868,7 +868,7 @@
     }
 
     function renderReviewCard(r) {
-        const isSeller = user && user.storeId && user.storeId === r.sellerId?.toString();
+        const isSeller = user && user.storeActive && user.storeId && user.storeId === r.sellerId?.toString();
         const buyerLabel = 'Buyer #' + (r.buyerId || '').toString().slice(-4).toUpperCase();
 
         const imgHtml = r.imageUrl
