@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="/js/toast.js"></script>
     <script src="/js/confirm.js"></script>
+    <script src="https://js.stripe.com/v3/"></script>
     <style>
         .wallet-section       { margin-bottom: 2.5rem; }
         .wallet-section h3    { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
@@ -40,16 +41,35 @@
 
     <!-- ── Saved Cards ─────────────────────────────────────────────────────────── -->
     <div class="wallet-section">
-        <h3><i class="fa fa-credit-card" style="color:var(--accent);margin-right:0.4rem"></i> Saved Cards</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+            <h3 style="margin:0"><i class="fa fa-credit-card" style="color:var(--accent);margin-right:0.4rem"></i> Saved Cards</h3>
+            <button id="add-card-btn" onclick="showAddCardForm()" class="btn btn-sm" style="background:var(--accent-red);color:#fff;width:auto;padding:0.35rem 0.9rem;font-size:0.82rem;">
+                <i class="fa fa-plus" style="margin-right:0.35rem;"></i>Add Card
+            </button>
+        </div>
         <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">
-            Cards are saved automatically when you complete a card payment. Remove a card to stop it appearing at checkout.
+            Add a card here or cards are saved automatically when you complete a card payment. Remove a card to stop it appearing at checkout.
         </p>
+
+        <!-- Add card form (hidden by default) -->
+        <div id="add-card-form" style="display:none; border:1.5px solid var(--border); border-radius:10px; padding:1.1rem; margin-bottom:1rem; background:var(--surface2);">
+            <p style="font-size:0.85rem;color:var(--muted);margin-bottom:0.75rem;">Enter your card details. You may be prompted to verify with your bank.</p>
+            <div id="card-element" style="border:1.5px solid var(--border);border-radius:7px;padding:0.7rem 0.75rem;background:#fff;margin-bottom:0.75rem;min-height:42px;"></div>
+            <div id="add-card-error" style="display:none;color:var(--danger);font-size:0.83rem;margin-bottom:0.6rem;"></div>
+            <div style="display:flex;gap:0.5rem;align-items:center;">
+                <button id="save-card-btn" onclick="saveCard()" class="btn btn-sm" style="background:var(--accent-red);color:#fff;width:auto;padding:0.35rem 0.9rem;font-size:0.82rem;">
+                    <i class="fa fa-lock" style="margin-right:0.35rem;"></i>Save Card
+                </button>
+                <button onclick="cancelAddCard()" class="btn btn-ghost btn-sm" style="width:auto;font-size:0.82rem;">Cancel</button>
+            </div>
+        </div>
+
         <div id="cards-loading" style="color:var(--muted);font-size:0.9rem"><i class="fa fa-spinner fa-spin"></i> Loading...</div>
         <div id="cards-error"   style="display:none" class="error-banner"></div>
         <div id="cards-list"    class="card-list"    style="display:none"></div>
         <div id="cards-empty"   class="empty-state"  style="display:none">
             <i class="fa fa-credit-card"></i>
-            No saved cards yet. Cards are saved when you check out with a card payment.
+            No saved cards yet. Add a card above or complete a card payment to save one automatically.
         </div>
     </div>
 
@@ -61,7 +81,93 @@
 </div>
 
 <script>
+const _stripeKey  = '<%= stripePublishableKey %>';
 const _brandIcons = { visa:'💳', mastercard:'💳', amex:'💳', discover:'💳' };
+
+// ── Add Card flow ─────────────────────────────────────────────────────────────
+let _stripe       = null;
+let _cardElement  = null;
+
+function showAddCardForm() {
+    document.getElementById('add-card-form').style.display = 'block';
+    document.getElementById('add-card-btn').style.display  = 'none';
+    document.getElementById('add-card-error').style.display = 'none';
+
+    if (!_stripe && _stripeKey) {
+        _stripe = Stripe(_stripeKey);
+    }
+    if (_stripe && !_cardElement) {
+        const elements = _stripe.elements();
+        _cardElement = elements.create('card', {
+            style: {
+                base: { fontSize: '15px', color: '#1a1a1a', '::placeholder': { color: '#9ca3af' } },
+            },
+        });
+        _cardElement.mount('#card-element');
+    }
+}
+
+function cancelAddCard() {
+    document.getElementById('add-card-form').style.display = 'none';
+    document.getElementById('add-card-btn').style.display  = '';
+    document.getElementById('add-card-error').style.display = 'none';
+    if (_cardElement) {
+        _cardElement.unmount();
+        _cardElement = null;
+    }
+}
+
+async function saveCard() {
+    const saveBtn = document.getElementById('save-card-btn');
+    const errEl   = document.getElementById('add-card-error');
+    errEl.style.display = 'none';
+
+    if (!_stripe || !_cardElement) {
+        errEl.textContent = 'Payment form not ready. Please refresh and try again.';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.35rem;"></i>Saving…';
+
+    try {
+        const token   = localStorage.getItem('access_token') || localStorage.getItem('authToken') || localStorage.getItem('token') || '';
+        const siRes   = await fetch('/api/payments/setup-intent', {
+            method:  'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        });
+        const siData  = await siRes.json();
+        if (!siRes.ok) throw new Error(siData.error || 'Could not set up card saving.');
+
+        const result = await _stripe.confirmCardSetup(siData.clientSecret, {
+            payment_method: { card: _cardElement },
+        });
+
+        if (result.error) {
+            errEl.textContent   = result.error.message || 'Card setup failed.';
+            errEl.style.display = 'block';
+            saveBtn.disabled    = false;
+            saveBtn.innerHTML   = '<i class="fa fa-lock" style="margin-right:0.35rem;"></i>Save Card';
+            return;
+        }
+
+        // Card saved successfully — clean up form and reload list
+        _cardElement.unmount();
+        _cardElement = null;
+        document.getElementById('add-card-form').style.display = 'none';
+        document.getElementById('add-card-btn').style.display  = '';
+        saveBtn.disabled  = false;
+        saveBtn.innerHTML = '<i class="fa fa-lock" style="margin-right:0.35rem;"></i>Save Card';
+        toast('Card saved successfully!', 'success');
+        loadSavedCards();
+    } catch (err) {
+        errEl.textContent   = err.message;
+        errEl.style.display = 'block';
+        saveBtn.disabled    = false;
+        saveBtn.innerHTML   = '<i class="fa fa-lock" style="margin-right:0.35rem;"></i>Save Card';
+    }
+}
 
 async function loadSavedCards() {
     const token = localStorage.getItem('access_token');

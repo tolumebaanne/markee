@@ -279,24 +279,27 @@
 
                     <!-- Saved payment methods — card selector trigger -->
                     <div id="saved-payments-section" style="display:none; margin-bottom:1rem;">
+                        <!-- No saved cards message (shown when user has no cards) -->
+                        <div id="no-saved-cards-msg" style="display:none; padding:0.6rem 0.5rem 0.75rem; font-size:0.88rem; color:var(--text-muted);">
+                            <i class="fa fa-credit-card" style="margin-right:0.4rem; color:var(--accent-red);"></i>
+                            No saved cards yet.
+                            <a href="/account/wallet" style="color:var(--accent-red); font-weight:600; text-decoration:underline;">Add a card to your wallet</a>
+                            to pay by card.
+                        </div>
                         <!-- Selected card display -->
                         <div id="selected-card-display" style="display:none; border:1.5px solid var(--accent-red); border-radius:8px; padding:0.875rem 1rem; background:#fff5f5; margin-bottom:0.75rem;">
                             <div class="pm-card-brand" id="selected-card-brand"></div>
                             <div class="pm-card-expiry" id="selected-card-expiry"></div>
                         </div>
-                        <!-- Selector trigger -->
-                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+                        <!-- Selector trigger (only shown when saved cards exist) -->
+                        <div id="card-selector-actions" style="display:none; gap:0.5rem; flex-wrap:wrap; align-items:center;">
                             <button type="button" class="btn btn-outline" style="font-size:0.85rem; width:auto;"
                                     onclick="openCardSelector()">
                                 <i class="fa fa-credit-card" style="margin-right:0.4rem;"></i>
                                 <span id="card-selector-btn-text">Choose saved card</span>
                             </button>
-                            <button type="button" class="btn btn-ghost btn-sm" style="width:auto;"
-                                    onclick="useNewCard()">
-                                Use a different card
-                            </button>
                             <a href="/account/wallet" class="btn btn-ghost btn-sm" style="width:auto; text-decoration:none;">
-                                Manage cards
+                                Add / manage cards
                             </a>
                         </div>
                     </div>
@@ -692,18 +695,15 @@ function togglePaymentMethod() {
         l.classList.toggle('selected', l.querySelector('input')?.value === val);
     });
     const isCod = val === 'cod';
-    document.getElementById('card-fields').style.display = isCod ? 'none' : 'block';
-    document.getElementById('cod-note').style.display    = isCod ? 'block' : 'none';
-    if (!isCod) mountStripeElement();
+    // Card entry never happens on checkout — saved-payments-section handles the card path
+    document.getElementById('card-fields').style.display            = 'none';
+    document.getElementById('cod-note').style.display               = isCod ? 'block' : 'none';
+    document.getElementById('saved-payments-section').style.display = isCod ? 'none' : 'block';
 }
 
 function useNewCard() {
-    _selectedSavedPmId = null;
-    document.getElementById('saved-payments-section').style.display = 'none';
-    document.getElementById('selected-card-display').style.display  = 'none';
-    document.getElementById('payment-type-row').style.display       = 'flex';
-    document.getElementById('card-fields').style.display            = 'block';
-    mountStripeElement();
+    // Card entry does not happen on checkout — send user to wallet to add/manage cards
+    window.location.href = '/account/wallet';
 }
 
 // Called when user clicks "Choose saved card" button
@@ -721,13 +721,15 @@ function openCardSelector() {
         document.getElementById('selected-card-expiry').textContent = 'Expires ' + exp;
         document.getElementById('selected-card-display').style.display = 'block';
         document.getElementById('card-selector-btn-text').textContent  = 'Change card';
-        // Hide new-card fields — saved card is selected
+        document.getElementById('card-selector-actions').style.display = 'flex';
+        document.getElementById('no-saved-cards-msg').style.display    = 'none';
+        // Keep card entry hidden — saved card is selected
         document.getElementById('payment-type-row').style.display = 'none';
         document.getElementById('card-fields').style.display      = 'none';
     });
 }
 
-// S21 — Check for saved cards on page load; show selector section if any exist
+// S21 — Check for saved cards on page load; card entry never happens on checkout
 async function loadSavedCards() {
     const token = getToken();
     if (!token) return;
@@ -736,13 +738,25 @@ async function loadSavedCards() {
         if (!res.ok) return;
         const data  = await res.json();
         const cards = data.cards || [];
-        if (!cards.length) return;
 
-        // User has saved cards — show the selector section, hide the new-card flow
+        // Always show the saved-payments-section and always hide Stripe Elements on checkout
         const section = document.getElementById('saved-payments-section');
         section.style.display = 'block';
         document.getElementById('payment-type-row').style.display = 'none';
         document.getElementById('card-fields').style.display      = 'none';
+
+        if (!cards.length) {
+            // No saved cards — show wallet link, no card auto-selected
+            _selectedSavedPmId = null;
+            document.getElementById('no-saved-cards-msg').style.display    = 'block';
+            document.getElementById('selected-card-display').style.display = 'none';
+            document.getElementById('card-selector-actions').style.display = 'none';
+            return;
+        }
+
+        // Has saved cards — hide no-cards message, show selector actions
+        document.getElementById('no-saved-cards-msg').style.display    = 'none';
+        document.getElementById('card-selector-actions').style.display = 'flex';
 
         // Auto-select the first saved card so there's always a default
         const first = cards[0];
@@ -755,7 +769,7 @@ async function loadSavedCards() {
         document.getElementById('selected-card-display').style.display = 'block';
         document.getElementById('card-selector-btn-text').textContent  = 'Change card';
     } catch (err) {
-        // Non-fatal — fall through to standard card entry
+        // Non-fatal — do not show Stripe Elements as fallback
         console.warn('[checkout] loadSavedCards failed:', err.message);
     }
 }
@@ -1098,6 +1112,16 @@ async function placeOrder(evt) {
     let stripePaymentIntentId = null;
     if (payMethod === 'card' || _selectedSavedPmId) {
         const currentTotal = discountedSub + taxCents + deliveryCost;
+
+        // Guard: card payment requires a saved card — no card entry on checkout
+        if (payMethod === 'card' && !_selectedSavedPmId) {
+            showInlineError('checkout-error-container',
+                'Please add a card to your wallet before placing a card order. ' +
+                '<a href="/account/wallet" style="color:var(--accent-red);font-weight:600;">Go to Wallet →</a>');
+            btn.disabled  = false;
+            btn.innerHTML = '<i class="fa fa-lock" style="margin-right:0.5rem;"></i> Place Order';
+            return;
+        }
 
         if (_selectedSavedPmId) {
             // S21 — Saved card path: create intent then confirmCardPayment with saved PM

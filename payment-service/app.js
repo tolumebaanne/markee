@@ -1493,6 +1493,42 @@ app.post('/saved-cards/:pmId/delete', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
+// POST /setup-intent — create Stripe SetupIntent so buyer can save a card from wallet
+app.post('/setup-intent', async (req, res) => {
+    if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
+    if (!process.env.STRIPE_SECRET_KEY) return errorResponse(res, 503, 'Stripe not configured');
+    try {
+        const stripeProvider = getProvider('stripe');
+        const userSvcUrl     = process.env.USER_SERVICE_URL || 'http://localhost:5013';
+        const userResp       = await fetch(`${userSvcUrl}/users/internal/${req.user.sub}/stripe-data`, {
+            headers: { 'x-internal-service': 'payment-service' },
+        });
+        if (!userResp.ok) return errorResponse(res, 502, 'Could not reach user service');
+        const userData       = await userResp.json();
+        let stripeCustomerId = userData.stripeCustomerId || null;
+
+        if (!stripeCustomerId) {
+            const customer = await stripeProvider.stripe.customers.create({
+                metadata: { userId: req.user.sub },
+                email:    userData.email       || undefined,
+                name:     userData.displayName || undefined,
+            });
+            stripeCustomerId = customer.id;
+            bus.emit('user.stripe_customer_created', {
+                userId:           req.user.sub,
+                stripeCustomerId: stripeCustomerId,
+            });
+        }
+
+        const setupIntent = await stripeProvider.stripe.setupIntents.create({
+            customer:             stripeCustomerId,
+            payment_method_types: ['card'],
+            usage:                'off_session',
+        });
+        res.json({ clientSecret: setupIntent.client_secret });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
 // ── S22 — Admin Business Rules UI ────────────────────────────────────────────
 
 // GET /admin/platform-config — return current payment business rules config (admin only)
