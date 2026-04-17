@@ -317,16 +317,28 @@ app.post('/register', express.urlencoded({ extended: true }), async (req, res) =
             body,
             redirect: 'manual'   // intercept the redirect instead of following it
         });
-        const location = r.headers.get('location') || '';
-        // Auth-service redirects to /login on success, /register?error=... on failure
-        if (location.includes('/login')) {
-            return res.redirect('/login?success=Registration successful! Please sign in.');
+
+        // 3xx — auth-service redirect-based success/failure path
+        if (r.status >= 300 && r.status < 400) {
+            const location = r.headers.get('location') || '';
+            if (location.includes('/login')) {
+                return res.redirect('/login?success=Registration successful! Please sign in.');
+            }
+            const errParam = location.includes('error=')
+                ? decodeURIComponent(location.split('error=')[1] || '')
+                : 'Registration failed. Please try again.';
+            return res.render('register', { error: errParam });
         }
-        // Parse error param from redirect URL
-        const errParam = location.includes('error=')
-            ? decodeURIComponent(location.split('error=')[1] || '')
-            : 'Registration failed. Please try again.';
-        return res.render('register', { error: errParam });
+
+        // 422 — handleValidationErrors returns JSON with field-level errors
+        if (r.status === 422) {
+            const json = await r.json().catch(() => ({}));
+            const fields = json.fields || {};
+            const firstMsg = Object.values(fields)[0] || json.message || 'Please check your details and try again.';
+            return res.render('register', { error: firstMsg });
+        }
+
+        return res.render('register', { error: 'Registration failed. Please try again.' });
     } catch (err) {
         console.error('[GATEWAY] /register proxy error:', err.message);
         res.render('register', { error: 'Registration service is currently unavailable.' });

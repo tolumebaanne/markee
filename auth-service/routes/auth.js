@@ -52,7 +52,11 @@ router.post('/register', requireNotAuth, [
     });
     res.redirect('/login?success=Registration successful! Please sign in.');
   } catch (error) {
-    res.redirect('/register?error=' + encodeURIComponent(error.message));
+    let msg = error.message;
+    if (error.code === 11000 || msg.includes('duplicate key')) {
+      msg = 'An account with this email already exists.';
+    }
+    res.redirect('/register?error=' + encodeURIComponent(msg));
   }
 });
 
