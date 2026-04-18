@@ -784,6 +784,11 @@ router.delete('/messages/ban/:userId', requirePermission('messages', 'ban'), aud
   res.status(r.status).json(r.data);
 });
 
+router.post('/messages/admin-initiate', requirePermission('messages', 'inject'), auditLog('message.adminInitiate', 'Thread'), async (req, res) => {
+  const r = await callService('POST', `${msgUrl()}/admin/initiate-thread`, req.body, req.admin.email);
+  res.status(r.status).json(r.data);
+});
+
 // ── Notifications (extended) ──────────────────────────────────────────────────
 // (existing broadcast route stays; these extend it)
 

@@ -203,5 +203,46 @@ module.exports = function createAdminRoutes(services) {
         }
     });
 
+    // POST /admin/initiate-thread — Admin opens a new direct thread with a user
+    router.post('/admin/initiate-thread', async (req, res) => {
+        try {
+            const { recipientId, subject, body } = req.body;
+            if (!recipientId) return errorResponse(res, 400, 'recipientId required');
+            if (!body)        return errorResponse(res, 400, 'body required');
+
+            const thread = await Thread.create({
+                participants: [recipientId],
+                context: {
+                    type: 'general',
+                    refTitle: subject || 'Message from Admin'
+                },
+                priority: 'normal',
+                lastMessage: body.slice(0, 80),
+                lastMessageType: 'system',
+                lastAt: new Date(),
+                messageCount: 1
+            });
+
+            const msg = await Message.create({
+                threadId: thread._id,
+                senderId: null,
+                recipientId,
+                type: 'system',
+                body
+            });
+
+            // Notify recipient via socket if connected
+            const io = services.io;
+            if (io) {
+                io.to(recipientId.toString()).emit('system_message', msg);
+            }
+
+            res.json({ thread, message: msg });
+        } catch (err) {
+            logger.error('POST /admin/initiate-thread error:', err.message);
+            errorResponse(res, 500, err.message);
+        }
+    });
+
     return router;
 };

@@ -2,7 +2,10 @@
 <div class="tab-panel" id="tab-messages">
   <div class="page-header">
     <h2>Messages</h2>
-    <span id="msg-count" style="color:var(--muted);font-size:.85rem"></span>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span id="msg-count" style="color:var(--muted);font-size:.85rem"></span>
+      <button class="btn btn-sm btn-primary" onclick="openComposeModal()"><i class="fas fa-pen-to-square"></i> New Message</button>
+    </div>
   </div>
 
   <!-- Sub-tabs -->
@@ -97,6 +100,34 @@
     <div class="modal-footer">
       <button class="btn btn-sm btn-primary" onclick="submitInjectMessage()"><i class="fas fa-paper-plane"></i> Inject</button>
       <button class="btn btn-sm btn-ghost" onclick="closeModal('injectMsgModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin Compose Modal -->
+<div class="modal-overlay" id="composeMsgModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-pen-to-square"></i> New Message to User</h3>
+      <button class="modal-close" onclick="closeModal('composeMsgModal')">&times;</button>
+    </div>
+    <div style="padding:1.25rem">
+      <div class="form-group">
+        <label for="compose-recipient">Recipient User ID</label>
+        <input id="compose-recipient" type="text" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-family:monospace;font-size:.82rem" placeholder="User ObjectId…">
+      </div>
+      <div class="form-group">
+        <label for="compose-subject">Subject (optional)</label>
+        <input id="compose-subject" type="text" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-family:inherit" placeholder="e.g. Account notice">
+      </div>
+      <div class="form-group">
+        <label for="compose-body">Message</label>
+        <textarea id="compose-body" rows="5" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);resize:vertical;font-family:inherit" placeholder="Enter your message to the user…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-sm btn-primary" onclick="submitComposeMessage()"><i class="fas fa-paper-plane"></i> Send</button>
+      <button class="btn btn-sm btn-ghost" onclick="closeModal('composeMsgModal')">Cancel</button>
     </div>
   </div>
 </div>
@@ -278,12 +309,8 @@ async function banMessagingUser() {
   const {confirmed, selected, reason} = await showConfirm({
     title: 'Ban User from Messaging',
     body: 'Enter the user ID to ban and select ban type:',
-    withSelect: true,
+    withSelect: [{value:'temporary', label:'Temporary'}, {value:'permanent', label:'Permanent'}],
     selectLabel: 'Ban Type',
-    selectOptions: [
-      {value:'temporary', label:'Temporary'},
-      {value:'permanent', label:'Permanent'}
-    ],
     withReason: true,
     danger: true
   });
@@ -320,6 +347,27 @@ async function liftMessagingBan(userId) {
     await adminApi('DELETE', `/proxy/messages/ban/${userId}`);
     toast('Messaging ban lifted', 'success');
     loadBannedUsers();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+function openComposeModal() {
+  document.getElementById('compose-recipient').value = '';
+  document.getElementById('compose-subject').value = '';
+  document.getElementById('compose-body').value = '';
+  openModal('composeMsgModal');
+}
+
+async function submitComposeMessage() {
+  const recipientId = document.getElementById('compose-recipient').value.trim();
+  const subject     = document.getElementById('compose-subject').value.trim();
+  const body        = document.getElementById('compose-body').value.trim();
+  if (!recipientId) { toast('Recipient User ID is required', 'warn'); return; }
+  if (!body)        { toast('Message body is required', 'warn'); return; }
+  try {
+    await adminApi('POST', '/proxy/messages/admin-initiate', { recipientId, subject, body });
+    toast('Message sent — new thread created', 'success');
+    closeModal('composeMsgModal');
+    loadAllThreads(_msgPage);
   } catch(err) { toast('Error: ' + err.message, 'error'); }
 }
 </script>
