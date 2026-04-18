@@ -305,7 +305,7 @@ async function saveCard() {
         document.getElementById('add-card-btn').style.display  = '';
         saveBtn.disabled  = false;
         saveBtn.innerHTML = '<i class="fa fa-lock"></i>Save Card';
-        toast('Card saved successfully!', 'success');
+        showToast('Card saved successfully!', 'success');
         const _p  = new URLSearchParams(window.location.search);
         const _rt = _p.get('returnTo');
         if (_rt) {
@@ -385,12 +385,12 @@ function removeCard(pmId) {
                 });
                 if (!res.ok) { const d = await res.json(); throw new Error(typeof d.error === 'string' ? d.error : 'Remove failed'); }
                 document.getElementById(`card-${pmId}`)?.remove();
-                toast('Card removed.', 'success');
+                showToast('Card removed.', 'success');
                 if (!document.getElementById('cards-list').children.length) {
                     document.getElementById('cards-list').style.display  = 'none';
                     document.getElementById('cards-empty').style.display = 'block';
                 }
-            } catch (err) { toast('Error: ' + err.message, 'error'); }
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
         },
         null,
         { confirmText: 'Remove', cancelText: 'Cancel', type: 'danger' }
@@ -462,7 +462,7 @@ async function walletSavePayoutMethod() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
-        toast('Payout method saved', 'success');
+        showToast('Payout method saved', 'success');
     } catch (err) {
         errEl.textContent   = err.message;
         errEl.style.display = 'block';

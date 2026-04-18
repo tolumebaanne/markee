@@ -1697,21 +1697,21 @@ const RemittanceSchema = new mongoose.Schema({
 
 const Remittance = db.model('Remittance', RemittanceSchema);
 
-// GET /admin/payments/sellers-with-payouts — sellers with released-but-unremitted balances
+// GET /admin/payments/sellers-with-payouts — total owed per seller (held + released, minus paid remittances)
 app.get('/admin/payments/sellers-with-payouts', async (req, res) => {
     const isAdmin = req.user?.role === 'admin' || !!req.headers['x-admin-email'];
     if (!isAdmin) return errorResponse(res, 403, 'Admin only');
     try {
-        const releasedAgg = await Escrow.aggregate([
+        // All seller payouts across all escrows — both held and released
+        const owedAgg = await Escrow.aggregate([
             { $unwind: '$sellerPayouts' },
-            { $match: { 'sellerPayouts.released': true } },
             { $group: {
                 _id: '$sellerPayouts.sellerId',
-                grossReleased: { $sum: { $ifNull: ['$sellerPayouts.netAmountCents', '$sellerPayouts.amountCents'] } }
+                totalOwed: { $sum: { $ifNull: ['$sellerPayouts.netAmountCents', '$sellerPayouts.amountCents'] } }
             }}
         ]);
 
-        if (!releasedAgg.length) return res.json({ sellers: [] });
+        if (!owedAgg.length) return res.json({ sellers: [] });
 
         const remitAgg = await Remittance.aggregate([
             { $match: { status: 'paid' } },
@@ -1722,10 +1722,10 @@ app.get('/admin/payments/sellers-with-payouts', async (req, res) => {
             if (r._id) remitMap[r._id.toString()] = r.totalRemitted;
         }
 
-        const sellers = releasedAgg
+        const sellers = owedAgg
             .map(a => ({
                 storeId: a._id?.toString(),
-                availableCents: Math.max(0, a.grossReleased - (remitMap[a._id?.toString()] || 0))
+                availableCents: Math.max(0, a.totalOwed - (remitMap[a._id?.toString()] || 0))
             }))
             .filter(a => a.storeId && a.availableCents > 0)
             .sort((a, b) => b.availableCents - a.availableCents);
