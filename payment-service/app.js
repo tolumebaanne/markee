@@ -548,10 +548,10 @@ bus.on('user.deleted', async (payload) => {
         const uid = payload.userId;
         const SENTINEL = new mongoose.Types.ObjectId('000000000000000000000000');
         const result = await Escrow.updateMany(
-            { buyerId: uid, status: { $in: ['released', 'refunded', 'cod_pending'] } },
+            { buyerId: uid },
             { $set: { buyerId: SENTINEL } }
         );
-        console.log(`[PAYMENT] Anonymized buyerId on ${result.modifiedCount} settled escrow(s) for user ${uid}`);
+        if (result.modifiedCount) console.log(`[PAYMENT] Anonymized buyerId on ${result.modifiedCount} escrow(s) for user ${uid}`);
     } catch (err) { console.error('[PAYMENT] user.deleted anonymization error:', err.message); }
 });
 

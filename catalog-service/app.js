@@ -273,6 +273,8 @@ bus.on('user.deleted', async (payload) => {
         const deleteId = payload.storeId || payload.userId;
         const result = await Product.deleteMany({ sellerId: deleteId });
         console.log(`[CATALOG] Removed ${result.deletedCount} products for seller ${deleteId}`);
+        const usage = await CouponUsage.deleteMany({ userId: payload.userId });
+        if (usage.deletedCount) console.log(`[CATALOG] Removed ${usage.deletedCount} coupon usage record(s) for user ${payload.userId}`);
     } catch (err) { console.error('[CATALOG] user.deleted cleanup error:', err.message); }
 });
 
