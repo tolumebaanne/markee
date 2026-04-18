@@ -2050,6 +2050,72 @@ app.get('/admin/notifications/stats', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
+// ── POST /admin/broadcast ──────────────────────────────────────────────────────
+// Body: { segment: 'all'|'buyers'|'sellers', type: 'email'|'push', subject, body }
+// 'type' in the request body is the notification channel; the proxy UI calls it 'type'.
+// Fetches all matching users from auth-service, fans-out sendNotification for each.
+// Returns { sent: N, segment, subject }.
+async function fetchUsersForBroadcast(segment, adminEmail) {
+    const authBase = process.env.AUTH_SERVICE_URL || 'http://localhost:5001';
+    const roleMap  = { buyers: 'buyer', sellers: 'seller' };
+    const roleParam = roleMap[segment]; // undefined for 'all' — no role filter
+    const qs = new URLSearchParams({ limit: '9999', ...(roleParam ? { role: roleParam } : {}) }).toString();
+    const url = `${authBase}/admin/users?${qs}`;
+    try {
+        const res = await fetch(url, { headers: { 'x-admin-email': adminEmail } });
+        if (!res.ok) {
+            console.error(`[NOTIFY] broadcast: auth-service responded ${res.status}`);
+            return [];
+        }
+        const data = await res.json();
+        return Array.isArray(data.users) ? data.users : [];
+    } catch (err) {
+        console.error('[NOTIFY] broadcast: failed to fetch users:', err.message);
+        return [];
+    }
+}
+
+app.post('/admin/broadcast', async (req, res) => {
+    const adminEmail = req.headers['x-admin-email'];
+    if (!adminEmail) return errorResponse(res, 403, 'Admin only');
+
+    const { segment = 'all', subject, body: msgBody } = req.body;
+    if (!subject || !msgBody) return errorResponse(res, 400, 'subject and body are required');
+
+    const validSegments = ['all', 'buyers', 'sellers'];
+    if (!validSegments.includes(segment)) return errorResponse(res, 400, `segment must be one of: ${validSegments.join(', ')}`);
+
+    try {
+        const users = await fetchUsersForBroadcast(segment, adminEmail);
+        console.log(`[NOTIFY] broadcast: sending to ${users.length} user(s) (segment: ${segment})`);
+
+        let sent = 0;
+        for (const user of users) {
+            const userId    = user._id?.toString();
+            const recipient = user.email || `user-${userId}@markee.local`;
+            try {
+                await sendNotification(
+                    'ADMIN_BROADCAST',
+                    recipient,
+                    subject,
+                    msgBody,
+                    { broadcastSegment: segment, adminEmail },
+                    userId ? { userId, icon: 'fa-broadcast-tower', priority: 'high' } : null
+                );
+                sent++;
+            } catch (dispatchErr) {
+                console.error(`[NOTIFY] broadcast: dispatch failed for user ${userId}:`, dispatchErr.message);
+            }
+        }
+
+        console.log(`[NOTIFY] broadcast: done — ${sent}/${users.length} sent`);
+        res.json({ sent, total: users.length, segment, subject });
+    } catch (err) {
+        console.error('[NOTIFY] broadcast error:', err.message);
+        errorResponse(res, 500, err.message);
+    }
+});
+
 app.get('/health', (req, res) => {
     res.json({ service: 'notification-service', status: 'ok', dbState: db.readyState === 1 ? 'connected' : 'disconnected' });
 });

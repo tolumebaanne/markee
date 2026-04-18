@@ -167,8 +167,10 @@
       // Mini overview charts
       const prodArr = products.products || (Array.isArray(products) ? products : []);
       const top5Prod = prodArr.slice(0, 5);
+      const topProdWrap = document.getElementById('anlt-top-canvas-overview').parentElement;
       if (top5Prod.length) {
         if (window._anltTopOvChart) window._anltTopOvChart.destroy();
+        topProdWrap.innerHTML = '<canvas id="anlt-top-canvas-overview"></canvas>';
         const ctx1 = document.getElementById('anlt-top-canvas-overview').getContext('2d');
         window._anltTopOvChart = new Chart(ctx1, {
           type: 'bar',
@@ -178,12 +180,17 @@
           },
           options: { ..._anltChartDefaults, plugins: { ..._anltChartDefaults.plugins, tooltip: { callbacks: { label: ctx => `${ctx.raw} orders` } } } }
         });
+      } else {
+        if (window._anltTopOvChart) { window._anltTopOvChart.destroy(); window._anltTopOvChart = null; }
+        topProdWrap.innerHTML = '<div class="empty-state"><i class="fas fa-box-open"></i><p>No product data yet — analytics will populate as orders come in.</p></div>';
       }
 
       const revArr = revData.sellers || (Array.isArray(revData) ? revData : []);
       const top5Rev = revArr.slice(0, 5);
+      const revWrap = document.getElementById('anlt-rev-canvas-overview').parentElement;
       if (top5Rev.length) {
         if (window._anltRevOvChart) window._anltRevOvChart.destroy();
+        revWrap.innerHTML = '<canvas id="anlt-rev-canvas-overview"></canvas>';
         const ctx2 = document.getElementById('anlt-rev-canvas-overview').getContext('2d');
         window._anltRevOvChart = new Chart(ctx2, {
           type: 'bar',
@@ -193,6 +200,9 @@
           },
           options: { ..._anltChartDefaults, plugins: { ..._anltChartDefaults.plugins, tooltip: { callbacks: { label: ctx => fmt$(Math.round(ctx.raw * 100)) } } } }
         });
+      } else {
+        if (window._anltRevOvChart) { window._anltRevOvChart.destroy(); window._anltRevOvChart = null; }
+        revWrap.innerHTML = '<div class="empty-state"><i class="fas fa-chart-bar"></i><p>No revenue data yet — analytics will populate as orders come in.</p></div>';
       }
     } catch (err) {
       loading.style.display = 'none';
@@ -213,8 +223,10 @@
       const top10 = products.slice(0, 10);
       loading.style.display = 'none';
 
+      const topChartWrap = document.getElementById('anlt-top-canvas').parentElement;
       if (top10.length) {
         if (window._topChart) window._topChart.destroy();
+        topChartWrap.innerHTML = '<canvas id="anlt-top-canvas"></canvas>';
         const ctx = document.getElementById('anlt-top-canvas').getContext('2d');
         window._topChart = new Chart(ctx, {
           type: 'bar',
@@ -227,6 +239,9 @@
             plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.raw} orders` } } }
           }
         });
+      } else {
+        if (window._topChart) { window._topChart.destroy(); window._topChart = null; }
+        topChartWrap.innerHTML = '<div class="empty-state"><i class="fas fa-box-open"></i><p>No orders yet — top products will appear as orders come in.</p></div>';
       }
 
       if (table) {
@@ -261,8 +276,10 @@
       const top10 = sellers.slice(0, 10);
       loading.style.display = 'none';
 
+      const revChartWrap = document.getElementById('anlt-rev-canvas').parentElement;
       if (top10.length) {
         if (window._revChart) window._revChart.destroy();
+        revChartWrap.innerHTML = '<canvas id="anlt-rev-canvas"></canvas>';
         const ctx = document.getElementById('anlt-rev-canvas').getContext('2d');
         window._revChart = new Chart(ctx, {
           type: 'bar',
@@ -275,6 +292,9 @@
             plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmt$(Math.round(ctx.raw * 100)) } } }
           }
         });
+      } else {
+        if (window._revChart) { window._revChart.destroy(); window._revChart = null; }
+        revChartWrap.innerHTML = '<div class="empty-state"><i class="fas fa-dollar-sign"></i><p>No revenue yet — seller revenue charts will appear as orders come in.</p></div>';
       }
 
       if (table) {

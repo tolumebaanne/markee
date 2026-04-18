@@ -285,8 +285,11 @@
     });
     if (!result.confirmed) return;
     try {
-      await adminApi('POST', '/proxy/notifications/broadcast', { type, subject, body, segment });
-      toast('Broadcast sent successfully.', 'success');
+      const result = await adminApi('POST', '/proxy/notifications/broadcast', { type, subject, body, segment });
+      const sentCount = result && result.sent != null ? result.sent : '?';
+      const totalCount = result && result.total != null ? result.total : '';
+      const countMsg = totalCount ? ` (${sentCount} of ${totalCount} users notified)` : ` (${sentCount} users notified)`;
+      toast(`Broadcast sent successfully.${countMsg}`, 'success');
       document.getElementById('bc-subject').value = '';
       document.getElementById('bc-body').value = '';
       hideErr('notif-broadcast-error');

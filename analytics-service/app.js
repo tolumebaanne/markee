@@ -109,7 +109,30 @@ app.get('/dashboard', async (req, res) => {
             : await Metric.find({ event: 'order.placed', 'data.items.sellerId': storeId });
 
         const totalOrders = orderMetrics.length;
-        res.json({ totalOrders });
+
+        // Compute platform-wide revenue, unique buyers, and unique sellers from order items
+        let totalRevenueCents = 0;
+        const buyerSet  = new Set();
+        const sellerSet = new Set();
+
+        orderMetrics.forEach(m => {
+            const items = m.data?.items || [];
+            items.forEach(item => {
+                const sid = item.sellerId?.toString();
+                if (!isAdmin && sid !== storeId?.toString()) return;
+                totalRevenueCents += (item.price || 0) * (item.qty || 1);
+                if (sid) sellerSet.add(sid);
+            });
+            const buyerId = m.data?.buyerId?.toString();
+            if (buyerId) buyerSet.add(buyerId);
+        });
+
+        res.json({
+            totalOrders,
+            totalRevenueCents,
+            totalSellers: sellerSet.size,
+            totalBuyers:  buyerSet.size
+        });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
