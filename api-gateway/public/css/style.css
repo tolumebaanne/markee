@@ -129,11 +129,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 .btn-red { background: var(--accent-red); }
 .btn-red:hover { background: var(--accent-red-hover); }
 .btn-blue { background: var(--color-blue); color: white; }
-.btn-blue:hover { background: var(--color-blue); color: white; }
+.btn-blue:hover { background: #1e40af; color: white; }
 .btn-green { background: var(--color-green); color: white; font-weight: 600; }
-.btn-green:hover { background: var(--color-green); color: white; }
+.btn-green:hover { background: #15803d; color: white; }
 .btn-outline-green { background: transparent; color: var(--color-green); border: 2px solid var(--color-green); }
-.btn-outline-green:hover { background: #f0fdf4; border-color: var(--color-green); color: var(--color-green); }
+.btn-outline-green:hover { background: var(--toast-success-bg); border-color: var(--color-green); color: var(--color-green); }
 .btn-icon-close { background: none; border: none; cursor: pointer; font-size: 1.25rem; color: var(--text-muted); line-height: 1; padding: 0; }
 .btn-icon-close:hover { color: var(--text-main); }
 .btn-outline { background: transparent; color: var(--text-main); border: 2px solid var(--border-light); }
