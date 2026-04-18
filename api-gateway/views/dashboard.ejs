@@ -24,11 +24,11 @@
             letter-spacing: 0.04em;
         }
         .status-pending    { background:#fefce8; color:#a16207; border:1px solid #fde68a; }
-        .status-paid       { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
+        .status-paid       { background:#eff6ff; color:var(--color-blue); border:1px solid #bfdbfe; }
         .status-processing { background:#f5f3ff; color:#6d28d9; border:1px solid #ddd6fe; }
         .status-shipped    { background:#ecfeff; color:#0e7490; border:1px solid #a5f3fc; }
-        .status-delivered  { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
-        .status-cancelled  { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+        .status-delivered  { background:var(--toast-success-bg); color:var(--toast-success-fg); border:1px solid var(--toast-success-border); }
+        .status-cancelled  { background:var(--toast-error-bg); color:var(--color-error); border:1px solid var(--toast-error-border); }
 
         /* ── Tabs ─────────────────────────────────────────────────────────── */
         .tab-bar {
@@ -90,9 +90,9 @@
             font-size: 0.65rem;
             font-weight: 700;
             padding: 0.1rem 0.4rem;
-            background: #fef2f2;
-            color: #b91c1c;
-            border: 1px solid #fecaca;
+            background: var(--toast-error-bg);
+            color: var(--color-error);
+            border: 1px solid var(--toast-error-border);
             border-radius: 5px;
             margin-left: 0.4rem;
         }
@@ -111,8 +111,8 @@
             transition: all 0.15s;
         }
         .act-btn:hover { background: var(--bg-secondary); color: var(--text-main); }
-        .act-btn.danger:hover { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
-        .act-btn.activate:hover { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+        .act-btn.danger:hover { background: var(--toast-error-bg); color: var(--color-error); border-color: var(--toast-error-border); }
+        .act-btn.activate:hover { background: var(--toast-success-bg); color: var(--toast-success-fg); border-color: var(--toast-success-border); }
 
         /* ── My Purchases two-column + suggestions layout ──────────────────── */
         .purchases-top-row {
@@ -279,7 +279,7 @@
             top: -5px; right: -5px;
             width: 17px; height: 17px;
             border-radius: 50%;
-            background: #b91c1c;
+            background: var(--color-error);
             color: white;
             border: none;
             cursor: pointer;
@@ -370,13 +370,13 @@
         <!-- Store card (seller only) -->
         <div id="store-card" style="display:none; margin:0.75rem 1rem; padding:0.85rem; background:var(--bg-secondary); border-radius:10px; border:1px solid var(--border-light);">
             <div style="display:flex; justify-content:space-between; margin-bottom:0.35rem;">
-                <div id="store-open-badge" style="font-size:0.65rem; font-weight:700; padding:0.15rem 0.5rem; border-radius:10px; display:inline-block; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0;">● OPEN</div>
+                <div id="store-open-badge" style="font-size:0.65rem; font-weight:700; padding:0.15rem 0.5rem; border-radius:10px; display:inline-block; background:var(--toast-success-bg); color:var(--toast-success-fg); border:1px solid var(--toast-success-border);">● OPEN</div>
                 <div id="store-sale-badge" style="display:none; font-size:0.6rem; font-weight:800; color:white; background:var(--accent-red); padding:0.15rem 0.4rem; border-radius:4px; text-transform:uppercase;">Sale Active</div>
             </div>
             
             <div style="font-weight:700; font-size:0.875rem; display:flex; justify-content:space-between; align-items:center;">
                 <span id="store-name-display">—</span>
-                <span id="store-discount-badge" style="display:none; font-size:0.65rem; color:#b91c1c; background:#fef2f2; padding:0.1rem 0.3rem; border-radius:4px; border:1px solid #fecaca;"></span>
+                <span id="store-discount-badge" style="display:none; font-size:0.65rem; color:var(--color-error); background:var(--toast-error-bg); padding:0.1rem 0.3rem; border-radius:4px; border:1px solid var(--toast-error-border);"></span>
             </div>
             
             <div class="text-muted" style="font-size:0.7rem; margin-top:0.15rem;" id="store-hours-display"></div>
@@ -682,18 +682,18 @@
                     <span class="stat-value" id="stat-orders">—</span>
                     <span class="stat-sub" id="stat-orders-sub" style="font-size:0.7rem; color:var(--text-muted); margin-top:0.1rem; display:block;"></span>
                 </div>
-                <div class="stat-card" style="border-left-color:#15803d;">
+                <div class="stat-card" style="border-left-color:var(--color-green);">
                     <span class="stat-label"><i class="fa fa-dollar-sign" style="margin-right:0.3rem;"></i>Revenue (30d)</span>
                     <span class="stat-value" id="stat-revenue">—</span>
                     <span class="stat-sub" id="stat-revenue-sub" style="font-size:0.7rem; color:var(--text-muted); margin-top:0.1rem; display:block;"></span>
                 </div>
-                <div class="stat-card" style="border-left-color:#1d4ed8; cursor:pointer;" onclick="switchTab('listings')">
+                <div class="stat-card" style="border-left-color:var(--color-blue); cursor:pointer;" onclick="switchTab('listings')">
                     <span class="stat-label"><i class="fa fa-fire" style="margin-right:0.3rem; color:#ea580c;"></i>Buyers Watching</span>
                     <span class="stat-value" id="stat-watching">—</span>
                     <span class="stat-sub" style="font-size:0.7rem; color:var(--text-muted); margin-top:0.1rem; display:block;">active carts across listings</span>
                 </div>
-                <div class="stat-card" style="border-left-color:#f59e0b; cursor:pointer;" onclick="switchTab('analytics')">
-                    <span class="stat-label"><i class="fa fa-ban" style="margin-right:0.3rem; color:#b91c1c;"></i>Missed Sales</span>
+                <div class="stat-card" style="border-left-color:var(--color-amber); cursor:pointer;" onclick="switchTab('analytics')">
+                    <span class="stat-label"><i class="fa fa-ban" style="margin-right:0.3rem; color:var(--color-error);"></i>Missed Sales</span>
                     <span class="stat-value" id="stat-missed">—</span>
                     <span class="stat-sub" style="font-size:0.7rem; color:var(--text-muted); margin-top:0.1rem; display:block;">out-of-stock blocks</span>
                 </div>
@@ -706,17 +706,17 @@
                     <span class="stat-value" id="buyer-stat-orders">—</span>
                     <span class="stat-sub" id="buyer-stat-orders-sub" style="font-size:0.7rem; color:var(--text-muted); margin-top:0.1rem; display:block;"></span>
                 </div>
-                <div class="stat-card" style="border-left-color:#15803d;">
+                <div class="stat-card" style="border-left-color:var(--color-green);">
                     <span class="stat-label"><i class="fa fa-dollar-sign" style="margin-right:0.3rem;"></i>Total Spent</span>
                     <span class="stat-value" id="buyer-stat-spent">—</span>
                     <span class="stat-sub" style="font-size:0.7rem; color:var(--text-muted); margin-top:0.1rem; display:block;">all time</span>
                 </div>
-                <div class="stat-card" style="border-left-color:#1d4ed8; cursor:pointer;" onclick="switchTab('watchlist')">
+                <div class="stat-card" style="border-left-color:var(--color-blue); cursor:pointer;" onclick="switchTab('watchlist')">
                     <span class="stat-label"><i class="fa fa-heart" style="margin-right:0.3rem; color:#e11d48;"></i>Watchlist</span>
                     <span class="stat-value" id="stat-watchlist">—</span>
                     <span class="stat-sub" style="font-size:0.7rem; color:var(--text-muted); margin-top:0.1rem; display:block;">saved products</span>
                 </div>
-                <div class="stat-card" style="border-left-color:#f59e0b; cursor:pointer;" onclick="switchTab('purchases')">
+                <div class="stat-card" style="border-left-color:var(--color-amber); cursor:pointer;" onclick="switchTab('purchases')">
                     <span class="stat-label"><i class="fa fa-clock" style="margin-right:0.3rem;"></i>Pending</span>
                     <span class="stat-value" id="buyer-stat-pending">—</span>
                     <span class="stat-sub" style="font-size:0.7rem; color:var(--text-muted); margin-top:0.1rem; display:block;">in progress</span>
@@ -752,7 +752,7 @@
                 <!-- Live Activity Feed -->
                 <div class="card" style="padding:1.5rem;">
                     <div style="font-weight:700; margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;">
-                        <span style="display:inline-block; width:8px; height:8px; background:#22c55e; border-radius:50%; box-shadow:0 0 8px #22c55e;"></span>
+                        <span style="display:inline-block; width:8px; height:8px; background:var(--color-green); border-radius:50%; box-shadow:0 0 8px var(--color-green);"></span>
                         Live Signals
                     </div>
                     <div class="activity-feed" id="mc-activity-feed">
@@ -847,7 +847,7 @@
                 <div class="card" style="margin-bottom:1rem;">
                     <div class="card-header flex-between">
                         <h4 style="margin:0; font-size:0.9rem;"><i class="fa fa-chart-bar" style="margin-right:0.5rem; color:var(--accent-red);"></i>Revenue — Last 14 Days</h4>
-                        <span id="trend-total-label" style="font-size:0.8rem; font-weight:600; color:#15803d;"></span>
+                        <span id="trend-total-label" style="font-size:0.8rem; font-weight:600; color:var(--toast-success-fg);"></span>
                     </div>
                     <div style="padding:1rem 1.25rem;">
                         <div id="revenue-sparkline" style="display:flex; align-items:flex-end; gap:3px; height:64px; width:100%;">
@@ -866,7 +866,7 @@
                     <!-- Top Products -->
                     <div class="card">
                         <div class="card-header">
-                            <h4 style="margin:0; font-size:0.9rem;"><i class="fa fa-trophy" style="margin-right:0.5rem; color:#f59e0b;"></i>Top Products</h4>
+                            <h4 style="margin:0; font-size:0.9rem;"><i class="fa fa-trophy" style="margin-right:0.5rem; color:var(--color-amber);"></i>Top Products</h4>
                         </div>
                         <div id="top-products-list" style="padding:0;">
                             <p class="text-muted small" style="padding:1rem;">Loading...</p>
@@ -876,7 +876,7 @@
                     <!-- Missed Sales -->
                     <div class="card">
                         <div class="card-header flex-between">
-                            <h4 style="margin:0; font-size:0.9rem;"><i class="fa fa-exclamation-triangle" style="margin-right:0.5rem; color:#b91c1c;"></i>Missed Sales</h4>
+                            <h4 style="margin:0; font-size:0.9rem;"><i class="fa fa-exclamation-triangle" style="margin-right:0.5rem; color:var(--color-error);"></i>Missed Sales</h4>
                             <span style="font-size:0.7rem; color:var(--text-muted);">out-of-stock blocks</span>
                         </div>
                         <div id="missed-sales-list" style="padding:0; max-height:220px; overflow-y:auto;">
@@ -896,11 +896,11 @@
                             <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">Products in Carts Now</div>
                         </div>
                         <div style="padding:1rem 1.25rem; border-right:1px solid var(--border-light); text-align:center;">
-                            <div style="font-size:1.4rem; font-weight:800; color:#15803d;" id="health-avg-quality">—</div>
+                            <div style="font-size:1.4rem; font-weight:800; color:var(--toast-success-fg);" id="health-avg-quality">—</div>
                             <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">Avg Quality Score</div>
                         </div>
                         <div style="padding:1rem 1.25rem; text-align:center;">
-                            <div style="font-size:1.4rem; font-weight:800; color:#1d4ed8;" id="health-top-velocity">—</div>
+                            <div style="font-size:1.4rem; font-weight:800; color:var(--color-blue);" id="health-top-velocity">—</div>
                             <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">Highest Velocity Score</div>
                         </div>
                     </div>
@@ -910,11 +910,11 @@
                 <!-- Earnings Overview (S19) -->
                 <div class="card" style="margin-top:1rem;">
                     <div class="card-header">
-                        <h4 style="margin:0; font-size:0.9rem;"><i class="fa fa-dollar-sign" style="margin-right:0.5rem; color:#15803d;"></i>Earnings Overview</h4>
+                        <h4 style="margin:0; font-size:0.9rem;"><i class="fa fa-dollar-sign" style="margin-right:0.5rem; color:var(--toast-success-fg);"></i>Earnings Overview</h4>
                     </div>
                     <div class="grid-3" style="gap:0; border-top:1px solid var(--border-light);">
                         <div style="padding:1rem 1.25rem; border-right:1px solid var(--border-light); text-align:center;">
-                            <div style="font-size:1.4rem; font-weight:800; color:#15803d;" id="earn-total-sales">—</div>
+                            <div style="font-size:1.4rem; font-weight:800; color:var(--toast-success-fg);" id="earn-total-sales">—</div>
                             <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">Total Sales</div>
                         </div>
                         <div style="padding:1rem 1.25rem; border-right:1px solid var(--border-light); text-align:center;">
@@ -922,7 +922,7 @@
                             <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">Total Orders</div>
                         </div>
                         <div style="padding:1rem 1.25rem; text-align:center;">
-                            <div style="font-size:1.4rem; font-weight:800; color:#1d4ed8;" id="earn-pending-payouts">—</div>
+                            <div style="font-size:1.4rem; font-weight:800; color:var(--color-blue);" id="earn-pending-payouts">—</div>
                             <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">Pending Payouts</div>
                         </div>
                     </div>
@@ -941,11 +941,11 @@
                 <!-- Review Summary (B.3) -->
                 <div class="card" style="margin-top:1rem;" id="review-summary-card" style="display:none;">
                     <div class="card-header">
-                        <h4 style="margin:0; font-size:0.9rem;"><i class="fa fa-star" style="margin-right:0.5rem; color:#f59e0b;"></i>Review Summary</h4>
+                        <h4 style="margin:0; font-size:0.9rem;"><i class="fa fa-star" style="margin-right:0.5rem; color:var(--color-amber);"></i>Review Summary</h4>
                     </div>
                     <div class="grid-4" style="gap:0; border-top:1px solid var(--border-light);">
                         <div style="padding:1rem 1.25rem; border-right:1px solid var(--border-light); text-align:center;">
-                            <div style="font-size:1.4rem; font-weight:800; color:#f59e0b;" id="rs-avg-rating">—</div>
+                            <div style="font-size:1.4rem; font-weight:800; color:var(--color-amber);" id="rs-avg-rating">—</div>
                             <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">Avg Rating</div>
                         </div>
                         <div style="padding:1rem 1.25rem; border-right:1px solid var(--border-light); text-align:center;">
@@ -953,11 +953,11 @@
                             <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">Total Reviews</div>
                         </div>
                         <div style="padding:1rem 1.25rem; border-right:1px solid var(--border-light); text-align:center;">
-                            <div style="font-size:1.4rem; font-weight:800; color:#1d4ed8;" id="rs-reply-rate">—</div>
+                            <div style="font-size:1.4rem; font-weight:800; color:var(--color-blue);" id="rs-reply-rate">—</div>
                             <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">Reply Rate</div>
                         </div>
                         <div style="padding:1rem 1.25rem; text-align:center;">
-                            <div style="font-size:1.4rem; font-weight:800; color:#b91c1c;" id="rs-flag-rate">—</div>
+                            <div style="font-size:1.4rem; font-weight:800; color:var(--color-error);" id="rs-flag-rate">—</div>
                             <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">Flag Rate</div>
                         </div>
                     </div>
@@ -975,12 +975,12 @@
                     </div>
                     <div id="insights-list" style="padding:1rem;">
                         <p class="text-muted small mb-3">Analyze drop-off rates across different price points.</p>
-                        <select id="funnel-product-select" onchange="loadFunnel(this.value)" style="margin-bottom:1rem; padding:0.5rem; width:100%; border-radius:6px; border:1px solid #d1d5db;">
+                        <select id="funnel-product-select" onchange="loadFunnel(this.value)" style="margin-bottom:1rem; padding:0.5rem; width:100%; border-radius:6px; border:1px solid var(--border-light);">
                             <option value="">-- Choose a Product to Analyze --</option>
                         </select>
-                        <table id="funnel-table" style="width:100%; border-collapse: collapse; display:none; border:1px solid #d1d5db; border-radius:6px; overflow:hidden;">
+                        <table id="funnel-table" style="width:100%; border-collapse: collapse; display:none; border:1px solid var(--border-light); border-radius:6px; overflow:hidden;">
                             <thead>
-                                <tr style="background:var(--bg-secondary); border-bottom:1px solid #d1d5db;">
+                                <tr style="background:var(--bg-secondary); border-bottom:1px solid var(--border-light);">
                                     <th style="padding:0.6rem; text-align:left; font-size:0.85rem; font-weight:600;">Price Point</th>
                                     <th style="padding:0.6rem; text-align:right; font-size:0.85rem; font-weight:600;">Cart Adds</th>
                                     <th style="padding:0.6rem; text-align:right; font-size:0.85rem; font-weight:600;">Cart Drops</th>
@@ -1122,7 +1122,7 @@
                         </div>
                         <div id="needs-action-list" style="padding:0.5rem 0;"></div>
                         <div class="needs-action-empty" id="needs-action-empty" style="display:none;">
-                            <i class="fa fa-check-circle" style="color:#15803d; font-size:1.4rem; margin-bottom:0.4rem;"></i>
+                            <i class="fa fa-check-circle" style="color:var(--toast-success-fg); font-size:1.4rem; margin-bottom:0.4rem;"></i>
                             <div>You're all caught up</div>
                         </div>
                     </div>
@@ -1153,11 +1153,11 @@
                         <div class="text-muted small">Total Shipments</div>
                     </div>
                     <div class="card p-3" style="text-align:center;">
-                        <div style="font-size:1.5rem; font-weight:800; color:#16a34a;" id="fstat-delivered">—</div>
+                        <div style="font-size:1.5rem; font-weight:800; color:var(--color-green);" id="fstat-delivered">—</div>
                         <div class="text-muted small">Delivered</div>
                     </div>
                     <div class="card p-3" style="text-align:center;">
-                        <div style="font-size:1.5rem; font-weight:800; color:#f59e0b;" id="fstat-intransit">—</div>
+                        <div style="font-size:1.5rem; font-weight:800; color:var(--color-amber);" id="fstat-intransit">—</div>
                         <div class="text-muted small">In Transit</div>
                     </div>
                     <div class="card p-3" style="text-align:center;">
@@ -1334,7 +1334,6 @@
         document.getElementById('user-role-display').textContent =
             isSeller ? 'Buyer & Seller · Manage your store and purchases below.'
                      : 'Browse, buy, and manage your orders below.';
-        // Populate nav avatar dropdown header
         const ddn = document.getElementById('nav-display-name');
         if (ddn) ddn.textContent = name;
         const ddr = document.getElementById('nav-display-role');
@@ -1386,13 +1385,10 @@
 
     // Show/hide seller tools sidebar and tabs based on storeActive flag
     if (isSeller || isAdmin) {
-        // Orders tab is always visible for sellers regardless of store-tools toggle
         document.getElementById('tab-orders').style.display = 'inline-flex';
         applyStoreToolsVisibility(true);
     } else {
         document.getElementById('start-selling-card').style.display = 'block';
-        // Check if this user has existing products — if so they're a returning seller
-        // whose store needs to be reactivated, not a brand-new seller.
         if (userData.storeId) {
             fetch('/api/catalog/my-products', { headers: { Authorization: `Bearer ${token}` } })
                 .then(r => r.json())
@@ -1501,12 +1497,10 @@
             ]);
             renderOverviewOrders();
         } else {
-            // Buyer overview — watchlist preview + recent orders summary
             renderBuyerOverview();
         }
     }
 
-    // Dual-axis engagement chart: revenue bars + cart-add bars per day (14 days)
     async function renderOverviewChart() {
         try {
             const [revRes, engRes] = await Promise.all([
@@ -1587,7 +1581,6 @@
             </div>`;
     }
 
-    // Live activity feed: real orders (last 7 days) + missed-sales events
     async function renderOverviewFeed() {
         const feed = document.getElementById('mc-activity-feed');
         if (!feed) return;
@@ -1595,7 +1588,6 @@
             const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
             const entries = [];
 
-            // Pull from already-loaded _sellerOrders
             (_sellerOrders || []).forEach(o => {
                 if (new Date(o.createdAt).getTime() < cutoff) return;
                 const amt   = (o.items || [])
@@ -1609,7 +1601,6 @@
                 entries.push({ color, label, ts: new Date(o.createdAt) });
             });
 
-            // Fetch missed sales for additional signals
             const msRes = await fetch('/api/analytics/missed-sales', { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
             if (msRes?.ok) {
                 const missed = await msRes.json();
@@ -1622,7 +1613,6 @@
                 });
             }
 
-            // Sort by most recent and cap at 8
             entries.sort((a, b) => b.ts - a.ts);
             const recent = entries.slice(0, 8);
 
@@ -1642,7 +1632,6 @@
         }
     }
 
-    // Orders Needing Action widget: authorizing/pending/paid orders, max 3, with inline Accept/Reject
     function renderOverviewOrders() {
         const widget = document.getElementById('mc-orders-list');
         if (!widget) return;
@@ -1671,9 +1660,7 @@
         }).join('');
     }
 
-    // Buyer overview: watchlist preview + recent order status
     function renderBuyerOverview() {
-        // Watchlist preview (first 4 from localStorage)
         const wl = getWatchlist().slice(0, 4);
         const wlEl = document.getElementById('mc-activity-feed');
         if (wlEl) {
@@ -1753,7 +1740,6 @@
                 badge.style.borderColor = '#fecaca';
             }
 
-            // Hours display — nextOpen is a flat string like "Mon 09:00", not an object
             document.getElementById('store-hours-display').textContent = store.closesAt
                 ? `Closes at ${store.closesAt}`
                 : (store.nextOpen ? `Opens ${store.nextOpen}` : 'Schedule unavailable');
@@ -1763,11 +1749,9 @@
                 ? new Date(store.lastActive).toLocaleDateString()
                 : 'Recently';
 
-            // Sale badge — backend returns null when inactive, object when live
             const saleBadge = document.getElementById('store-sale-badge');
             saleBadge.style.display = store.salesBanner ? 'inline-block' : 'none';
 
-            // Discount badge — schema: discount.storeWide.{enabled, percent}
             const discBadge = document.getElementById('store-discount-badge');
             if (store.discount?.storeWide?.enabled && store.discount.storeWide.percent > 0) {
                 discBadge.textContent = `-${store.discount.storeWide.percent}% ALL`;
@@ -1941,7 +1925,6 @@
     }
 
     function clearWatchlist() {
-        // Sync every removal to DB before wiping localStorage
         const wl = getWatchlist();
         wl.forEach(item => {
             fetch(`/api/users/me/watchlist/${item.productId}`, {
@@ -1983,7 +1966,6 @@
         } catch {}
     }
 
-    // Populate buyer-facing stat strip from order data
     function updateBuyerStats(orders) {
         const total   = orders.length;
         const spent   = orders.reduce((s, o) => s + (o.totalAmount || o.totalCents || 0), 0);
@@ -2223,7 +2205,6 @@
             const statWatching = document.getElementById('stat-watching');
             if (statWatching) statWatching.textContent = totalCartCount;
 
-            // Store in map so openEditModal can look up by ID (avoids serialization issues)
             const funnelSelect = document.getElementById('funnel-product-select');
             funnelSelect.innerHTML = '<option value="">-- Choose a Product to Analyze --</option>';
             products.forEach(p => {
@@ -2231,7 +2212,6 @@
                 funnelSelect.innerHTML += `<option value="${p._id}">${p.title}</option>`;
             });
 
-            // Expose health metrics for analytics panel
             window._storeHealthMetrics = { totalCartCount, avgQuality, topVelocity, products };
 
             updateListingTabCounts();
@@ -2243,7 +2223,6 @@
 
             list.innerHTML = products.map(renderProductRow).join('');
 
-            // Auto-open edit modal if redirected from product page with ?edit=<id>
             const editParam = new URLSearchParams(window.location.search).get('edit');
             if (editParam && _productsMap[editParam]) {
                 history.replaceState(null, '', '/dashboard');

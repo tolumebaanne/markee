@@ -4,8 +4,7 @@ const bcrypt = require('bcrypt');
 const UserSchema = new mongoose.Schema({
   email:        { type: String, unique: true, required: true },
   passwordHash: { type: String, required: true },
-  // 'user' is the unified role — buyer and seller are capabilities, not roles.
-  // 'buyer' and 'seller' kept in enum for backwards compat with existing documents.
+  // 'buyer'/'seller' kept in enum for backwards compat; 'user' is the unified role (buyer/seller are capabilities)
   role:         { type: String, enum: ['user', 'buyer', 'seller', 'admin'], default: 'user', required: true },
   storeId:      { type: mongoose.Schema.Types.ObjectId, required: true, index: true }, // every user gets one at registration
   displayName:  { type: String, default: '' },
@@ -15,14 +14,12 @@ const UserSchema = new mongoose.Schema({
   // Admin moderation state — separate from soft-delete lifecycle
   moderationStatus: { type: String, enum: ['active', 'suspended', 'banned'], default: 'active' },
 
-  // Soft-delete lifecycle
-  // 'pending_deletion' — user requested deletion, 24h cooldown window active, access revoked immediately
-  // 'deleted'          — cooldown elapsed, email mangled, account fully soft-deleted, only Super can see it
+  // Soft-delete lifecycle: pending_deletion = 24h cooldown, access revoked; deleted = email mangled, Super-only
   status:               { type: String, enum: ['active', 'pending_deletion', 'deleted'], default: 'active' },
   pendingDeletionSince: { type: Date },   // set when status → pending_deletion; used by scheduled job
-  deletedAt:            { type: Date },   // set when status → deleted
-  originalEmail:        { type: String }, // stores the real email after mangling; never emitted on event bus
-  // Password reset — raw token is emailed; only the SHA-256 hash is stored here (m0t.AUTH.3.4)
+  deletedAt:            { type: Date },
+  originalEmail:        { type: String }, // real email after mangling; never emitted on event bus
+  // raw token is emailed; only the SHA-256 hash is stored
   resetToken:           { type: String, default: null },
   resetTokenExpiry:     { type: Date,   default: null },
 
@@ -30,10 +27,7 @@ const UserSchema = new mongoose.Schema({
   profileSetupDone: { type: Boolean, default: false },
 });
 
-// Normalize email before every save — lowercase + trim enforced at model layer
-// regardless of which call path creates or updates the document.
-// Mongoose 9 passes an options object (not a function) as first arg to callback-style
-// pre hooks; async style is the correct form for Mongoose 9.
+// async pre-save — Mongoose 9 resolves via the returned Promise, not a callback
 UserSchema.pre('save', async function() {
   if (this.email) this.email = this.email.toLowerCase().trim();
 });

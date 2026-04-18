@@ -159,7 +159,7 @@
                 </div>
                 <a href="/orders" class="quick-link">
                     <div class="quick-link-left">
-                        <div class="quick-link-icon" style="background:#eff6ff; color:#1d4ed8;"><i class="fa fa-box"></i></div>
+                        <div class="quick-link-icon" style="background:#eff6ff; color:var(--color-blue);"><i class="fa fa-box"></i></div>
                         My Orders
                     </div>
                     <i class="fa fa-chevron-right text-muted small"></i>
@@ -180,14 +180,14 @@
                 </a>
                 <a href="/messages" class="quick-link">
                     <div class="quick-link-left">
-                        <div class="quick-link-icon" style="background:#f0fdf4; color:#15803d;"><i class="fa fa-comments"></i></div>
+                        <div class="quick-link-icon" style="background:var(--toast-success-bg); color:var(--toast-success-fg);"><i class="fa fa-comments"></i></div>
                         Messages
                     </div>
                     <i class="fa fa-chevron-right text-muted small"></i>
                 </a>
                 <a href="/admin" class="quick-link" id="link-admin" style="display:none;">
                     <div class="quick-link-left">
-                        <div class="quick-link-icon" style="background:#fef2f2; color:#b91c1c;"><i class="fa fa-shield-alt"></i></div>
+                        <div class="quick-link-icon" style="background:var(--toast-error-bg); color:var(--color-error);"><i class="fa fa-shield-alt"></i></div>
                         <strong style="color:var(--accent-red);">Admin Panel</strong>
                     </div>
                     <i class="fa fa-chevron-right text-muted small"></i>
@@ -387,7 +387,7 @@
             <!-- ── Phase 5: Unified Reputation ──────────────────────────────── -->
             <div class="profile-card" id="reputation-card" style="display:none; margin-bottom:1.5rem;">
                 <div class="profile-card-header">
-                    <i class="fa fa-shield-alt" style="color:#1d4ed8;"></i>
+                    <i class="fa fa-shield-alt" style="color:var(--color-blue);"></i>
                     <h4>Your Reputation</h4>
                 </div>
                 <div class="profile-card-body" id="reputation-body"></div>
@@ -410,8 +410,8 @@
             <!-- Danger zone -->
             <div class="profile-card">
                 <div class="profile-card-header">
-                    <i class="fa fa-exclamation-triangle" style="color:#b91c1c;"></i>
-                    <h4 style="color:#b91c1c;">Danger Zone</h4>
+                    <i class="fa fa-exclamation-triangle" style="color:var(--color-error);"></i>
+                    <h4 style="color:var(--color-error);">Danger Zone</h4>
                 </div>
                 <div class="profile-card-body">
                     <p class="text-muted" style="font-size:0.875rem; margin-bottom:1rem;">
@@ -422,7 +422,7 @@
                         <input type="email" id="delete-confirm-email" placeholder="<%= '' %>your@email.com" oninput="clearInlineError('delete-account-error-container')">
                     </div>
                     <div id="delete-account-error-container"></div>
-                    <button class="btn btn-outline" style="width:auto; border-color:#fecaca; color:#b91c1c; margin-top:0.5rem;" id="delete-account-btn" onclick="deleteAccount()">
+                    <button class="btn btn-outline" style="width:auto; border-color:var(--toast-error-border); color:var(--color-error); margin-top:0.5rem;" id="delete-account-btn" onclick="deleteAccount()">
                         <i class="fa fa-trash-alt" style="margin-right:0.5rem;"></i> Delete My Account
                     </button>
                 </div>
@@ -474,9 +474,8 @@
     const token = localStorage.getItem('access_token');
     if (!token) { window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search)); }
 
-    // Phase 5 — shared state for async coordination
-    let _userProfile   = null;  // set by loadReviewerScore(), consumed by reputation + achievements
-    let _myReviews     = null;  // set by loadMyReviews(),     consumed by reputation + achievements
+    let _userProfile   = null;
+    let _myReviews     = null;
 
     function _tryLoadReputation() {
         if (_userProfile === null || _myReviews === null) return;
@@ -889,19 +888,16 @@
         const ctx    = canvas.getContext('2d');
         const edImg  = document.getElementById('editor-img');
 
-        // Clip circle
         ctx.save();
         ctx.beginPath();
         ctx.arc(S / 2, S / 2, S / 2, 0, Math.PI * 2);
         ctx.clip();
 
-        // Draw at current pan + zoom
         const iw = edImg.naturalWidth  * _zoom;
         const ih = edImg.naturalHeight * _zoom;
         ctx.drawImage(edImg, S / 2 - iw / 2 + _panX, S / 2 - ih / 2 + _panY, iw, ih);
         ctx.restore();
 
-        // Binary-search JPEG quality to stay under ~50 KB
         let lo = 0.1, hi = 1, dataUrl = canvas.toDataURL('image/jpeg', 0.85);
         for (let i = 0; i < 12; i++) {
             const mid  = (lo + hi) / 2;
@@ -1039,7 +1035,6 @@
             const res = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
             if (!res.ok) return;
             const profile = await res.json();
-            // Phase 5 — share profile for reputation + achievements coordination
             _userProfile = profile;
             _tryLoadReputation();
             _tryLoadAchievements();
@@ -1053,7 +1048,6 @@
             });
             if (!res.ok) return;
             const reviews = await res.json();
-            // Phase 5 — share reviews for reputation + achievements coordination
             _myReviews = reviews;
             _tryLoadReputation();
             _tryLoadAchievements();
@@ -1133,9 +1127,7 @@
 
             card.style.display = 'block';
 
-            // Segment 2 depends on _activityStats — trigger it now
             loadPurchaseInsights();
-            // Segment 5 may now be ready
             _tryLoadAchievements();
         } catch(e) { console.error('loadActivityStats:', e); }
     }
@@ -1247,7 +1239,6 @@
             const card = document.getElementById('watchlist-card');
             const grid = document.getElementById('watchlist-snap-grid');
 
-            // Take up to 6 most recently added
             const recent = list.slice().sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt)).slice(0, 6);
 
             // Fetch product details for each

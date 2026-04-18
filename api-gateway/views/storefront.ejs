@@ -68,19 +68,19 @@
             border-radius: 20px;
             letter-spacing: 0.04em;
         }
-        .sf-open-pill.open  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
-        .sf-open-pill.closed{ background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+        .sf-open-pill.open  { background: var(--toast-success-bg); color: var(--toast-success-fg); border: 1px solid var(--toast-success-border); }
+        .sf-open-pill.closed{ background: var(--toast-error-bg); color: var(--color-error); border: 1px solid var(--toast-error-border); }
 
         /* ── Canonical store badge (open/closed/vacation) ────────────────────── */
         .store-badge { display:inline-flex; align-items:center; gap:0.4rem; padding:0.25rem 0.75rem; border-radius:20px; font-size:0.8rem; font-weight:600; }
         .store-badge.open     { background:#d1fae5; color:#065f46; }
-        .store-badge.closed   { background:#fee2e2; color:#991b1b; }
+        .store-badge.closed   { background:#fee2e2; color:var(--toast-error-fg); }
         .store-badge.vacation { background:#fef3c7; color:#92400e; }
         .sf-online-dot {
             width: 8px; height: 8px;
             border-radius: 50%;
-            background: #22c55e;
-            box-shadow: 0 0 6px #22c55e;
+            background: var(--color-green);
+            box-shadow: 0 0 6px var(--color-green);
             display: inline-block;
         }
         .sf-stat-row {
@@ -221,7 +221,7 @@
                 <div class="sf-stat"><strong id="sf-total-sales">—</strong> total sales</div>
                 <div class="sf-stat"><strong id="sf-total-orders">—</strong> orders</div>
                 <div class="sf-stat" id="sf-avg-rating-wrap" style="display:none;">
-                    <strong><i class="fa fa-star" style="color:#f59e0b;"></i> <span id="sf-avg-rating">—</span></strong>
+                    <strong><i class="fa fa-star" style="color:var(--color-amber);"></i> <span id="sf-avg-rating">—</span></strong>
                 </div>
                 <div class="sf-stat" id="sf-hours-meta" style="color:var(--text-muted); font-size:0.75rem;"></div>
             </div>
@@ -273,7 +273,7 @@
 
             <!-- Seller ratings card (populated from review-service) -->
             <div id="sf-ratings-card" class="sf-info-card" style="display:none;">
-                <h5><i class="fa fa-star" style="margin-right:0.4rem; color:#f59e0b;"></i>Product Ratings</h5>
+                <h5><i class="fa fa-star" style="margin-right:0.4rem; color:var(--color-amber);"></i>Product Ratings</h5>
                 <div id="sf-ratings-body" style="font-size:0.83rem; display:grid; gap:0.4rem;"></div>
             </div>
 
@@ -337,7 +337,7 @@
             <span id="sr-count-label" style="font-size:0.8rem; color:var(--text-muted);"></span>
         </div>
         <div id="sr-cta-container" style="margin-bottom:1.5rem; display:none;">
-            <button class="btn btn-sm" style="border:1px solid #bbf7d0; color:#15803d; background:#f0fdf4;" onclick="openSellerReviewModal()">
+            <button class="btn btn-sm" style="border:1px solid var(--toast-success-border); color:var(--toast-success-fg); background:var(--toast-success-bg);" onclick="openSellerReviewModal()">
                 <i class="fa fa-star"></i> Leave a Seller Review
             </button>
         </div>
@@ -353,7 +353,7 @@
             <button class="btn btn-outline" style="width:auto; font-size:0.82rem;" onclick="loadMoreSellerReviews()">Load More Reviews</button>
         </div>
         <div id="sr-empty" style="display:none; text-align:center; padding:2rem; color:var(--text-muted);">
-            <i class="fa fa-star" style="font-size:1.75rem; margin-bottom:0.75rem; display:block; color:#d1d5db;"></i>
+            <i class="fa fa-star" style="font-size:1.75rem; margin-bottom:0.75rem; display:block; color:var(--border-light);"></i>
             <div style="font-weight:600; margin-bottom:0.25rem;">No seller reviews yet</div>
             <div class="small">Be the first to review this seller after completing an order.</div>
         </div>
@@ -410,7 +410,6 @@
         } catch {}
     }
 
-    // Show "Manage Store" button if this is the seller's own storefront
     if (currentUser && currentUser.storeId === STORE_ID) {
         document.getElementById('sf-cta-btn').style.display = 'inline-flex';
         document.getElementById('sf-msg-btn').style.display = 'none';
@@ -445,18 +444,15 @@
             const store = await res.json();
             _storeData = store;
 
-            // Avatar initials
             const initial = (store.name || '?').charAt(0).toUpperCase();
             document.getElementById('sf-avatar').textContent = initial;
             document.getElementById('sf-store-name').textContent = store.name || 'Unknown Store';
             document.title = `${store.name || 'Store'} — Markee`;
 
-            // Description
             if (store.description) {
                 document.getElementById('sf-store-desc').textContent = store.description;
             }
 
-            // Open/closed pill
             const pill = document.getElementById('store-open-badge');
             pill.style.display = 'inline-block';
             if (store.isOpen) {
@@ -471,11 +467,9 @@
                 if (store.nextOpen) hoursEl.textContent = `Opens ${store.nextOpen}`;
             }
 
-            // Initial badge update and set tracking state
             _currentIsOpen = store.isOpen;
             updateOpenBadge(store.isOpen, store.nextOpen, store.closesAt, store.vacationMode);
 
-            // Online indicator — green dot if lastActive within 24h
             if (store.lastActive) {
                 const hoursSince = (Date.now() - new Date(store.lastActive)) / 3600000;
                 if (hoursSince < 24) {
@@ -483,18 +477,15 @@
                 }
             }
 
-            // Stats
             document.getElementById('sf-total-sales').textContent  = `$${((store.totalSales || 0) / 100).toLocaleString()}`;
             document.getElementById('sf-total-orders').textContent = store.totalOrders || 0;
 
-            // Main banner
             if (store.banner?.imageUrl) {
                 document.getElementById('sf-main-banner').src = store.banner.imageUrl;
                 document.getElementById('sf-main-banner').alt = store.banner.altText || store.name;
                 document.getElementById('banner-wrap').style.display = 'block';
             }
 
-            // Sales banner
             if (store.salesBanner) {
                 const sb = store.salesBanner;
                 document.getElementById('sf-sale-banner').style.display = 'block';
@@ -517,7 +508,6 @@
                 }
             }
 
-            // Store info sidebar
             if (store.responseTime) {
                 const el = document.getElementById('sf-response-time');
                 el.style.display = 'flex';
@@ -534,7 +524,6 @@
                 el.querySelector('span').textContent = `Member since ${new Date(store.createdAt).toLocaleDateString('en-CA', { year:'numeric', month:'short' })}`;
             }
 
-            // Today's hours
             const days   = ['sun','mon','tue','wed','thu','fri','sat'];
             const dayKey = days[new Date().getDay()];
             const todaySch = store.schedule?.[dayKey];
@@ -546,7 +535,6 @@
                     : 'Closed today';
             }
 
-            // Discount card
             if (store.discount?.storeWide?.enabled && store.discount.storeWide.percent > 0) {
                 document.getElementById('sf-discount-card').style.display = 'block';
                 let txt = `${store.discount.storeWide.percent}% off all products`;
@@ -556,7 +544,6 @@
                 document.getElementById('sf-discount-body').textContent = txt;
             }
 
-            // Policies accordion
             const hasReturn   = !!store.returnPolicy;
             const hasShipping = !!store.shippingPolicy;
             if (hasReturn || hasShipping) {
@@ -567,7 +554,6 @@
                 if (!hasShipping)document.getElementById('sf-shipping-wrap').style.display = 'none';
             }
 
-        // Seller avg rating (from review-service stats)
         loadSellerRatingSidebar(STORE_ID);
 
         } catch (err) {
@@ -592,7 +578,6 @@
                 ${replyPct != null ? `<div style="color:var(--text-muted);">Responds to <strong style="color:var(--text-main);">${replyPct}%</strong> of reviews</div>` : ''}`;
             document.getElementById('sf-ratings-card').style.display = 'block';
 
-            // Segment 3: Store Rating UI
             if (stats.storeRating) {
                 const sr = stats.storeRating;
                 const srBody = document.getElementById('sf-store-rating-body');
@@ -626,7 +611,6 @@
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             _allProducts = await res.json();
 
-            // Populate category filter
             const cats = [...new Set(_allProducts.map(p => p.category).filter(Boolean))].sort();
             const sel = document.getElementById('sf-cat-filter');
             cats.forEach(c => {
@@ -774,7 +758,6 @@
                 document.getElementById('sr-count-label').textContent = `${total} review${total!==1?'s':''}`;
             }
 
-            // Check eligibility if logged in
             if (token) {
                 try {
                     const cRes = await fetch(`/api/reviews/check/seller/${STORE_ID}`, { headers: { Authorization: `Bearer ${token}` } });
@@ -904,7 +887,6 @@
         } catch {}
     }
 
-    // Poll every 5 minutes
     setInterval(checkStoreOpen, 5 * 60 * 1000);
 
     // ── Init ──────────────────────────────────────────────────────────────────

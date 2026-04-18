@@ -152,10 +152,10 @@
                     <div id="action-accept" style="display:none;">
                         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
                             <div>
-                                <div style="font-weight:600; font-size:0.875rem;"><i class="fa fa-check-circle" style="color:#15803d; margin-right:0.4rem;"></i>Accept & Confirm</div>
+                                <div style="font-weight:600; font-size:0.875rem;"><i class="fa fa-check-circle" style="color:var(--toast-success-fg); margin-right:0.4rem;"></i>Accept & Confirm</div>
                                 <div class="text-muted small">Confirm you have the item and are ready to fulfil this order.</div>
                             </div>
-                            <button class="btn" style="background:#15803d; width:auto; padding:0.5rem 1.1rem; font-size:0.82rem;" onclick="acceptOrder(event)">
+                            <button class="btn" style="background:var(--toast-success-fg); width:auto; padding:0.5rem 1.1rem; font-size:0.82rem;" onclick="acceptOrder(event)">
                                 <i class="fa fa-check" style="margin-right:0.4rem;"></i> Accept Order
                             </button>
                         </div>
@@ -165,10 +165,10 @@
                     <div id="action-reject" style="display:none; border-top:1px solid var(--border-light); padding-top:0.85rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
                             <div>
-                                <div style="font-weight:600; font-size:0.875rem;"><i class="fa fa-times-circle" style="color:#b91c1c; margin-right:0.4rem;"></i>Reject Order</div>
+                                <div style="font-weight:600; font-size:0.875rem;"><i class="fa fa-times-circle" style="color:var(--color-error); margin-right:0.4rem;"></i>Reject Order</div>
                                 <div class="text-muted small">Cannot fulfil this order. The payment will not be captured and the buyer will be notified.</div>
                             </div>
-                            <button class="btn" style="background:#b91c1c; width:auto; padding:0.5rem 1.1rem; font-size:0.82rem;" onclick="rejectOrder(event)">
+                            <button class="btn" style="background:var(--color-error); width:auto; padding:0.5rem 1.1rem; font-size:0.82rem;" onclick="rejectOrder(event)">
                                 <i class="fa fa-times" style="margin-right:0.4rem;"></i> Reject Order
                             </button>
                         </div>
@@ -189,14 +189,14 @@
 
                     <!-- Cancel section (buyer or seller) -->
                     <div id="action-cancel" style="display:none; border-top:1px solid var(--border-light); padding-top:0.85rem;">
-                        <div style="font-weight:600; font-size:0.875rem; margin-bottom:0.4rem;"><i class="fa fa-times-circle" style="color:#b91c1c; margin-right:0.4rem;"></i>Cancel Order</div>
+                        <div style="font-weight:600; font-size:0.875rem; margin-bottom:0.4rem;"><i class="fa fa-times-circle" style="color:var(--color-error); margin-right:0.4rem;"></i>Cancel Order</div>
                         <div class="text-muted small" style="margin-bottom:0.65rem;" id="cancel-description"></div>
                         <div style="display:flex; gap:0.65rem; align-items:flex-end; flex-wrap:wrap;">
                             <div style="flex:1; min-width:180px;">
                                 <input type="text" id="cancel-reason-input" placeholder="Reason (optional)"
                                        style="font-size:0.82rem; padding:0.45rem 0.75rem; border-radius:6px;">
                             </div>
-                            <button class="btn" style="background:#b91c1c; width:auto; padding:0.5rem 1.1rem; font-size:0.82rem; flex-shrink:0;" onclick="cancelOrder()">
+                            <button class="btn" style="background:var(--color-error); width:auto; padding:0.5rem 1.1rem; font-size:0.82rem; flex-shrink:0;" onclick="cancelOrder()">
                                 <i class="fa fa-times" style="margin-right:0.4rem;"></i> Cancel Order
                             </button>
                         </div>
@@ -209,13 +209,13 @@
 
             <!-- Cancellation reason (auto-cancelled orders) -->
             <div id="cancellation-reason-card" style="display:none;" class="section-card">
-                <div class="section-card-body" style="background:#fef2f2; border-radius:8px; padding:1rem;">
+                <div class="section-card-body" style="background:var(--toast-error-bg); border-radius:8px; padding:1rem;">
                     <div style="display:flex; gap:0.75rem; align-items:flex-start;">
-                        <i class="fa fa-exclamation-circle" style="color:#b91c1c; margin-top:0.15rem; flex-shrink:0;"></i>
+                        <i class="fa fa-exclamation-circle" style="color:var(--color-error); margin-top:0.15rem; flex-shrink:0;"></i>
                         <div>
-                            <div style="font-weight:700; font-size:0.9rem; color:#b91c1c; margin-bottom:0.25rem;">Order Automatically Cancelled</div>
+                            <div style="font-weight:700; font-size:0.9rem; color:var(--color-error); margin-bottom:0.25rem;">Order Automatically Cancelled</div>
                             <div id="cancellation-reason-text" style="font-size:0.875rem; color:#7f1d1d; line-height:1.5;"></div>
-                            <div style="margin-top:0.5rem; font-size:0.8rem; color:#991b1b;">
+                            <div style="margin-top:0.5rem; font-size:0.8rem; color:var(--toast-error-fg);">
                                 No payment was taken. If you still want this item, check back once the seller restocks.
                             </div>
                         </div>
@@ -313,7 +313,7 @@
             <!-- Buyer Trust Score (seller view only) -->
             <div class="section-card" id="buyer-score-card" style="display:none; margin-top:1rem;">
                 <div class="section-card-header">
-                    <h4><i class="fa fa-user-shield" style="margin-right:0.5rem; color:#1d4ed8;"></i> Buyer Trust</h4>
+                    <h4><i class="fa fa-user-shield" style="margin-right:0.5rem; color:var(--color-blue);"></i> Buyer Trust</h4>
                 </div>
                 <div class="section-card-body" id="buyer-score-body"></div>
             </div>
@@ -585,7 +585,6 @@
         const isCancelled = order.status === 'cancelled';
         const container = document.getElementById('timeline-steps');
 
-        // Build a map of status → timestamp from the order timeline array
         const tsMap = {};
         (order.timeline || []).forEach(t => { tsMap[t.status] = t.timestamp; });
 
@@ -673,7 +672,6 @@
         const blockEl = document.getElementById('address-block');
         const ft = order.fulfillmentType;
 
-        // Determine which address and label to use
         let addr, cardTitle, emptyMsg;
         if (ft === 'self_fulfilled') {
             addr      = order.selfFulfillmentAddress;
@@ -725,7 +723,6 @@
             cancelled:        'Cancelled'
         };
 
-        // Timeline stepper — if timeline has entries, render the full history.
         // Falls back to single status badge if timeline is empty (legacy shipments).
         const timeline = shipment.timeline || [];
 
@@ -756,7 +753,6 @@
                    <span class="status-badge ${statusClass(shipment.status)}">${shipment.status || 'shipped'}</span>
                </div>`;
 
-        // On-time indicator (post-delivery)
         let onTimeHtml = '';
         if (shipment.status === 'delivered' && shipment.estimatedDelivery && shipment.deliveredAt) {
             const onTime = new Date(shipment.deliveredAt) <= new Date(shipment.estimatedDelivery);
@@ -819,10 +815,8 @@
             showCard = true;
         }
 
-        // Seller: Pickup fulfillment actions (S23)
         if (isSeller && order.fulfillmentType === 'pickup') {
             if (order.status === 'processing') {
-                // Inject "Mark Ready for Pickup" button if not already present
                 if (!document.getElementById('action-ready-pickup')) {
                     const btn = document.createElement('div');
                     btn.id = 'action-ready-pickup';
@@ -850,7 +844,6 @@
             }
         }
 
-        // Seller: Self-fulfilled action (S23)
         if (isSeller && order.fulfillmentType === 'self_fulfilled' && order.status === 'processing') {
             if (!document.getElementById('action-self-fulfill')) {
                 const btn = document.createElement('div');
@@ -865,7 +858,6 @@
             showCard = true;
         }
 
-        // Cancel — seller can cancel pending/paid/processing; buyer can cancel pending
         const sellerCanCancel = isSeller && ['pending','paid','processing'].includes(order.status);
         const buyerCanCancel  = isBuyer  && order.status === 'pending';
         if (sellerCanCancel || buyerCanCancel) {
@@ -879,7 +871,6 @@
             showCard = true;
         }
 
-        // Buyer: Confirm Receipt (delivered / picked_up / self_fulfilled, escrow explicitly held)
         if (isBuyer && ['delivered','picked_up','self_fulfilled'].includes(order.status) && _escrowStatus === 'held') {
             if (!_shipment?.buyerConfirmedAt) {
                 const confirmWrap = document.createElement('div');
@@ -906,7 +897,6 @@
             }
         }
 
-        // Seller: Proof upload (self_fulfilled / pickup when no proof yet)
         if (isSeller && _shipment && !_shipment.deliveryProof?.url &&
             ['self_fulfilled','pickup'].includes(order.fulfillmentType) &&
             ['processing','shipped'].includes(order.status)) {
@@ -933,7 +923,6 @@
 
         if (showCard) document.getElementById('actions-card').style.display = 'block';
 
-        // Show "Message about this order" button for both buyer and seller (S30)
         if (isBuyer || isSeller) {
             document.getElementById('msg-seller-card').style.display = 'block';
             const label = isSeller ? 'Message buyer about this order' : 'Message seller about this order';
@@ -943,19 +932,14 @@
 
     // ── Open order thread (S30) ───────────────────────────────────────────────
     function openOrderThread() {
-        // Determine the "other" user's ID for this order thread
-        // Buyer → messages seller; Seller → messages buyer
-        // order is available in closure from loadOrder()
         const order = window._currentOrder;
         if (!order) return;
         const isBuyer  = order.buyerId?.toString() === user.sub;
         const isSeller = user.storeActive && user.storeId && order.items.some(i => i.sellerId?.toString() === user.storeId);
         if (!isBuyer && !isSeller) return;
 
-        // For buyer: find a seller from order items; for seller: use buyerId
         let otherUserId;
         if (isBuyer) {
-            // Resolve storeId → seller's personal userId via sellerMap (store.sellerId = personal userId)
             const firstSellerItem = order.items.find(i => i.sellerId);
             const storeId = firstSellerItem?.sellerId?.toString();
             const storeProfile = (window._sellerMap || {})[storeId];
@@ -1005,7 +989,6 @@
     function renderBillingAddress(order) {
         const addr = order.billingAddress;
         if (!addr || !addr.street) return;
-        // Only show if different from shipping
         const sa = order.shippingAddress;
         const same = sa && sa.street === addr.street && sa.city === addr.city;
         if (same) return;
@@ -1187,8 +1170,8 @@
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
             _order = await res.json();
-            window._currentOrder = _order;  // expose for openOrderThread()
-            window._sellerMap    = {};       // storeId → store object (populated below)
+            window._currentOrder = _order;
+            window._sellerMap    = {};
 
             // ── Resolve product titles, seller names, and shipment in parallel ──
             const productIds = [...new Set((_order.items || []).map(i => i.productId).filter(Boolean))];
@@ -1213,12 +1196,10 @@
             const productMap = Object.fromEntries(productIds.map((id, i) => [id, productResults[i]]));
             const sellerMap  = Object.fromEntries(sellerIds.map((id, i) => [id, sellerResults[i]]));
             window._sellerMap = sellerMap; // expose for openOrderThread()
-            // Shipping service returns an array — take the first shipment or null
             const shipment = Array.isArray(shipmentResult)
                 ? (shipmentResult.length ? shipmentResult[0] : null)
                 : shipmentResult;
 
-            // Enrich order items with resolved titles and seller names
             (_order.items || []).forEach(item => {
                 const product = productMap[item.productId] || {};
                 const seller  = sellerMap[item.sellerId]   || {};
@@ -1242,7 +1223,6 @@
             // Enrich items with product images where missing (best-effort parallel fetch)
             await enrichItemImages(_order);
 
-            // ── Segment 4: Delivery Visibility (Check item review statuses) ──
             const isBuyerForDelivery = _order.buyerId?.toString() === user.sub;
             const isDelivered = ['delivered', 'picked_up', 'self_fulfilled'].includes(_order.status);
             
@@ -1282,11 +1262,9 @@
                 _shipment = shipment; // keep module-level ref in sync
                 renderShipmentInfo(shipment);
                 renderEscalationPanel();
-                renderActions(_order); // re-render actions now that _shipment is known
+                renderActions(_order);
             }
 
-            // Load shipment tracking card if shipped or delivered (also covers the
-            // existing renderTracking path via loadShipment)
             if (['shipped', 'delivered'].includes(_order.status) && !shipment) {
                 await loadShipment();
             } else if (shipment && ['shipped', 'delivered'].includes(_order.status)) {
@@ -1426,7 +1404,6 @@
                 }
             }
 
-            // Seller: load buyer trust score
             const viewerIsSeller = user.storeActive === true;
             if (viewerIsSeller && _order.buyerId) {
                 loadBuyerScore(_order.buyerId);
@@ -1435,7 +1412,6 @@
             // S21 — load escrow status card (best-effort — hides silently if not a party)
             loadEscrowCard(_order);
 
-            // Show content
             document.getElementById('loading-skeleton').style.display = 'none';
             document.getElementById('order-content').style.display = 'grid';
 

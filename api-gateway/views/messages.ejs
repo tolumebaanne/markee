@@ -54,7 +54,7 @@
         }
         .thread-item:hover { background: var(--bg-secondary); }
         .thread-item.active { background: #eff6ff; border-left: 3px solid var(--accent-red); }
-        .thread-item.urgent { border-left: 3px solid #d97706; }
+        .thread-item.urgent { border-left: 3px solid var(--color-amber); }
         .thread-item.pinned .thread-name::before {
             content: '\U0001F4CC '; font-size: 0.7rem;
         }
@@ -69,7 +69,7 @@
         .online-dot {
             position: absolute; bottom: 1px; right: 1px;
             width: 9px; height: 9px; border-radius: 50%;
-            background: #22c55e; border: 1.5px solid white;
+            background: var(--color-green); border: 1.5px solid white;
         }
         .thread-meta { flex-grow: 1; min-width: 0; }
         .thread-name { font-weight: 600; font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -80,9 +80,9 @@
             display: inline-block; font-size: 0.6rem; font-weight: 700; padding: 0.1rem 0.35rem;
             border-radius: 4px; margin-bottom: 0.2rem; text-transform: uppercase; letter-spacing: 0.03em;
         }
-        .badge-product { background: #dbeafe; color: #1d4ed8; }
-        .badge-order   { background: #dcfce7; color: #15803d; }
-        .badge-general { background: #f3f4f6; color: #6b7280; }
+        .badge-product { background: #dbeafe; color: var(--color-blue); }
+        .badge-order   { background: #dcfce7; color: var(--toast-success-fg); }
+        .badge-general { background: #f3f4f6; color: var(--text-muted); }
 
         .unread-badge {
             background: var(--accent-red); color: white; font-size: 0.62rem;
@@ -190,7 +190,7 @@
             display: flex; align-items: center; gap: 0.2rem; transition: all 0.15s;
         }
         .reaction-chip:hover { border-color: var(--accent-red); }
-        .reaction-chip.own { background: #fef2f2; border-color: #fecaca; }
+        .reaction-chip.own { background: var(--toast-error-bg); border-color: var(--toast-error-border); }
 
         /* Hover actions on bubble */
         .bubble-group { display: flex; flex-direction: column; max-width: 85%; }
@@ -231,7 +231,7 @@
         }
         .starter-chip {
             background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 16px;
-            padding: 0.3rem 0.75rem; font-size: 0.72rem; cursor: pointer; color: #1d4ed8;
+            padding: 0.3rem 0.75rem; font-size: 0.72rem; cursor: pointer; color: var(--color-blue);
             transition: all 0.15s;
         }
         .starter-chip:hover { background: #dbeafe; }
@@ -262,8 +262,8 @@
         .template-item .t-body  { color: var(--text-muted); font-size: 0.72rem; margin-top: 0.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         .char-counter { font-size: 0.68rem; color: var(--text-muted); align-self: flex-end; margin-bottom: 0.2rem; flex-shrink: 0; }
-        .char-counter.warn { color: #d97706; }
-        .char-counter.over { color: #dc2626; }
+        .char-counter.warn { color: var(--color-amber); }
+        .char-counter.over { color: var(--accent-red); }
 
         .chat-input-bar {
             padding: 0.75rem 1rem; border-top: 1px solid var(--border-light);
@@ -288,22 +288,22 @@
             color: white; font-size: 0.88rem; flex-shrink: 0; transition: background 0.2s;
         }
         .send-btn:hover { background: var(--accent-red-hover, #990000); }
-        .send-btn:disabled { background: #d1d5db; cursor: not-allowed; }
+        .send-btn:disabled { background: var(--border-light); cursor: not-allowed; }
 
         /* ── Empty / status ─────────────────────────────────────────────────── */
         .chat-empty {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             flex-grow: 1; color: var(--text-muted); padding: 2rem; text-align: center;
         }
-        .chat-empty i { font-size: 2.5rem; margin-bottom: 0.75rem; color: #d1d5db; }
+        .chat-empty i { font-size: 2.5rem; margin-bottom: 0.75rem; color: var(--border-light); }
         .skeleton {
             background: linear-gradient(90deg, var(--bg-secondary) 25%, #e9eaec 50%, var(--bg-secondary) 75%);
             background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 8px;
         }
         @keyframes shimmer { to { background-position: -200% 0; } }
         .conn-status { font-size: 0.68rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 10px; }
-        .conn-online  { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
-        .conn-offline { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+        .conn-online  { background:var(--toast-success-bg); color:var(--toast-success-fg); border:1px solid var(--toast-success-border); }
+        .conn-offline { background:var(--toast-error-bg); color:var(--color-error); border:1px solid var(--toast-error-border); }
     </style>
 </head>
 <body class="bg-light">
@@ -573,7 +573,6 @@ function connectSocket() {
         if (data.threadId !== currentThreadId) return;
         var chatBody = document.getElementById('chat-body');
         if (!chatBody) return;
-        // Remove existing read receipts, pin one after last sent bubble
         chatBody.querySelectorAll('.read-receipt').forEach(function(el) { el.remove(); });
         var sentRows = Array.from(chatBody.querySelectorAll('.bubble-row.sent'));
         if (sentRows.length) {
@@ -682,7 +681,6 @@ function apiFetch(url, opts) {
     });
 }
 
-// Upload fetch (FormData, no JSON content-type)
 function apiUploadFetch(url, formData) {
     var controller = new AbortController();
     var timer = setTimeout(function() { controller.abort(); }, 30000);
@@ -722,7 +720,6 @@ async function loadThreads() {
             return;
         }
 
-        // Sort: pinned first, then by most recent activity
         threads.sort(function(a, b) {
             if (a.pinned && !b.pinned) return -1;
             if (!a.pinned && b.pinned) return 1;
@@ -748,7 +745,6 @@ function renderThreadItem(t) {
     var badgeClass  = 'badge-' + contextType;
     var badgeLabel  = contextType;
 
-    // Participant display name: the "other" participant
     var otherMeta = (t.participantMeta || []).find(function(m) {
         return m.userId && m.userId.toString() !== user.sub;
     });
@@ -818,10 +814,8 @@ async function openThread(threadId) {
     if (chatEmpty) chatEmpty.style.display = 'none';
     enableInput(isConnected);
 
-    // Join thread room for reactions/edits
     if (socket) socket.emit('join_thread', threadId);
 
-    // Reset state
     pendingUploadUrl = null;
     oldestMsgTs      = null;
     var msgInput = document.getElementById('msg-input');
@@ -859,7 +853,6 @@ async function openThread(threadId) {
         renderThreadHeader(thread);
         renderContextCard(thread);
 
-        // Load templates for active sellers only
         if (user.storeActive === true) loadTemplates();
 
         var chatBody = document.getElementById('chat-body');
@@ -1024,7 +1017,6 @@ function sendMessage() {
     if (!body && !pendingUploadUrl) return;
     if (body.length > 1000) { showToast('Message too long (max 1000 characters).', 'error'); return; }
 
-    // Try participantMeta first, then fall back to participants array
     var recipientId = null;
     var otherMeta = (currentThread.participantMeta || []).find(function(m) {
         return m.userId && m.userId.toString() !== user.sub;
@@ -1032,7 +1024,6 @@ function sendMessage() {
     if (otherMeta) {
         recipientId = otherMeta.userId;
     } else if (currentThread.participants && currentThread.participants.length) {
-        // Fallback: use participants array directly
         var other = currentThread.participants.find(function(p) {
             return p && p.toString() !== user.sub;
         });
@@ -1103,7 +1094,6 @@ function makeBubbleEl(msg, isSent) {
 
     group.appendChild(bubble);
 
-    // Reactions container
     var reactionDiv = document.createElement('div');
     reactionDiv.className = 'msg-reactions';
     reactionDiv.setAttribute('data-msg-id', msg._id);
@@ -1715,7 +1705,6 @@ async function _openOrStartThread(recipientId, contextId, contextType) {
     } catch (err) {
         console.error('[MSG] _openOrStartThread thread lookup failed:', err.message);
     }
-    // No existing thread found -- create with context
     openThreadWithContext({
         recipientId: recipientId,
         contextType: contextType || 'product',
@@ -1912,7 +1901,6 @@ function init() {
         if (hasDeepLink) {
             parseUrlParams();
         } else if (threads && threads.length && !currentThreadId) {
-            // Auto-open first thread (most recent) when landing with no deep-link
             openThread(threads[0].threadId || threads[0]._id);
         }
     });
@@ -1923,7 +1911,6 @@ function init() {
     refreshUnreadBadge();
 }
 
-// Boot
 init();
 
 })();

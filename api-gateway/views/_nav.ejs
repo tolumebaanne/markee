@@ -137,7 +137,6 @@
 (function initNav() {
     const t = localStorage.getItem('access_token');
     if (!t) {
-        // Guest: show guest section in drawer
         const dg = document.getElementById('drawer-guest-section');
         if (dg) dg.style.display = 'block';
         return;
@@ -152,7 +151,6 @@
             return;
         }
 
-        // Switch auth state
         document.getElementById('auth-links').style.display = 'none';
         document.getElementById('user-links').style.display = 'flex';
 
@@ -165,13 +163,11 @@
         const dr = document.getElementById('nav-display-role');
         if (dr) dr.textContent = u.role || 'buyer';
 
-        // Show logged-in icon buttons
         const showEl = id => { const e = document.getElementById(id); if (e) e.style.display = ''; };
         showEl('nav-dashboard-link');
         showEl('nav-msg-btn');
         showEl('nav-bell-link');
 
-        // Drawer: show logged-in items, hide guest
         const dg = document.getElementById('drawer-guest-section');
         if (dg) dg.style.display = 'none';
         ['drawer-dashboard','drawer-messages','drawer-notifications','drawer-orders','drawer-account','drawer-wallet','drawer-logout'].forEach(showEl);
@@ -183,13 +179,11 @@
         const ddr = document.getElementById('drawer-display-role');
         if (ddr) ddr.textContent = u.storeActive ? 'Buyer & Seller' : (u.role || 'Buyer');
 
-        // Sell button (active sellers)
         if (u.storeActive === true) {
             showEl('nav-sell-btn');
             showEl('drawer-sell-section');
         }
 
-        // Admin badge
         if (u.role === 'admin') {
             const adminBadge = document.getElementById('nav-admin');
             if (adminBadge) {
@@ -199,7 +193,6 @@
         }
     } catch {}
 
-    // Bell badge
     function refreshBellBadge() {
         fetch('/api/notifications/unread-count', { headers: { Authorization: 'Bearer ' + t } })
             .then(r => r.ok ? r.json() : null)
@@ -214,7 +207,6 @@
     refreshBellBadge();
     setInterval(refreshBellBadge, 30000);
 
-    // Messages badge
     function refreshMsgBadge() {
         fetch('/api/messages/unread-count', { headers: { Authorization: 'Bearer ' + t } })
             .then(r => r.ok ? r.json() : null)
@@ -336,7 +328,6 @@ function closeSignInModal() {
     if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
     var sub = document.getElementById('signin-modal-subtitle');
     if (sub) sub.textContent = 'Sign in to continue';
-    // Reset password field visibility
     var pw = document.getElementById('modal-password');
     if (pw) pw.type = 'password';
     var toggle = document.querySelector('#signin-modal .password-toggle');

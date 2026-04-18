@@ -74,10 +74,9 @@ router.post('/login', requireNotAuth, async (req, res) => {
     const user = await User.validatePassword(rawEmail, password);
     if (!user) return res.redirect('/login?error=Invalid credentials');
 
-    // Block fully soft-deleted accounts (email is mangled so this is belt-and-suspenders)
+    // email is mangled after deletion so this check is belt-and-suspenders
     if (user.status === 'deleted') return res.redirect('/login?error=This account no longer exists.');
 
-    // Block moderated accounts — mirrors the check in oauth.js
     if (user.moderationStatus === 'banned') return res.redirect('/login?error=This account has been banned.');
     if (user.moderationStatus === 'suspended') return res.redirect('/login?error=This account has been suspended.');
 
@@ -131,7 +130,7 @@ async function initiateSoftDelete(userId, storeId, destroySession) {
   user.pendingDeletionSince = new Date();
   await user.save();
 
-  // Revoke all refresh tokens immediately — this is the actual access enforcement
+  // revoke all refresh tokens immediately — this is the actual access enforcement
   await RefreshToken.deleteMany({ userId });
 
   bus.emit('user.pending_deletion', {
@@ -143,7 +142,6 @@ async function initiateSoftDelete(userId, storeId, destroySession) {
   return { blocked: false };
 }
 
-// Session-based deletion
 router.delete('/account', requireAuth, async (req, res) => {
   try {
     const { id: userId, storeId } = req.session.user;
@@ -161,7 +159,6 @@ router.delete('/account', requireAuth, async (req, res) => {
   }
 });
 
-// JWT-based deletion (called from API gateway frontend)
 router.delete('/account-jwt', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -192,12 +189,11 @@ router.delete('/account-jwt', async (req, res) => {
 
 router.post('/account/cancel-deletion', async (req, res) => {
   try {
-    // Accepts session auth or password re-authentication
     let userId;
     if (req.session?.user) {
       userId = req.session.user.id;
     } else {
-      // Password re-auth for users whose session was destroyed on deletion initiation
+      // session was destroyed on deletion initiation — re-auth required
       const { email, password } = req.body;
       if (!email || !password) return res.status(401).json({ error: 'Credentials required' });
       const user = await User.validatePassword(email, password);
@@ -228,8 +224,7 @@ router.post('/account/cancel-deletion', async (req, res) => {
 });
 
 // ── Hard-delete cascade listener (admin-initiated) ───────────────────────────
-// Auth-service owns its own record. When Super hard-deletes via admin proxy,
-// user.deleted fires with hardDelete: true — this cleans up the auth record.
+// user.deleted with hardDelete: true cleans up the auth record when Super hard-deletes via admin proxy.
 bus.on('user.deleted', async (payload) => {
   if (!payload.hardDelete) return;
   try {
@@ -342,7 +337,6 @@ router.get('/', (req, res) => {
   `);
 });
 
-// PATCH /password — change password (requires valid access token)
 router.patch('/password', async (req, res) => {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
@@ -370,7 +364,6 @@ router.patch('/password', async (req, res) => {
         user.passwordHash = await bcrypt.hash(newPassword, 12);
         await user.save();
 
-        // Revoke all existing refresh tokens for this user
         await RefreshToken.updateMany({ userId: user._id }, { revoked: true });
 
         res.json({ message: 'Password updated successfully' });
@@ -381,8 +374,7 @@ router.patch('/password', async (req, res) => {
 });
 
 // ── Admin: force-set a user's password (superuser only) ──────────────────────
-// Called by admin-service proxy. No old-password required.
-// All refresh tokens for the user are revoked immediately after the change.
+// No old-password required; all refresh tokens are revoked immediately.
 router.post('/admin/users/:id/force-password', async (req, res) => {
   if (!req.headers['x-admin-email']) return res.status(403).json({ error: 'Admin only' });
   const { newPassword } = req.body;
@@ -426,8 +418,7 @@ router.delete('/admin/users/:id', async (req, res) => {
 });
 
 // ── Forgot Password ───────────────────────────────────────────────────────────
-// m0t.AUTH.3.5  — same response whether email exists or not (no enumeration)
-// m0t.AUTH.3.4  — crypto.randomBytes(32); only SHA-256 hash stored in DB
+// same response whether email exists or not (no enumeration); only SHA-256 hash stored in DB
 
 router.get('/forgot-password', (req, res) => {
   res.render('forgot-password', { sent: req.query.sent === '1', error: req.query.error });
@@ -450,7 +441,7 @@ router.post('/forgot-password', express.urlencoded({ extended: false }), async (
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
     user.resetToken = tokenHash;
-    user.resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    user.resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
     await user.save();
 
     const base = (process.env.APP_BASE_URL || 'http://localhost:4000').replace(/\/$/, '');
@@ -508,7 +499,6 @@ router.post('/reset-password', express.urlencoded({ extended: false }), async (r
       return res.render('reset-password', { valid: false, error: 'This link is invalid or has expired. Please request a new one.' });
     }
 
-    // Hash new password, clear reset fields, revoke all refresh tokens (m0t.AUTH.1.4)
     user.passwordHash   = await bcrypt.hash(newPassword, 12);
     user.resetToken     = null;
     user.resetTokenExpiry = null;

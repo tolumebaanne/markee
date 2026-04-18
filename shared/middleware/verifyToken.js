@@ -11,7 +11,6 @@ module.exports = (req, res, next) => {
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
         req.user = decoded; // gateway middleware use
-        // Forward decoded payload to downstream microservices as a header
         req.headers['x-user'] = JSON.stringify(decoded);
         next();
     } catch (err) {

@@ -65,18 +65,15 @@ const ProfileSchema = new mongoose.Schema({
         payoutNotifications:  { type: Boolean, default: true }
     },
 
-    // Buyer reputation (A.8)
     buyerScore:     { type: Number, default: 50, min: 0, max: 100 },
     reviewsWritten: { type: Number, default: 0 },
 
-    // Buyer trading reputation (from sellers)
     buyerTradingScore: { type: Number, default: null },
     buyerReviewCount:  { type: Number, default: 0 },
 
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
 
-    // S21 — Stripe Customer ID (stored after first Stripe payment)
     stripeCustomerId: { type: String },
 
     // Moderation mirror — kept in sync with auth-service via bus events
@@ -85,7 +82,6 @@ const ProfileSchema = new mongoose.Schema({
     // Role mirror — kept in sync with auth-service via bus events
     role: { type: String, enum: ['user', 'buyer', 'seller', 'admin'], default: 'user' },
 
-    // Soft-delete fields — populated by user.self_deleted event
     softDeleted:    { type: Boolean, default: false },
     pendingDeletion: { type: Boolean, default: false },
     deletedAt:      { type: Date },
@@ -149,7 +145,6 @@ bus.on('user.deletion_cancelled', async (payload) => {
     } catch (err) { console.error('[USER] user.deletion_cancelled error:', err.message); }
 });
 
-// A.8 — Increment buyerScore and reviewsWritten on each submitted review
 bus.on('review.submitted', async (payload) => {
     try {
         const increment = (payload.qualityScore >= 50) ? 2 : 1;
@@ -157,7 +152,7 @@ bus.on('review.submitted', async (payload) => {
             { userId: payload.buyerId },
             { $inc: { reviewsWritten: 1, buyerScore: increment } }
         );
-        // Hard cap at 100
+        // cap at 100 — $inc can exceed max without this
         await Profile.updateOne(
             { userId: payload.buyerId, buyerScore: { $gt: 100 } },
             { buyerScore: 100 }
@@ -165,7 +160,6 @@ bus.on('review.submitted', async (payload) => {
     } catch (err) { console.error('[USER] review.submitted buyerScore error:', err.message); }
 });
 
-// Update buyer trading reputation when sellers rate them
 bus.on('buyer.review.submitted', async (payload) => {
     try {
         const { buyerId, avgRating, reviewCount } = payload;
@@ -177,7 +171,6 @@ bus.on('buyer.review.submitted', async (payload) => {
     } catch (err) { console.error('[USER] buyer.review.submitted error:', err.message); }
 });
 
-// S21 — Store Stripe Customer ID after payment-service creates the Customer
 bus.on('user.stripe_customer_created', async (payload) => {
     try {
         const { userId, stripeCustomerId } = payload;
@@ -231,7 +224,6 @@ app.put('/users/me', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// Canonical address fields allowed from client
 const ADDR_ALLOWED = ['label', 'recipientName', 'street', 'city', 'province', 'postalCode', 'country', 'isDefault'];
 const ADDR_MAX = { label: 50, recipientName: 100, street: 200, city: 100, province: 100, postalCode: 20, country: 100 };
 
@@ -354,8 +346,7 @@ app.delete('/users/me/watchlist/:productId', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// A.8 — Buyer score: seller calls this to assess COD risk on a buyer's order.
-// Requires a valid seller token — anonymous callers cannot query buyer scores.
+// seller-only: anonymous callers must not be able to query buyer scores
 app.get('/users/:userId/buyer-score', async (req, res) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
     const isSeller = req.user?.storeActive === true;
@@ -367,7 +358,6 @@ app.get('/users/:userId/buyer-score', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// Internal route — returns notificationPreferences for a user (used by notification-service before sending emails)
 app.get('/users/:userId/prefs', async (req, res) => {
     try {
         const profile = await Profile.findOne({ userId: req.params.userId });
@@ -376,7 +366,7 @@ app.get('/users/:userId/prefs', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// Internal route — monolith phase only. In multi-process deployment, requires service-to-service authentication.
+// monolith-phase internal route — requires service-to-service auth in multi-process deployment
 app.get('/users/watching/:productId', async (req, res) => {
     try {
         const profiles = await Profile.find({ 'watchlist.productId': req.params.productId });
@@ -385,13 +375,11 @@ app.get('/users/watching/:productId', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// Internal route — returns all userIds watching any product from a given store.
-// Steps: (1) fetch product IDs from catalog-service for that store, (2) find profiles watching any of those IDs.
 app.get('/users/watching-store/:storeId', async (req, res) => {
     try {
         // Fetch the store's active product IDs from catalog-service (internal port)
         const catRes = await fetch(`http://localhost:5002/by-seller/${req.params.storeId}`).catch(() => null);
-        if (!catRes || !catRes.ok) return res.json([]); // fail open
+        if (!catRes || !catRes.ok) return res.json([]); // fail open — catalog unavailable is non-fatal
         const products = await catRes.json();
         if (!Array.isArray(products) || products.length === 0) return res.json([]);
 
@@ -438,12 +426,7 @@ app.delete('/users/me/likes/:productId', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// S21 — GET /users/internal/:userId/stripe-data — service-to-service only
-// Used by payment-service to get stripeCustomerId and user email for Stripe Customer creation.
-// Guarded by x-internal-service header (set by payment-service) OR admin token.
-// NOT exposed to buyers via any public gateway path — the gateway proxies /api/users → /users
-// but callers would need a valid verifyToken to reach it. The x-internal-service header
-// provides a secondary guard since buyers cannot set that header from checkout.
+// x-internal-service header is a secondary guard — buyers cannot set it from checkout
 app.get('/users/internal/:userId/stripe-data', async (req, res) => {
     const isInternal = req.headers['x-internal-service'] === 'payment-service';
     const isAdmin    = req.user?.role === 'admin';
@@ -473,7 +456,6 @@ app.get('/users/:userId', async (req, res) => {
 
 // ── ADMIN ROUTES ──────────────────────────────────────────────────────────────
 
-// GET /admin/users/lookup?ids=id1,id2,... — resolve userIds to display names (for order enrichment)
 // MUST be declared before /admin/users/:userId to avoid param capture
 app.get('/admin/users/lookup', async (req, res) => {
     if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
@@ -490,7 +472,6 @@ app.get('/admin/users/lookup', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// GET /admin/users/deleted — list soft-deleted accounts (superuser only via proxy)
 // MUST be declared before /admin/users/:userId to avoid param capture
 app.get('/admin/users/deleted', async (req, res) => {
     if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
@@ -508,10 +489,6 @@ app.get('/admin/users/deleted', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// GET /admin/users — list all profiles with optional filters (role, status, page, limit)
-// Note: role and status are claims stored on the JWT / auth layer, not on the Profile document.
-// We query Profile documents here and support page/limit pagination.
-// role and status filters are passed through to a best-effort $match if those fields exist on the doc.
 app.get('/admin/users', async (req, res) => {
     if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
@@ -535,13 +512,10 @@ app.get('/admin/users', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// PATCH /admin/users/:userId/suspend — set status to 'suspended'
-// Body: { reason }
 app.patch('/admin/users/:userId/suspend', async (req, res) => {
     if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
-        // Update Profile if it exists — no-op if not (moderation is an auth-level concern,
-        // not gated on Profile existence; bus event propagates to auth-service regardless)
+        // no-op if Profile missing — moderation enforced at auth layer via bus event
         await Profile.findOneAndUpdate(
             { userId: req.params.userId },
             { $set: { moderationStatus: 'suspended', updatedAt: new Date() } }
@@ -551,8 +525,6 @@ app.patch('/admin/users/:userId/suspend', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// PATCH /admin/users/:userId/ban — hard ban, set status to 'banned'
-// Body: { reason }
 app.patch('/admin/users/:userId/ban', async (req, res) => {
     if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
@@ -578,8 +550,6 @@ app.patch('/admin/users/:userId/unban', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// PATCH /admin/users/:userId/role — change role
-// Body: { role: 'buyer'|'seller'|'admin', reason }
 app.patch('/admin/users/:userId/role', async (req, res) => {
     if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     const { role, reason } = req.body;
@@ -597,7 +567,6 @@ app.patch('/admin/users/:userId/role', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// GET /admin/users/:userId — fetch full profile (includes addresses) for admin detail view
 app.get('/admin/users/:userId', async (req, res) => {
     if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
@@ -607,17 +576,13 @@ app.get('/admin/users/:userId', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// DELETE /admin/users/:userId — hard delete: fetch storeId, emit full cascade, then delete profile
-// Body: { reason }
 app.delete('/admin/users/:userId', async (req, res) => {
     if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
     try {
         const uid = req.params.userId;
         const profile = await Profile.findOne({ userId: uid });
 
-        // storeId is critical for the seller/catalog/inventory/search cascade.
-        // If no Profile exists (user registered before event wiring), fall back to
-        // auth-service to get the storeId — the delete must still proceed.
+        // fall back to auth-service if no Profile (user registered before event wiring) — delete must still proceed
         let storeId = profile?.storeId?.toString() || null;
         if (!storeId) {
             try {
@@ -644,7 +609,6 @@ app.delete('/admin/users/:userId', async (req, res) => {
             hardDelete:  true
         });
 
-        // Delete the profile (may not exist — that's fine)
         await Profile.deleteOne({ userId: uid });
 
         res.json({ userId: uid, deleted: true });

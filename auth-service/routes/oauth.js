@@ -7,8 +7,6 @@ const RefreshToken = require('../models/RefreshToken');
 const User = require('../models/User');
 
 // ── Dynamic scope computation ─────────────────────────────────────────────────
-// Queries the Seller Service to determine if the user's store is currently active,
-// then returns the correct scope set and storeActive flag for JWT issuance.
 const BUYER_SCOPES  = ['catalog:read', 'orders:create', 'orders:read', 'reviews:write', 'messages:read', 'messages:write'];
 const SELLER_SCOPES = ['catalog:write', 'inventory:write', 'orders:fulfil', 'shipping:write', 'analytics:read'];
 const ADMIN_SCOPES  = ['orders:*', 'catalog:*', 'sellers:*', 'payments:*', 'reviews:moderate', 'analytics:*', 'inventory:*', 'shipping:*', 'messages:*'];
@@ -35,23 +33,18 @@ async function computeScopes(user) {
 
       if (res.ok) {
         const store = await res.json();
-        // `active` defaults to true if the field hasn't been written yet (existing stores).
-        storeActive = store.active !== false;
+        storeActive = store.active !== false; // defaults true — field may not exist on older store documents
         if (storeActive) scopes = [...scopes, ...SELLER_SCOPES];
       } else if (res.status === 404) {
-        // Store document not created yet — new user, no seller scopes.
         storeActive = false;
       } else {
-        // Non-404 error from Seller Service — fail open: any user with a storeId
-        // gets seller scopes rather than losing access due to a transient service error.
+        // fail open — transient Seller Service error should not revoke a seller's scopes
         storeActive = true;
         scopes = [...scopes, ...SELLER_SCOPES];
       }
     } catch (e) {
       clearTimeout(timeout);
-      // Seller Service unreachable or request timed out.
-      // Fail open: grant seller scopes to users who have a storeId so a Seller Service
-      // outage does not log out all sellers. A buyer has no storeId so is unaffected.
+      // fail open — Seller Service outage must not revoke seller scopes; buyers have no storeId so are unaffected
       storeActive = true;
       scopes = [...scopes, ...SELLER_SCOPES];
     }
@@ -62,8 +55,7 @@ async function computeScopes(user) {
 
 const requireAuth = (req, res, next) => {
   if (!req.session.user) {
-    // Pass returnTo as a URL param so it survives even if the session cookie
-    // is lost in transit through the reverse proxy (production).
+    // pass returnTo as a URL param — survives session cookie loss through reverse proxy
     const next_ = encodeURIComponent(req.originalUrl);
     return res.redirect(`/oauth/login?next=${next_}`);
   }
@@ -71,16 +63,13 @@ const requireAuth = (req, res, next) => {
 };
 
 // ── OAuth-scoped login (credential entry for the authorize flow) ──────────────
-// Lives at /oauth/login so it's proxied through the gateway alongside /oauth/authorize.
-// After successful sign-in, redirects to req.session.returnTo (the authorize URL).
 
 router.get('/login', (req, res) => {
-  // If already logged in, proceed to where they were going
   if (req.session?.user) {
     const dest = req.query.next || req.session.returnTo || '/oauth/authorize';
     return res.redirect(dest);
   }
-  // No next= and no session returnTo = direct visit with no context — bounce to gateway /login
+  // no next= and no returnTo = direct visit with no context — bounce to gateway /login
   const nextUrl = req.query.next || req.session?.returnTo || '';
   if (!nextUrl) return res.redirect('/login');
   res.render('oauth-login', { error: req.query.error || null, nextUrl });
@@ -145,7 +134,6 @@ async function issueCode(req, res, authReq) {
   }
 }
 
-// GET /oauth/authorize
 router.get('/authorize', requireAuth, async (req, res) => {
   const { response_type, client_id, redirect_uri, state, scope } = req.query;
 
@@ -157,7 +145,6 @@ router.get('/authorize', requireAuth, async (req, res) => {
     scope: scope ? scope.split(' ') : []
   };
 
-  // First-party clients: skip consent screen, issue code immediately
   if (FIRST_PARTY_CLIENTS.includes(client_id)) {
     return issueCode(req, res, authReq);
   }
@@ -206,7 +193,6 @@ router.post('/authorize/deny', requireAuth, (req, res) => {
   res.redirect(redirectUrl.toString());
 });
 
-// POST /oauth/quick-login — direct credential to JWT (for same-origin modal sign-in)
 router.post('/quick-login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Missing credentials' });
@@ -231,7 +217,7 @@ router.post('/quick-login', async (req, res) => {
       scopes,
       pendingDeletion:  user.status === 'pending_deletion',
       profileSetupDone: user.profileSetupDone === true,
-      exp: Math.floor(Date.now() / 1000) + (60 * 60), // 1 hour
+      exp: Math.floor(Date.now() / 1000) + (60 * 60),
     };
 
     const accessToken = jwt.sign(payload, process.env.JWT_SECRET || 'fallback-secret');
@@ -282,10 +268,10 @@ router.post('/token', async (req, res) => {
       scopes,
       pendingDeletion:  user.status === 'pending_deletion',
       profileSetupDone: user.profileSetupDone === true,
-      exp: Math.floor(Date.now() / 1000) + (60 * 60) // 1 hour
+      exp: Math.floor(Date.now() / 1000) + (60 * 60)
     };
     const accessToken = jwt.sign(payload, process.env.JWT_SECRET || 'fallback-secret');
-    
+
     const refreshToken = crypto.randomBytes(40).toString('hex');
     await RefreshToken.create({
       token: refreshToken,

@@ -154,12 +154,12 @@
         }
 
         .status-pending  { background: #fefce8; color: #a16207; border: 1px solid #fde68a; }
-        .status-paid     { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .status-paid     { background: #eff6ff; color: var(--color-blue); border: 1px solid #bfdbfe; }
         .status-processing { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
         .status-shipped  { background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; }
-        .status-delivered { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
-        .status-cancelled { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
-        .status-ready_for_pickup { background: #dbeafe; color: #1e40af; }
+        .status-delivered { background: var(--toast-success-bg); color: var(--toast-success-fg); border: 1px solid var(--toast-success-border); }
+        .status-cancelled { background: var(--toast-error-bg); color: var(--color-error); border: 1px solid var(--toast-error-border); }
+        .status-ready_for_pickup { background: #dbeafe; color: var(--color-blue); }
         .status-picked_up        { background: #d1fae5; color: #065f46; }
         .status-self_fulfilled   { background: #ede9fe; color: #5b21b6; }
 
@@ -219,8 +219,8 @@
             white-space: nowrap;
         }
         .act-btn:hover { background: var(--bg-secondary); color: var(--text-main); }
-        .act-btn.success:hover { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
-        .act-btn.danger:hover  { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+        .act-btn.success:hover { background: var(--toast-success-bg); color: var(--toast-success-fg); border-color: var(--toast-success-border); }
+        .act-btn.danger:hover  { background: var(--toast-error-bg); color: var(--color-error); border-color: var(--toast-error-border); }
 
         /* Empty state */
         .empty-state {
@@ -387,7 +387,7 @@
 
     // ── Orders cache (fixes browser-back skeleton flash) ─────────────────────────
     const ORDERS_CACHE_KEY = `markee_orders_${user.sub}_${user.role}_${user.storeId || 'none'}`;
-    const ORDERS_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+    const ORDERS_CACHE_TTL = 2 * 60 * 1000;
 
     function saveOrdersCache(purchases, sales) {
         try {
@@ -591,7 +591,6 @@
 
     // ── Load purchases (buyer view) ───────────────────────────────────────────
     async function loadPurchases() {
-        // Check cache first — render immediately, then background-refresh
         const cached = loadOrdersCache();
         if (cached && cached.purchases) {
             document.getElementById('purchases-skeleton').style.display = 'none';
@@ -620,7 +619,6 @@
                 content.innerHTML = orders.map(renderPurchaseCard).join('');
             }
 
-            // Update cache with fresh purchases (keep sales from previous cache if available)
             const prevCache = loadOrdersCache();
             saveOrdersCache(orders, prevCache ? prevCache.sales : []);
         } catch (err) {
@@ -655,7 +653,6 @@
                     if (!_knownSaleIds.has(order._id.toString())) {
                         _knownSaleIds.add(order._id.toString());
                         if (container.children.length > 0) {
-                            // New order arrived after initial load
                             const wrapper = document.createElement('div');
                             wrapper.innerHTML = renderSaleCard(order);
                             const card = wrapper.firstElementChild;
@@ -675,7 +672,6 @@
 
     // ── Load sales (seller view) ──────────────────────────────────────────────
     async function loadSales() {
-        // Check cache first
         const cached = loadOrdersCache();
         if (cached && cached.sales) {
             document.getElementById('sales-skeleton').style.display = 'none';
@@ -703,10 +699,8 @@
                 content.innerHTML = orders.map(renderSaleCard).join('');
             }
 
-            // Seed _knownSaleIds with all currently loaded order IDs
             _knownSaleIds = new Set((orders || []).map(o => o._id.toString()));
 
-            // Update cache with fresh sales
             const prevCache = loadOrdersCache();
             saveOrdersCache(prevCache ? prevCache.purchases : [], orders);
         } catch (err) {
@@ -741,7 +735,6 @@
             socket.on('order.new', () => {
                 // Pre-empt the 30s polling cycle
                 stopSalesPolling();
-                // Re-fetch immediately
                 setTimeout(() => startSalesPolling(), 100);
             });
             socket.on('order.status', ({ orderId, status }) => {

@@ -102,7 +102,6 @@ const StoreSchema = new mongoose.Schema({
         default: ['shipping']
     },
 
-    // Canonical address fields: street, city, province, postalCode, country, label, isDefault
     pickupLocations: [{
         label:        { type: String, required: true },
         street:       { type: String, required: true },
@@ -121,16 +120,12 @@ const StoreSchema = new mongoose.Schema({
         default: ['canada_post', 'ups', 'fedex', 'purolator', 'dhl', 'other']
     },
 
-    // S4/R-S4 — Verification badge
     verified:    { type: Boolean, default: false },
-
-    // S4/R-S5 — Store specialties
     specialties: { type: [String], default: [] },
 
-    // S4/C-S2 — Seller tier (updated by analytics-service via seller.tier_updated event)
+    // updated by analytics-service via seller.tier_updated event
     tier: { type: String, enum: ['standard', 'rising', 'top'], default: 'standard' },
 
-    // S4/C-S1 — Onboarding checklist
     setupChecklist: {
         profilePhoto:       { type: Boolean, default: false },
         descriptionWritten: { type: Boolean, default: false },
@@ -139,14 +134,12 @@ const StoreSchema = new mongoose.Schema({
         returnPolicySet:    { type: Boolean, default: false }
     },
 
-    // S4/C-S3 — Vacation mode
     vacationMode: {
         active:    { type: Boolean, default: false },
         message:   { type: String, default: '' },
         resumesAt: Date
     },
 
-    // Fulfillment penalties log (appended by seller.fulfillment_penalty events)
     fulfillmentPenalties: [{
         reason:    String,
         orderId:   mongoose.Schema.Types.ObjectId,
@@ -154,14 +147,12 @@ const StoreSchema = new mongoose.Schema({
         issuedAt:  { type: Date, default: Date.now }
     }],
 
-    // S4/C-S4 — Public performance stats
     publicStats: {
         onTimeDeliveryRate:   { type: Number, default: 0 },
         avgResponseTimeHrs:   { type: Number, default: 0 },
         totalFulfilledOrders: { type: Number, default: 0 }
     },
 
-    // Stripe Connect — for future seller payouts via Stripe Connect (Phase 11)
     stripeConnectAccountId: { type: String, default: null },
     stripeConnectStatus:    { type: String, enum: ['not_connected', 'pending', 'active'], default: 'not_connected' },
 
@@ -232,7 +223,6 @@ bus.on('user.deleted', async (payload) => {
     } catch (err) { console.error('[SELLER] user.deleted cleanup error:', err.message); }
 });
 
-// Pause store immediately when user initiates self-deletion
 bus.on('user.pending_deletion', async (payload) => {
     try {
         const store = await Store.findOneAndUpdate(
@@ -244,7 +234,6 @@ bus.on('user.pending_deletion', async (payload) => {
     } catch (err) { console.error('[SELLER] user.pending_deletion pause error:', err.message); }
 });
 
-// Restore store if user cancels deletion within the 24h cooldown
 bus.on('user.deletion_cancelled', async (payload) => {
     try {
         const store = await Store.findOneAndUpdate(
@@ -258,7 +247,7 @@ bus.on('user.deletion_cancelled', async (payload) => {
 
 bus.on('payment.captured', async (payload) => {
     try {
-        // payment.captured carries sellerIds (array) — iterate over each seller
+        // payload carries sellerIds array; fallback to singular sellerId for older events
         const ids = payload.sellerIds || (payload.sellerId ? [payload.sellerId] : []);
         const amountCents = payload.amountCents ?? payload.amount ?? 0;
         for (const sid of ids) {
@@ -266,7 +255,7 @@ bus.on('payment.captured', async (payload) => {
                 { sellerId: sid },
                 {
                     $inc: { totalOrders: 1, totalSales: amountCents },
-                    $set: { 'setupChecklist.firstSaleMade': true } // S28
+                    $set: { 'setupChecklist.firstSaleMade': true }
                 }
             );
         }
@@ -283,21 +272,20 @@ bus.on('seller.reviewed', async (payload) => {
     } catch (err) { console.error('[SELLER] seller.reviewed error:', err.message); }
 });
 
-// R-S1 fix: was using { _id: payload.sellerId } — sellerId is a userId, not storeId
+// sellerId is a userId, not storeId — must query by sellerId field, not _id
 bus.on('seller.replied', async (payload) => {
     try {
         const res = await fetch(`http://localhost:5008/seller/${payload.sellerId}/stats`);
         if (res.ok) {
             const stats = await res.json();
             await Store.findOneAndUpdate(
-                { sellerId: payload.sellerId },   // fixed: query by sellerId field, not _id
+                { sellerId: payload.sellerId },
                 { replyRate: stats.replyRate || 0 }
             );
         }
     } catch (err) { console.error('[SELLER] seller.replied replyRate update error:', err.message); }
 });
 
-// S28 — product.created: tick firstProductListed on onboarding checklist
 bus.on('product.created', async (payload) => {
     try {
         if (payload.sellerId) {
@@ -309,7 +297,6 @@ bus.on('product.created', async (payload) => {
     } catch (err) { console.error('[SELLER] product.created checklist error:', err.message); }
 });
 
-// S27 — seller.tier_updated from analytics-service
 bus.on('seller.tier_updated', async (payload) => {
     try {
         if (payload.sellerId && payload.tier) {
@@ -319,7 +306,6 @@ bus.on('seller.tier_updated', async (payload) => {
     } catch (err) { console.error('[SELLER] seller.tier_updated error:', err.message); }
 });
 
-// Fulfillment penalty: append to store record (e.g. late shipment, auto-cancel, no-show)
 bus.on('seller.fulfillment_penalty', async (payload) => {
     try {
         if (!payload.sellerId) return;
@@ -337,21 +323,18 @@ bus.on('seller.fulfillment_penalty', async (payload) => {
     } catch (err) { console.error('[SELLER] seller.fulfillment_penalty error:', err.message); }
 });
 
-// S27/C-S4 — message.seller_response: update rolling avgResponseTimeHrs
 bus.on('message.seller_response', async (payload) => {
     try {
         if (!payload.sellerId || !payload.responseTimeMs) return;
         const store = await Store.findOne({ sellerId: payload.sellerId });
         if (!store) return;
         const newHrs = payload.responseTimeMs / 3600000;
-        // Rolling average (up to 100 data points to avoid infinite growth)
         const current = store.publicStats?.avgResponseTimeHrs || 0;
         const updated = current === 0 ? newHrs : (current * 0.9 + newHrs * 0.1); // exponential moving average
         await Store.findOneAndUpdate({ sellerId: payload.sellerId }, { 'publicStats.avgResponseTimeHrs': Math.round(updated * 10) / 10 });
     } catch (err) { console.error('[SELLER] message.seller_response error:', err.message); }
 });
 
-// S27/C-S4 — order.delivered: update onTimeDeliveryRate and totalFulfilledOrders
 bus.on('order.status_updated', async (payload) => {
     try {
         if (!['delivered', 'picked_up', 'self_fulfilled'].includes(payload.status)) return;
@@ -359,8 +342,8 @@ bus.on('order.status_updated', async (payload) => {
             const store = await Store.findOne({ sellerId });
             if (!store) continue;
             const total  = (store.publicStats?.totalFulfilledOrders || 0) + 1;
-            // onTime is an optional boolean in the payload (set by shipment.delivered handler)
             const currentRate = store.publicStats?.onTimeDeliveryRate || 0;
+            // onTime is optional in the payload — absent means no rate change
             const onTime = payload.onTime;
             const newRate = onTime !== undefined
                 ? Math.round(((currentRate * (total - 1) + (onTime ? 1 : 0)) / total) * 100) / 100
@@ -374,8 +357,7 @@ bus.on('order.status_updated', async (payload) => {
 });
 
 // ── Identity sync — respond to request.store_sync with all store mappings ────
-// messaging-service (and any other service) emits this on startup to warm its
-// storeId → personal userId cache from the EventBus without a direct DB connection.
+// services emit this on startup to warm their storeId→sellerId cache without a direct DB connection
 bus.on('request.store_sync', async () => {
     try {
         const stores = await Store.find({}).select('_id sellerId name').lean();
@@ -407,7 +389,7 @@ app.post('/register', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// S26 — Admin: verify/unverify a store (MUST be before /:storeId to avoid param capture)
+// MUST be before /:storeId to avoid param capture
 app.post('/admin/:storeId/verify', async (req, res) => {
     if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
@@ -428,7 +410,6 @@ app.post('/admin/:storeId/unverify', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// POST /admin/:storeId/suspend — suspend a store
 app.post('/admin/:storeId/suspend', async (req, res) => {
     if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
@@ -444,7 +425,6 @@ app.post('/admin/:storeId/suspend', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// POST /admin/:storeId/restore — restore a suspended store
 app.post('/admin/:storeId/restore', async (req, res) => {
     if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
@@ -459,7 +439,6 @@ app.post('/admin/:storeId/restore', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// S30 — Admin: list all stores with filters
 app.get('/admin/stores', async (req, res) => {
     if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
@@ -494,7 +473,6 @@ app.get('/on-sale-stores', async (req, res) => {
     } catch (err) { res.json([]); }
 });
 
-// R-S3 fix: include fulfillmentOptions and minCodBuyerScore; also include new S4 fields
 app.get('/by-seller/:id', async (req, res) => {
     try {
         const store = await Store.findOne({ sellerId: req.params.id, active: { $ne: false } });
@@ -517,9 +495,9 @@ app.get('/by-seller/:id', async (req, res) => {
             totalSales:       store.totalSales,
             totalOrders:      store.totalOrders,
             tags:             store.tags,
-            specialties:      store.specialties  || [],     // R-S5
-            verified:         store.verified     || false,  // R-S4
-            tier:             store.tier         || 'standard', // C-S2
+            specialties:      store.specialties  || [],
+            verified:         store.verified     || false,
+            tier:             store.tier         || 'standard',
             discount:         store.discount,
             banner:           store.banner,
             salesBanner:      sb,
@@ -530,12 +508,11 @@ app.get('/by-seller/:id', async (req, res) => {
             sellerAvgRating:  store.sellerAvgRating  || 0,
             sellerReviewCount:store.sellerReviewCount || 0,
             replyRate:        store.replyRate         || 0,
-            fulfillmentOptions: store.fulfillmentOptions || ['shipping'],  // R-S3
-            minCodBuyerScore:   store.minCodBuyerScore  || 0,             // R-S3
-            publicStats:        store.publicStats || {},                    // C-S4
+            fulfillmentOptions: store.fulfillmentOptions || ['shipping'],
+            minCodBuyerScore:   store.minCodBuyerScore  || 0,
+            publicStats:        store.publicStats || {},
             pickupLocations:    store.pickupLocations   || [],
             enabledCarriers:    store.enabledCarriers   || [],
-            // S29 — expose vacation info to buyers
             vacationMode: store.vacationMode?.active
                 ? { active: true, message: store.vacationMode.message || '', resumesAt: store.vacationMode.resumesAt }
                 : { active: false }
@@ -544,7 +521,6 @@ app.get('/by-seller/:id', async (req, res) => {
 });
 
 // ── Pickup Locations CRUD ─────────────────────────────────────────────────────
-// Canonical address: street, city, province, postalCode, country, label, isDefault
 
 const PICKUP_ALLOWED = ['label', 'street', 'city', 'province', 'postalCode', 'country', 'hours', 'instructions', 'active'];
 
@@ -570,7 +546,7 @@ app.post('/:storeId/pickup-locations', async (req, res) => {
     const err = validatePickup(req.body);
     if (err) return errorResponse(res, 400, err);
     try {
-        // Auto-create a stub store for users who registered before seller onboarding existed
+        // auto-create stub store for users who registered before seller onboarding existed
         let store = await Store.findById(req.params.storeId);
         if (!store) {
             store = await Store.create({
@@ -650,7 +626,6 @@ app.put('/:storeId', async (req, res) => {
             { new: true }
         );
 
-        // S28 — Onboarding checklist ticks from store data
         const checklistUpdate = {};
         if (req.body.description?.trim()) checklistUpdate['setupChecklist.descriptionWritten'] = true;
         if (req.body.returnPolicy?.trim()) checklistUpdate['setupChecklist.returnPolicySet']    = true;
@@ -659,7 +634,6 @@ app.put('/:storeId', async (req, res) => {
             await Store.findByIdAndUpdate(req.params.storeId, { $set: checklistUpdate });
         }
 
-        // S29 — Vacation mode events
         const nowVacation = !!(updated.vacationMode?.active);
         if (!wasVacation && nowVacation) {
             bus.emit('store.vacation_started', {
@@ -767,9 +741,6 @@ app.patch('/admin/:storeId/tier', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// GET /admin/stores/dormant — active stores with no activity in 30 days (updatedAt < 30d ago)
-// NOTE: must be registered before /admin/stores to avoid storeId capture, but /admin/stores is already
-// defined above as a GET. Express will match /admin/stores/dormant correctly since it is more specific.
 app.get('/admin/stores/dormant', async (req, res) => {
     if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
@@ -780,7 +751,6 @@ app.get('/admin/stores/dormant', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// S19 — GET /analytics — seller earnings overview (totalSales, totalOrders, pendingPayouts)
 app.get('/analytics', async (req, res) => {
     try {
         const storeId = req.user?.storeId;
@@ -789,7 +759,6 @@ app.get('/analytics', async (req, res) => {
         const store = await Store.findById(storeId).select('totalSales totalOrders').lean();
         if (!store) return errorResponse(res, 404, 'Store not found');
 
-        // Fetch pending payouts from payment-service internal route
         const pmPort = process.env.PAYMENT_PORT || 5004;
         let pendingPayouts = 0;
         try {
@@ -810,7 +779,6 @@ app.get('/analytics', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// GET /admin/stores/:storeId/profile — full admin profile of a store
 app.get('/admin/stores/:storeId/profile', async (req, res) => {
     if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     try {
@@ -820,7 +788,6 @@ app.get('/admin/stores/:storeId/profile', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// S20 — GET /connect-status — seller payout account status
 app.get('/connect-status', async (req, res) => {
     try {
         const storeId = req.user?.storeId;
@@ -834,7 +801,6 @@ app.get('/connect-status', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
-// S20 — PATCH /admin/stores/:storeId/connect-status — admin update of seller connect status
 app.patch('/admin/stores/:storeId/connect-status', async (req, res) => {
     if (!req.headers['x-admin-email'] && req.user?.role !== 'admin') return errorResponse(res, 403, 'Admin only');
     const VALID_STATUSES = ['not_connected', 'pending', 'active'];

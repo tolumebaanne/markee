@@ -29,7 +29,7 @@
         .order-item-img { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border-light); flex-shrink: 0; }
 
         .confirm-screen { display: none; text-align: center; padding: 3rem 0; }
-        .confirm-icon { font-size: 3.5rem; color: #22c55e; margin-bottom: 1rem; }
+        .confirm-icon { font-size: 3.5rem; color: var(--color-green); margin-bottom: 1rem; }
 
         input.error-field, select.error-field { border-color: var(--accent-red) !important; }
 
@@ -190,7 +190,7 @@
                     </div>
 
                     <p id="shipping-same-note" class="text-muted small" style="margin:0.25rem 0 0;">
-                        <i class="fa fa-check-circle" style="color:#22c55e; margin-right:0.3rem;"></i>
+                        <i class="fa fa-check-circle" style="color:var(--color-green); margin-right:0.3rem;"></i>
                         Delivering to billing address.
                     </p>
 
@@ -264,7 +264,7 @@
                         <input type="radio" name="delivery" value="fast"
                                onchange="selectDelivery('fast')">
                         <div>
-                            <div class="d-label"><i class="fa fa-bolt" style="color:#f59e0b; margin-right:0.3rem;"></i> Fast Delivery</div>
+                            <div class="d-label"><i class="fa fa-bolt" style="color:var(--color-amber); margin-right:0.3rem;"></i> Fast Delivery</div>
                             <div class="d-detail">1–3 business days — priority handling</div>
                         </div>
                         <div class="d-price" id="fast-delivery-price" style="color:var(--accent-red);">+$9.99</div>
@@ -350,11 +350,11 @@
                     </div>
                     <div class="flex-between mb-2" id="summary-delivery-row">
                         <span class="text-muted">Delivery</span>
-                        <span id="summary-delivery" style="color:#16a34a; font-weight:600;">Free</span>
+                        <span id="summary-delivery" style="color:var(--color-green); font-weight:600;">Free</span>
                     </div>
                     <div class="flex-between mb-2" id="summary-discount-row" style="display:none;">
-                        <span style="color:#16a34a; font-weight:600;">Promo discount</span>
-                        <span id="summary-discount" style="color:#16a34a; font-weight:600;">-$0.00</span>
+                        <span style="color:var(--color-green); font-weight:600;">Promo discount</span>
+                        <span id="summary-discount" style="color:var(--color-green); font-weight:600;">-$0.00</span>
                     </div>
                     <div class="flex-between mb-3">
                         <span class="text-muted" id="summary-tax-label">Tax (13% HST)</span>
@@ -378,8 +378,8 @@
                         <span id="coupon-status" class="small" style="display:block; margin-top:0.35rem;"></span>
                     </div>
 
-                    <div style="border:1px solid #bbf7d0; border-radius:8px; padding:0.75rem; background:#f0fdf4; margin-top:1.25rem;">
-                        <p class="small" style="color:#166534; margin:0;">
+                    <div style="border:1px solid var(--toast-success-border); border-radius:8px; padding:0.75rem; background:var(--toast-success-bg); margin-top:1.25rem;">
+                        <p class="small" style="color:var(--toast-success-fg); margin:0;">
                             <i class="fa fa-shield-alt mr-2"></i>
                             <strong>Markee Buyer Protection</strong> — If your item doesn't arrive, we'll refund you.
                         </p>
@@ -436,18 +436,16 @@ let availableFulfillmentOptions = ['shipping'];  // computed from intersection
 let selectedBillingAddr      = null;   // address object chosen via modal
 let selectedShippingAddr     = null;   // null = use billing
 let selectedSelfFulfillAddr  = null;   // shown to seller for self_fulfilled orders
-// Phase 6 — coupon state
 let appliedCouponCode    = null;
 let appliedDiscountCents = 0;
 
-// Phase 3 — Stripe state
 const _stripeKey          = '<%- locals.stripePublishableKey || "" %>';
 let _stripe               = null;
 let _stripeElements       = null;
 let _stripeIntentId       = null;
 let _stripeMounting       = false;
 let _lastMountedAmountCents = 0;
-let _selectedSavedPmId    = null;  // S21 — set when buyer picks a saved card
+let _selectedSavedPmId    = null;
 
 // ── Address selector helpers ──────────────────────────────────────────
 function escHtml(s) {
@@ -482,7 +480,6 @@ function showBillingSelector() {
     window.showAddressSelector({ type: 'delivery', title: 'Select Billing Address' }, (addr) => {
         selectedBillingAddr = addr;
         renderSelectedAddrCard('billing', addr);
-        // If "deliver to billing" is checked, keep shipping in sync
         if (document.getElementById('same-as-billing')?.checked) {
             selectedShippingAddr = null; // means use billing
         }
@@ -529,12 +526,10 @@ async function loadFulfillmentOptions() {
     const sellerIds = [...new Set(checkoutItems.map(i => i.sellerId).filter(Boolean))];
     if (!sellerIds.length) return;
     const results = await Promise.allSettled(
-        // /by-seller/:id resolves sellerId → store document (includes fulfillmentOptions, enabledCarriers, pickupLocations)
         sellerIds.map(id => fetch(`/api/public-seller/by-seller/${id}`).then(r => r.ok ? r.json() : null))
     );
     sellerStoreData = results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean);
 
-    // Intersect fulfillmentOptions across all sellers in the cart
     const allOptions = sellerStoreData.map(s => (s.fulfillmentOptions && s.fulfillmentOptions.length) ? s.fulfillmentOptions : ['shipping']);
     availableFulfillmentOptions = allOptions.length
         ? allOptions.reduce((a, b) => a.filter(x => b.includes(x)))
@@ -643,7 +638,6 @@ function renderPickupLocation() {
         if (instrEl) instrEl.textContent = '';
         return;
     }
-    // Resolve by pickupLocationId from the first checkout item; fall back to locations[0]
     const preferredId = (checkoutItems[0] || {}).pickupLocationId;
     const loc = (preferredId && locations.find(l => l._id?.toString() === preferredId?.toString())) || locations[0];
     const streetVal = loc.street || loc.address || '';
@@ -748,7 +742,6 @@ function openCardSelector() {
         document.getElementById('card-selector-btn-text').textContent  = 'Change card';
         document.getElementById('card-selector-actions').style.display = 'flex';
         document.getElementById('no-saved-cards-msg').style.display    = 'none';
-        // Keep card entry hidden — saved card is selected
         document.getElementById('payment-type-row').style.display = 'none';
         document.getElementById('card-fields').style.display      = 'none';
     });
@@ -776,7 +769,6 @@ async function loadSavedCards() {
         const data  = await res.json();
         const cards = data.cards || [];
 
-        // Always show the saved-payments-section and always hide Stripe Elements on checkout
         const section = document.getElementById('saved-payments-section');
         section.style.display = 'block';
         document.getElementById('payment-type-row').style.display = 'none';
@@ -791,7 +783,6 @@ async function loadSavedCards() {
             return;
         }
 
-        // Filter to non-expired cards only
         const validCards = cards.filter(c => !isExpired(c));
 
         if (!validCards.length) {
@@ -806,11 +797,9 @@ async function loadSavedCards() {
             return;
         }
 
-        // Has valid saved cards — hide no-cards message, show selector actions
         document.getElementById('no-saved-cards-msg').style.display    = 'none';
         document.getElementById('card-selector-actions').style.display = 'flex';
 
-        // Auto-select the first non-expired card
         const first = validCards[0];
         _selectedSavedPmId = first.id;
         const brand = first.brand.charAt(0).toUpperCase() + first.brand.slice(1);
@@ -1009,7 +998,7 @@ async function mountStripeElement() {
     if (_stripeMounting) return;
 
     const totalCents = computeFinalAmountCents();
-    if (totalCents < 50) return; // Stripe minimum
+    if (totalCents < 50) return;
 
     // Skip remount if amount unchanged and element already mounted
     if (totalCents === _lastMountedAmountCents && _stripeElements) return;
@@ -1073,7 +1062,6 @@ function validate() {
     let ok = true;
     const errors = [];
 
-    // Billing address — must have selected an address
     if (!selectedBillingAddr) {
         errors.push('Please select a billing address.');
         const emptyEl = document.getElementById('billing-addr-empty');
@@ -1087,7 +1075,6 @@ function validate() {
     const ft = document.getElementById('fulfillment-type-select')?.value || 'shipping';
     const sameAsBilling = document.getElementById('same-as-billing').checked;
 
-    // For shipping with a separate delivery address
     if (ft === 'shipping' && !sameAsBilling && !selectedShippingAddr) {
         errors.push('Please select a delivery address.');
         const emptyEl = document.getElementById('shipping-addr-empty');
@@ -1098,7 +1085,6 @@ function validate() {
         if (emptyEl) emptyEl.style.outline = '';
     }
 
-    // For self-fulfilled — buyer must share an address with the seller
     if (ft === 'self_fulfilled' && !selectedSelfFulfillAddr) {
         errors.push('Please select an address to share with the seller.');
         const emptyEl = document.getElementById('sf-addr-empty');
@@ -1109,7 +1095,6 @@ function validate() {
         if (emptyEl) emptyEl.style.outline = '';
     }
 
-    // Card validation is handled by Stripe Payment Element — no inline check needed
     if (!ok && errors.length) showInlineError('checkout-error-container', errors[0]);
     return ok;
 }
@@ -1318,7 +1303,6 @@ async function placeOrder(evt) {
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || data.error || 'Order failed');
 
-        // Clear cart after successful order
         const params = new URLSearchParams(window.location.search);
         if (!params.get('productId')) MarkeeCart.clearCart();
 
@@ -1326,7 +1310,6 @@ async function placeOrder(evt) {
         _stripeElements       = null;
         _lastMountedAmountCents = 0;
 
-        // Show confirmation
         document.getElementById('checkout-main').style.display = 'none';
         const confirm = document.getElementById('confirm-screen');
         confirm.style.display = 'block';
@@ -1403,7 +1386,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     loadCheckoutItems();
     loadUserLocale();
-    loadSavedCards();  // S21 — populate saved cards if buyer has any
+    loadSavedCards();
 
 });
 </script>

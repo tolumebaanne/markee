@@ -1,10 +1,3 @@
-/**
- * platformGuard.js
- * 
- * m0t.ARCH: Centrally managed platform state enforcement.
- * Every service verifies its own state (BUILDER.9).
- */
-
 const bus = require('../eventBus');
 
 let platformState = {
@@ -12,7 +5,6 @@ let platformState = {
     maintenanceMode: false
 };
 
-// Initial state fetch
 const fetchState = async () => {
     try {
         const adminUrl = process.env.ADMIN_SERVICE_URL || 'http://localhost:5014';
@@ -29,11 +21,9 @@ const fetchState = async () => {
     }
 };
 
-// Start sync and poll every 5 seconds (Point 2: Eventual consistency)
 fetchState();
 setInterval(fetchState, 5000);
 
-// Listen for real-time updates (Point 2: Event-driven robustness)
 bus.on('platform.lockdown', (data) => {
     platformState.lockdownMode = data.enabled;
     console.log(`[PLATFORM-GUARD] Lockdown Mode: ${data.enabled ? 'ACTIVE' : 'INACTIVE'}`);
@@ -44,12 +34,7 @@ bus.on('platform.maintenance_mode', (data) => {
     console.log(`[PLATFORM-GUARD] Maintenance Mode: ${data.enabled ? 'ACTIVE' : 'INACTIVE'}`);
 });
 
-/**
- * Middleware: Enforce platform state
- * Point 5 (Refinement): Ensure Admin and Health routes are NEVER blocked.
- */
 module.exports = (req, res, next) => {
-    // 1. Safety Bypass: Critical routes must ALWAYS be allowed (Point 5)
     const isHealth   = req.path === '/health' || req.path.endsWith('/health');
     const isStatus   = req.path === '/internal/status';
     const isAuth     = req.path === '/login' || req.path === '/register' || req.path.startsWith('/api/auth');
@@ -57,11 +42,9 @@ module.exports = (req, res, next) => {
 
     if (isHealth || isStatus || isAuth || isAdminApp) return next();
 
-    // 2. Safety Bypass: Admin role (passed via x-user or verified token) ALWAYS allowed
-    // Also bypass for admin-service callService requests (x-admin-email header)
+    // x-admin-email header also bypasses — admin-service callService requests are not JWT-authenticated
     if ((req.user && req.user.role === 'admin') || req.headers['x-admin-email']) return next();
 
-    // 3. Enforcement: Lockdown Mode
     if (platformState.lockdownMode) {
         return res.status(503).json({
             error: true,
@@ -70,7 +53,6 @@ module.exports = (req, res, next) => {
         });
     }
 
-    // 4. Enforcement: Maintenance Mode (GET allowed, others blocked)
     if (platformState.maintenanceMode && req.method !== 'GET') {
         return res.status(503).json({
             error: true,
