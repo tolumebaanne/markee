@@ -66,12 +66,11 @@
     legend.innerHTML = '';
     try {
       const data = await adminApi('GET', '/proxy/search/health');
-      const status = data.status || data || {};
-      const active = status.active || 0;
-      const stale = status.stale || 0;
-      const pending = status.pending || 0;
-      const hidden = status.hidden || 0;
-      const total = active + stale + pending + hidden || 1;
+      const active = data.active || 0;
+      const stale = data.stale || 0;
+      const pending = data.pending || 0;
+      const hidden = data.hidden || 0;
+      const total = active + stale + pending + hidden;
       loading.style.display = 'none';
 
       statsGrid.innerHTML = `
@@ -80,6 +79,12 @@
         <div class="stat-card"><div class="stat-label">Pending</div><div class="stat-value" style="color:#60a5fa">${pending.toLocaleString()}</div></div>
         <div class="stat-card"><div class="stat-label">Hidden</div><div class="stat-value" style="color:#f87171">${hidden.toLocaleString()}</div></div>
       `;
+
+      if (total === 0) {
+        bar.innerHTML = '<div style="width:100%;background:var(--border);height:100%;border-radius:6px"></div>';
+        legend.innerHTML = '<span style="color:var(--muted);font-size:0.8rem"><i class="fas fa-circle-info" style="margin-right:0.3rem"></i>Index is empty — products will be indexed as sellers list them.</span>';
+        return;
+      }
 
       const segments = [
         { label: 'Active', count: active, pct: Math.round(active/total*100), color: '#4ade80' },

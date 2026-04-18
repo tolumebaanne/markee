@@ -993,7 +993,15 @@ app.get('/admin/index-health', async (req, res) => {
             byStatus[s._id || 'unknown'] = s.count;
             total += s.count;
         }
-        res.json({ total, byStatus, lastUpdated: lastDoc?.updatedAt || null });
+        res.json({
+            active:      byStatus.active  || 0,
+            stale:       byStatus.stale   || 0,
+            pending:     byStatus.pending || 0,
+            hidden:      byStatus.hidden  || 0,
+            deleted:     byStatus.deleted || 0,
+            total,
+            lastUpdated: lastDoc?.updatedAt || null
+        });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
