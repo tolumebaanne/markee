@@ -946,6 +946,21 @@ router.patch('/payments/remittances/:id/mark-paid',
   }
 );
 
+// Sellers with available (released, unremitted) payout balances — enriched with store names
+router.get('/payments/sellers-with-payouts', requirePermission('payments', 'remit'), async (req, res) => {
+    const r = await callService('GET', `${paymentUrl()}/admin/payments/sellers-with-payouts`, null, req.admin.email);
+    if (!r.ok) return res.status(r.status).json(r.data);
+    const sellers = r.data.sellers || [];
+    if (!sellers.length) return res.json({ sellers: [] });
+    const enriched = await Promise.all(sellers.map(async s => {
+        try {
+            const sr = await callService('GET', `${sellerUrl()}/admin/stores/${s.storeId}/profile`, null, req.admin.email);
+            return { ...s, storeName: sr.ok ? (sr.data.name || '—') : '—' };
+        } catch { return { ...s, storeName: '—' }; }
+    }));
+    res.json({ sellers: enriched });
+});
+
 // ── Search (extended) ─────────────────────────────────────────────────────────
 router.get('/search/health', requirePermission('search', 'read'), async (req, res) => {
   const r = await callService('GET', `${searchUrl()}/admin/index-health`, null, req.admin.email);

@@ -1314,6 +1314,7 @@ app.post('/admin/escrows/:orderId/force-release', async (req, res) => {
 app.get('/seller-summary/:sellerId', async (req, res) => {
     try {
         const { sellerId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(sellerId)) return errorResponse(res, 400, 'Invalid seller ID format');
         const escrows = await Escrow.find({
             'sellerPayouts.sellerId': new mongoose.Types.ObjectId(sellerId),
             status: { $in: ['held', 'cod_pending', 'authorizing'] },
@@ -1328,6 +1329,53 @@ app.get('/seller-summary/:sellerId', async (req, res) => {
             }
         }
         res.json({ pendingPayouts });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+app.get('/seller-balance', async (req, res) => {
+    if (!req.user?.storeId) return errorResponse(res, 401, 'Seller auth required');
+    try {
+        const storeId = req.user.storeId.toString();
+        if (!mongoose.Types.ObjectId.isValid(storeId)) return errorResponse(res, 400, 'Invalid storeId in token');
+        const oid = new mongoose.Types.ObjectId(storeId);
+
+        // Unreleased payouts on active escrows
+        const activeEscrows = await Escrow.find({
+            'sellerPayouts.sellerId': oid,
+            status: { $in: ['held', 'cod_pending', 'authorizing'] }
+        }).select('sellerPayouts').lean();
+        let inEscrow = 0;
+        for (const e of activeEscrows) {
+            for (const p of (e.sellerPayouts || [])) {
+                if (p.sellerId?.toString() === storeId && !p.released) {
+                    inEscrow += p.netAmountCents || p.amountCents || 0;
+                }
+            }
+        }
+
+        // Released payouts (all escrows) — gross available
+        const releasedEscrows = await Escrow.find({
+            'sellerPayouts.sellerId': oid,
+            'sellerPayouts.released': true
+        }).select('sellerPayouts').lean();
+        let grossReleased = 0;
+        for (const e of releasedEscrows) {
+            for (const p of (e.sellerPayouts || [])) {
+                if (p.sellerId?.toString() === storeId && p.released) {
+                    grossReleased += p.netAmountCents || p.amountCents || 0;
+                }
+            }
+        }
+
+        // Subtract paid remittances to get net available
+        const remitAgg = await Remittance.aggregate([
+            { $match: { sellerId: oid, status: 'paid' } },
+            { $group: { _id: null, total: { $sum: '$amountCents' } } }
+        ]);
+        const totalRemitted = remitAgg[0]?.total || 0;
+        const available = Math.max(0, grossReleased - totalRemitted);
+
+        res.json({ inEscrow, available });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
@@ -1638,7 +1686,7 @@ const RemittanceSchema = new mongoose.Schema({
     storeId:         { type: mongoose.Schema.Types.ObjectId },
     orderIds:        [{ type: mongoose.Schema.Types.ObjectId }],
     amountCents:     { type: Number, required: true, min: 1 },
-    method:          { type: String, enum: ['bank_transfer', 'cheque', 'cash', 'interac', 'other'], default: 'bank_transfer' },
+    method:          { type: String, enum: ['bank_transfer', 'cheque', 'cash', 'interac', 'paypal', 'stripe', 'other'], default: 'bank_transfer' },
     referenceNumber: { type: String, trim: true },
     note:            { type: String, trim: true },
     status:          { type: String, enum: ['pending', 'paid'], default: 'pending', index: true },
@@ -1649,6 +1697,43 @@ const RemittanceSchema = new mongoose.Schema({
 
 const Remittance = db.model('Remittance', RemittanceSchema);
 
+// GET /admin/payments/sellers-with-payouts — sellers with released-but-unremitted balances
+app.get('/admin/payments/sellers-with-payouts', async (req, res) => {
+    const isAdmin = req.user?.role === 'admin' || !!req.headers['x-admin-email'];
+    if (!isAdmin) return errorResponse(res, 403, 'Admin only');
+    try {
+        const releasedAgg = await Escrow.aggregate([
+            { $unwind: '$sellerPayouts' },
+            { $match: { 'sellerPayouts.released': true } },
+            { $group: {
+                _id: '$sellerPayouts.sellerId',
+                grossReleased: { $sum: { $ifNull: ['$sellerPayouts.netAmountCents', '$sellerPayouts.amountCents'] } }
+            }}
+        ]);
+
+        if (!releasedAgg.length) return res.json({ sellers: [] });
+
+        const remitAgg = await Remittance.aggregate([
+            { $match: { status: 'paid' } },
+            { $group: { _id: '$sellerId', totalRemitted: { $sum: '$amountCents' } } }
+        ]);
+        const remitMap = {};
+        for (const r of remitAgg) {
+            if (r._id) remitMap[r._id.toString()] = r.totalRemitted;
+        }
+
+        const sellers = releasedAgg
+            .map(a => ({
+                storeId: a._id?.toString(),
+                availableCents: Math.max(0, a.grossReleased - (remitMap[a._id?.toString()] || 0))
+            }))
+            .filter(a => a.storeId && a.availableCents > 0)
+            .sort((a, b) => b.availableCents - a.availableCents);
+
+        res.json({ sellers });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
 // GET /admin/payments/remittances — list with optional filters
 app.get('/admin/payments/remittances', async (req, res) => {
     const isAdmin = req.user?.role === 'admin' || !!req.headers['x-admin-email'];
@@ -1656,7 +1741,10 @@ app.get('/admin/payments/remittances', async (req, res) => {
     try {
         const { sellerId, status, from, to, page = 1, limit = 50 } = req.query;
         const filter = {};
-        if (sellerId) filter.sellerId = sellerId;
+        if (sellerId) {
+            if (!mongoose.Types.ObjectId.isValid(sellerId)) return res.json({ total: 0, page: 1, limit: parseInt(limit), rows: [] });
+            filter.sellerId = new mongoose.Types.ObjectId(sellerId);
+        }
         if (status)   filter.status = status;
         if (from || to) {
             filter.createdAt = {};
@@ -1677,6 +1765,7 @@ app.post('/admin/payments/remittances', async (req, res) => {
     if (!isAdmin) return errorResponse(res, 403, 'Admin only');
     const { sellerId, storeId, orderIds, amountCents, method, referenceNumber, note } = req.body;
     if (!sellerId)   return errorResponse(res, 400, 'sellerId is required');
+    if (!mongoose.Types.ObjectId.isValid(sellerId)) return errorResponse(res, 400, 'sellerId must be a valid 24-character ObjectId');
     if (!amountCents || amountCents < 1) return errorResponse(res, 400, 'amountCents must be >= 1');
     try {
         const rec = await Remittance.create({

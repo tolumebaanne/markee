@@ -41,6 +41,14 @@
         /* ── Payout section ───────────────────────────────────────────────── */
         .payout-status      { font-size: 0.88rem; margin-bottom: 0.6rem; }
         .payout-info        { font-size: 0.82rem; color: var(--muted); }
+
+        /* ── Payout balance display ───────────────────────────────────────── */
+        .payout-balance-grid   { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-bottom: 1.25rem; }
+        .payout-balance-card   { border: 1px solid var(--border-light); border-radius: 8px; padding: .75rem 1rem; background: var(--bg-secondary); }
+        .payout-balance-label  { font-size: .78rem; color: var(--text-muted); margin-bottom: .25rem; }
+        .payout-balance-value  { font-size: 1.3rem; font-weight: 700; }
+        .payout-mode-fields    { display: none; }
+        .payout-method-section { border-top: 1px solid var(--border-light); margin-top: 1.25rem; padding-top: 1.1rem; }
     </style>
 </head>
 <body>
@@ -99,7 +107,86 @@
     <!-- ── Payout Account (sellers only) ─────────────────────────────────────── -->
     <div class="wallet-section" id="payout-section" style="display:none">
         <h3><i class="fa fa-building-columns wallet-section-icon"></i> Payout Account</h3>
-        <div id="payout-body"></div>
+
+        <!-- Balance -->
+        <div id="payout-balance-loading" class="wallet-hint"><i class="fa fa-spinner fa-spin"></i> Loading balance…</div>
+        <div id="payout-balance-grid" class="payout-balance-grid" style="display:none">
+            <div class="payout-balance-card">
+                <div class="payout-balance-label">In Escrow</div>
+                <div class="payout-balance-value" id="payout-in-escrow">—</div>
+                <div style="font-size:.74rem;color:var(--text-muted);margin-top:.2rem">Held pending order completion</div>
+            </div>
+            <div class="payout-balance-card">
+                <div class="payout-balance-label">Available for Payout</div>
+                <div class="payout-balance-value" id="payout-available" style="color:var(--color-green)">—</div>
+                <div style="font-size:.74rem;color:var(--text-muted);margin-top:.2rem">Released earnings minus past payouts</div>
+            </div>
+        </div>
+        <div id="payout-balance-error" style="display:none" class="wallet-hint" style="color:var(--color-error)"></div>
+
+        <!-- Payout method form -->
+        <div class="payout-method-section">
+            <h4 style="margin:0 0 .6rem;font-size:.92rem;font-weight:700">Payout Method</h4>
+            <p class="wallet-hint">How you want to receive earnings. Saved details are used when admin processes your payout.</p>
+
+            <div id="payout-method-loading" class="wallet-hint"><i class="fa fa-spinner fa-spin"></i> Loading…</div>
+            <div id="payout-method-form" style="display:none">
+                <div class="form-group">
+                    <label>Payout Mode</label>
+                    <select id="wallet-payout-mode" class="form-control" onchange="walletSwitchPayoutMode(this.value)">
+                        <option value="bank_transfer">Bank Transfer</option>
+                        <option value="cheque">Cheque</option>
+                        <option value="paypal">PayPal</option>
+                        <option value="interac">Interac e-Transfer</option>
+                        <option value="stripe">Stripe Connect</option>
+                        <option value="other">Other / Custom</option>
+                    </select>
+                </div>
+
+                <!-- Bank Transfer -->
+                <div id="wallet-fields-bank_transfer" class="payout-mode-fields" style="display:block">
+                    <div class="form-group"><label>Account Holder Name</label><input type="text" id="wallet-bank-holder" class="form-control" placeholder="Full legal name on account" maxlength="100"></div>
+                    <div class="form-group"><label>Institution / Bank Name</label><input type="text" id="wallet-bank-institution" class="form-control" placeholder="e.g. TD Canada Trust" maxlength="100"></div>
+                    <div class="form-group"><label>Transit Number</label><input type="text" id="wallet-bank-transit" class="form-control" placeholder="5-digit transit number" maxlength="20"></div>
+                    <div class="form-group"><label>Account Number</label><input type="text" id="wallet-bank-account" class="form-control" placeholder="7–12 digit account number" maxlength="20"></div>
+                </div>
+
+                <!-- Cheque -->
+                <div id="wallet-fields-cheque" class="payout-mode-fields">
+                    <div class="form-group"><label>Make Cheque Payable To</label><input type="text" id="wallet-cheque-payable" class="form-control" placeholder="Full name or business name" maxlength="100"></div>
+                    <div class="form-group"><label>Street Address</label><input type="text" id="wallet-cheque-street" class="form-control" placeholder="123 Main St" maxlength="200"></div>
+                    <div class="form-group"><label>City</label><input type="text" id="wallet-cheque-city" class="form-control" placeholder="City" maxlength="100"></div>
+                    <div class="form-group"><label>Province / State</label><input type="text" id="wallet-cheque-province" class="form-control" placeholder="e.g. ON" maxlength="100"></div>
+                    <div class="form-group"><label>Postal / ZIP</label><input type="text" id="wallet-cheque-postal" class="form-control" placeholder="e.g. M5V 3A8" maxlength="20"></div>
+                    <div class="form-group"><label>Country</label><input type="text" id="wallet-cheque-country" class="form-control" placeholder="Canada" maxlength="100"></div>
+                </div>
+
+                <!-- PayPal -->
+                <div id="wallet-fields-paypal" class="payout-mode-fields">
+                    <div class="form-group"><label>PayPal Email</label><input type="email" id="wallet-paypal-email" class="form-control" placeholder="your@paypal.com" maxlength="200"></div>
+                </div>
+
+                <!-- Interac -->
+                <div id="wallet-fields-interac" class="payout-mode-fields">
+                    <div class="form-group"><label>Interac Email or Phone</label><input type="text" id="wallet-interac-contact" class="form-control" placeholder="email@example.com or 416-555-0100" maxlength="200"></div>
+                </div>
+
+                <!-- Stripe Connect -->
+                <div id="wallet-fields-stripe" class="payout-mode-fields">
+                    <div class="form-group"><label>Stripe Account ID or Email</label><input type="text" id="wallet-stripe-account" class="form-control" placeholder="acct_1234… or seller@email.com" maxlength="200"></div>
+                </div>
+
+                <!-- Other -->
+                <div id="wallet-fields-other" class="payout-mode-fields">
+                    <div class="form-group"><label>Payment Reference / Instructions</label><textarea id="wallet-other-reference" class="form-control" rows="3" placeholder="Describe how you'd like to be paid…" maxlength="500"></textarea></div>
+                </div>
+
+                <div id="wallet-payout-save-error" style="display:none" class="alert-error mb-2"></div>
+                <button id="wallet-payout-save-btn" class="btn btn-red" onclick="walletSavePayoutMethod()">
+                    <i class="fa fa-save"></i> Save Payout Method
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -310,28 +397,118 @@ function removeCard(pmId) {
     );
 }
 
+// ── Payout section (sellers only) ─────────────────────────────────────────────
+function fmtDollars(cents) {
+    return '$' + ((cents || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function walletSwitchPayoutMode(mode) {
+    document.querySelectorAll('.payout-mode-fields').forEach(el => el.style.display = 'none');
+    const target = document.getElementById('wallet-fields-' + mode);
+    if (target) target.style.display = 'block';
+}
+
+function walletPopulatePayoutForm(pm) {
+    if (!pm) return;
+    const sel = document.getElementById('wallet-payout-mode');
+    if (pm.mode) { sel.value = pm.mode; walletSwitchPayoutMode(pm.mode); }
+    const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+    set('wallet-bank-holder',      pm.accountHolderName);
+    set('wallet-bank-institution', pm.institutionName);
+    set('wallet-bank-transit',     pm.transitNumber);
+    set('wallet-bank-account',     pm.accountNumber);
+    set('wallet-cheque-payable',   pm.payableTo);
+    set('wallet-cheque-street',    pm.mailingStreet);
+    set('wallet-cheque-city',      pm.mailingCity);
+    set('wallet-cheque-province',  pm.mailingProvince);
+    set('wallet-cheque-postal',    pm.mailingPostal);
+    set('wallet-cheque-country',   pm.mailingCountry);
+    set('wallet-paypal-email',     pm.paypalEmail);
+    set('wallet-interac-contact',  pm.interacContact);
+    set('wallet-stripe-account',   pm.stripeAccountId);
+    set('wallet-other-reference',  pm.reference);
+}
+
+async function walletSavePayoutMethod() {
+    const token  = localStorage.getItem('access_token') || localStorage.getItem('authToken') || localStorage.getItem('token') || '';
+    const errEl  = document.getElementById('wallet-payout-save-error');
+    const btn    = document.getElementById('wallet-payout-save-btn');
+    errEl.style.display = 'none';
+    btn.disabled  = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving…';
+    const mode = document.getElementById('wallet-payout-mode').value;
+    const body = {
+        mode,
+        accountHolderName: document.getElementById('wallet-bank-holder').value.trim(),
+        institutionName:   document.getElementById('wallet-bank-institution').value.trim(),
+        transitNumber:     document.getElementById('wallet-bank-transit').value.trim(),
+        accountNumber:     document.getElementById('wallet-bank-account').value.trim(),
+        payableTo:         document.getElementById('wallet-cheque-payable').value.trim(),
+        mailingStreet:     document.getElementById('wallet-cheque-street').value.trim(),
+        mailingCity:       document.getElementById('wallet-cheque-city').value.trim(),
+        mailingProvince:   document.getElementById('wallet-cheque-province').value.trim(),
+        mailingPostal:     document.getElementById('wallet-cheque-postal').value.trim(),
+        mailingCountry:    document.getElementById('wallet-cheque-country').value.trim(),
+        paypalEmail:       document.getElementById('wallet-paypal-email').value.trim(),
+        interacContact:    document.getElementById('wallet-interac-contact').value.trim(),
+        stripeAccountId:   document.getElementById('wallet-stripe-account').value.trim(),
+        reference:         document.getElementById('wallet-other-reference').value.trim()
+    };
+    try {
+        const res  = await fetch('/api/users/me/payout-method', {
+            method:  'PUT',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+            body:    JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+        toast('Payout method saved', 'success');
+    } catch (err) {
+        errEl.textContent   = err.message;
+        errEl.style.display = 'block';
+    } finally {
+        btn.disabled  = false;
+        btn.innerHTML = '<i class="fa fa-save"></i> Save Payout Method';
+    }
+}
+
 async function loadPayoutSection() {
     const token = localStorage.getItem('access_token') || localStorage.getItem('authToken') || localStorage.getItem('token') || '';
     if (!token) return;
-    try {
-        const payload  = JSON.parse(atob(token.split('.')[1]));
-        const isSeller = payload.storeActive === true;
-        if (!isSeller) return;
-        document.getElementById('payout-section').style.display = 'block';
-        const res  = await fetch('/api/sellers/my-store', { headers: { Authorization: `Bearer ${token}` } });
-        const data = await res.json();
-        const store = data.store || data;
-        const cs    = store.stripeConnectStatus || 'not_connected';
-        const labels= { not_connected:'Not Connected', pending:'Under Review', active:'Active — Payouts Enabled' };
-        const colors= { not_connected:'var(--warn)', pending:'#60a5fa', active:'var(--success)' };
-        document.getElementById('payout-body').innerHTML = `
-            <div class="payout-status">
-                Status: <strong style="color:${colors[cs]}">${labels[cs] || cs}</strong>
-            </div>
-            <p class="payout-info wallet-hint">
-                Payout account status is managed by Markee staff. Contact support to connect your bank account.
-            </p>`;
-    } catch (err) { /* non-critical — hide payout section */ }
+    let payload;
+    try { payload = JSON.parse(atob(token.split('.')[1])); } catch { return; }
+    if (!payload.storeActive) return;
+
+    document.getElementById('payout-section').style.display = 'block';
+
+    // Load balance
+    fetch('/api/payments/seller-balance', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('payout-balance-loading').style.display = 'none';
+            document.getElementById('payout-in-escrow').textContent  = fmtDollars(data.inEscrow  || 0);
+            document.getElementById('payout-available').textContent  = fmtDollars(data.available || 0);
+            document.getElementById('payout-balance-grid').style.display = 'grid';
+        })
+        .catch(() => {
+            document.getElementById('payout-balance-loading').style.display = 'none';
+            const errEl = document.getElementById('payout-balance-error');
+            errEl.textContent   = 'Could not load balance.';
+            errEl.style.display = 'block';
+        });
+
+    // Load saved payout method
+    fetch('/api/users/me/payout-method', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('payout-method-loading').style.display = 'none';
+            document.getElementById('payout-method-form').style.display    = 'block';
+            if (data.payoutMethod) walletPopulatePayoutForm(data.payoutMethod);
+        })
+        .catch(() => {
+            document.getElementById('payout-method-loading').style.display = 'none';
+            document.getElementById('payout-method-form').style.display    = 'block';
+        });
 }
 
 loadSavedCards();
