@@ -27,6 +27,13 @@ const UserSchema = new mongoose.Schema({
   resetTokenExpiry:     { type: Date,   default: null },
 });
 
+// Normalize email before every save — lowercase + trim enforced at model layer
+// regardless of which call path creates or updates the document.
+UserSchema.pre('save', function(next) {
+  if (this.email) this.email = this.email.toLowerCase().trim();
+  next();
+});
+
 UserSchema.statics.validatePassword = async function(email, password) {
   const user = await this.findOne({ email: email.toLowerCase().trim() });
   if (!user) return null;

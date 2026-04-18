@@ -65,11 +65,13 @@ router.get('/login', requireNotAuth, (req, res) => {
 });
 
 router.post('/login', requireNotAuth, async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.redirect('/login?error=Missing credentials');
+  const rawEmail = (req.body.email || '').toLowerCase().trim();
+  const { password } = req.body;
+  if (!rawEmail || !password) return res.redirect('/login?error=Email and password are required');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) return res.redirect('/login?error=Enter a valid email address');
 
   try {
-    const user = await User.validatePassword(email, password);
+    const user = await User.validatePassword(rawEmail, password);
     if (!user) return res.redirect('/login?error=Invalid credentials');
 
     // Block fully soft-deleted accounts (email is mangled so this is belt-and-suspenders)
