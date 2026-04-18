@@ -51,6 +51,7 @@ build/
 # ── Editor / IDE ─────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
+.obsidian/
 *.swp
 *.swo
 _to_be_deleted/
