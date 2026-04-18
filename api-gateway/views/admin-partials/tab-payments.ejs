@@ -1,3 +1,37 @@
+<style>
+  /* ── Remittances panel ─────────────────────────────────────────── */
+  .rem-two-col                       { display:grid; grid-template-columns:1fr 1fr; gap:1rem; align-items:start; }
+  .rem-input-full                    { width:100%; box-sizing:border-box; margin-bottom:.6rem; background:var(--card); border:1px solid var(--border); border-radius:8px; color:var(--text); padding:.42rem .7rem; font-size:.78rem; outline:none; transition:border-color .15s; }
+  .rem-input-full:focus              { border-color:var(--accent); }
+  .rem-form-grid                     { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; margin-bottom:.6rem; }
+  .rem-form-grid .form-group         { margin:0; }
+  .rem-form-grid .form-group input,
+  .rem-form-grid .form-group select  { font-size:.82rem; padding:.4rem .65rem; }
+  .rem-form-span2                    { grid-column:span 2; }
+  .rem-mb                            { margin-bottom:1rem; }
+  .rem-filter-grow                   { flex:1; min-width:140px; }
+  .filter-bar label                  { font-size:.75rem; color:var(--muted); display:block; margin-bottom:2px; }
+  .rem-table                         { width:100%; border-collapse:collapse; font-size:.82rem; }
+  .rem-table thead tr                { border-bottom:1px solid var(--border); }
+  .rem-table thead th                { color:var(--muted); font-size:.74rem; font-weight:600; text-align:left; padding:.3rem .4rem; text-transform:none; letter-spacing:0; background:transparent; white-space:nowrap; }
+  .rem-table thead th.th-r           { text-align:right; }
+  .rem-table tbody tr                { border-bottom:1px solid var(--border); }
+  .rem-table tbody tr.row-link       { cursor:pointer; }
+  .rem-table tbody tr.row-link:hover { background:rgba(255,255,255,.035); }
+  .rem-table td                      { padding:.35rem .4rem; vertical-align:middle; }
+  .rem-td-r                          { text-align:right; }
+  .rem-td-bold                       { font-weight:700; }
+  .rem-td-green                      { font-weight:700; color:var(--green); white-space:nowrap; }
+  .rem-td-muted                      { color:var(--muted); }
+  .rem-name-primary                  { font-weight:600; font-size:.83rem; }
+  .rem-name-sub                      { font-size:.72rem; color:var(--muted); }
+  .rem-empty-msg                     { color:var(--muted); font-size:.83rem; padding:.5rem 0; }
+  .badge-paid                        { padding:2px 7px; border-radius:999px; font-size:.72rem; font-weight:600; background:rgba(var(--rgb-green),.15); color:var(--green); }
+  .badge-pending                     { padding:2px 7px; border-radius:999px; font-size:.72rem; font-weight:600; background:rgba(var(--rgb-warn),.15); color:var(--warn); }
+  .rem-modal-amount                  { font-size:1.05rem; font-weight:700; }
+  .rem-payout-hint                   { margin-bottom:.6rem; }
+</style>
+
 <!-- Payments Tab: escrows, disputes, payout holds, payment summary -->
 <div class="tab-panel" id="tab-payments">
   <div class="page-header">
@@ -95,92 +129,106 @@
 
   <!-- Sub-panel: Remittances -->
   <div id="pay-remittances" class="sub-panel" style="display:none">
+    <div class="rem-two-col">
 
-    <!-- Sellers with available payouts -->
-    <div class="card" style="margin-bottom:1rem;max-width:580px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem">
-        <div class="card-title" style="margin:0"><i class="fas fa-users"></i> Sellers with Available Payouts</div>
-        <input type="text" id="rem-seller-search" placeholder="Search store name or ID…"
-               style="font-size:.8rem;padding:4px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);width:220px"
+      <!-- LEFT: Sellers with outstanding payouts -->
+      <div class="card">
+        <div class="card-title"><i class="fas fa-users"></i> Sellers with Available Payouts</div>
+        <input type="text" id="rem-seller-search" class="rem-input-full" placeholder="Store name, ID or email…"
                oninput="filterSellerPayoutList(this.value)">
+        <div id="rem-sellers-loading" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+        <div id="rem-sellers-error" class="error-banner" style="display:none"></div>
+        <div id="rem-sellers-list" style="display:none">
+          <table class="rem-table">
+            <thead><tr>
+              <th>Store</th>
+              <th class="th-r">Owed</th>
+              <th></th>
+            </tr></thead>
+            <tbody id="rem-sellers-body"></tbody>
+          </table>
+          <div id="rem-sellers-empty" class="rem-empty-msg" style="display:none">No sellers with outstanding payouts.</div>
+        </div>
       </div>
-      <div id="rem-sellers-loading" style="color:var(--muted);font-size:.83rem"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
-      <div id="rem-sellers-error"  style="display:none;color:var(--danger);font-size:.83rem"></div>
-      <div id="rem-sellers-list"   style="display:none">
-        <table style="width:100%;border-collapse:collapse;font-size:.82rem">
-          <thead><tr style="color:var(--muted);font-size:.74rem;border-bottom:1px solid var(--border)">
-            <th style="text-align:left;padding:.3rem .5rem">Store</th>
-            <th style="text-align:left;padding:.3rem .5rem">Store ID</th>
-            <th style="text-align:right;padding:.3rem .5rem">Available</th>
-            <th style="padding:.3rem .5rem"></th>
-          </tr></thead>
-          <tbody id="rem-sellers-body"></tbody>
-        </table>
-        <div id="rem-sellers-empty" style="display:none;color:var(--muted);font-size:.83rem;padding:.5rem 0">No sellers with available payouts.</div>
+
+      <!-- RIGHT: Create form + history -->
+      <div>
+        <!-- Create remittance -->
+        <div class="card rem-mb">
+          <div class="card-title"><i class="fas fa-money-bill-transfer"></i> Record Manual Remittance</div>
+          <div class="rem-form-grid">
+            <div class="form-group">
+              <label>Store ID</label>
+              <input type="text" id="rem-new-seller" placeholder="ObjectId…"
+                     onblur="fetchSellerPayoutMethodHint()"
+                     oninput="if(!this.value.trim()){document.getElementById('rem-payout-hint').style.display='none';}">
+            </div>
+            <div class="form-group">
+              <label>Amount ($)</label>
+              <input type="number" id="rem-new-amount" min="0.01" step="0.01" placeholder="e.g. 150.00">
+            </div>
+            <div class="form-group">
+              <label>Method</label>
+              <select id="rem-new-method">
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="interac">Interac e-Transfer</option>
+                <option value="cheque">Cheque</option>
+                <option value="paypal">PayPal</option>
+                <option value="stripe">Stripe</option>
+                <option value="cash">Cash</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Reference #</label>
+              <input type="text" id="rem-new-ref" placeholder="e.g. TXN-20240416">
+            </div>
+            <div class="form-group rem-form-span2">
+              <label>Note (internal)</label>
+              <input type="text" id="rem-new-note" placeholder="Optional internal note…">
+            </div>
+          </div>
+          <div id="rem-payout-hint" class="alert-info rem-payout-hint" style="display:none">
+            <i class="fas fa-circle-info"></i><span id="rem-payout-hint-text"></span>
+          </div>
+          <button class="btn btn-warn btn-sm" onclick="createRemittance()"><i class="fas fa-plus"></i> Create Remittance</button>
+        </div>
+
+        <!-- Remittance history -->
+        <div class="card">
+          <div class="card-title"><i class="fas fa-list"></i> Remittance History</div>
+          <div class="filter-bar">
+            <div class="rem-filter-grow">
+              <label>Search</label>
+              <input type="text" id="rem-filter-q" placeholder="Name, ID or email…" oninput="_applyRemittanceFilter()">
+            </div>
+            <div>
+              <label>Status</label>
+              <select id="rem-filter-status" onchange="_applyRemittanceFilter()">
+                <option value="">All</option>
+                <option value="pending">Pending</option>
+                <option value="paid">Paid</option>
+              </select>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="loadRemittances()"><i class="fas fa-rotate-right"></i></button>
+          </div>
+          <div id="rem-list"><div class="loading"><i class="fas fa-spinner fa-spin"></i></div></div>
+        </div>
       </div>
     </div>
 
-    <!-- Create remittance form — populated by clicking a seller row -->
-    <div class="card" style="margin-bottom:1rem">
-      <div class="card-title"><i class="fas fa-money-bill-transfer"></i> Record Manual Remittance</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem;margin-bottom:.6rem">
-        <div class="form-group" style="margin:0">
-          <label style="font-size:.78rem">Store ID</label>
-          <input type="text" id="rem-new-seller" placeholder="ObjectId…" style="font-size:.82rem"
-                 onblur="fetchSellerPayoutMethodHint()"
-                 oninput="if(!this.value.trim()){document.getElementById('rem-payout-hint').style.display='none';}">
+    <!-- Remittance detail modal — uses shared .modal-overlay / .modal classes -->
+    <div id="rem-modal-overlay" class="modal-overlay" onclick="if(event.target===this)closeRemittanceModal()">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>Remittance Details</h3>
+          <button class="modal-close" onclick="closeRemittanceModal()"><i class="fas fa-times"></i></button>
         </div>
-        <div class="form-group" style="margin:0">
-          <label style="font-size:.78rem">Amount ($)</label>
-          <input type="number" id="rem-new-amount" min="0.01" step="0.01" placeholder="e.g. 150.00" style="font-size:.82rem">
-        </div>
-        <div class="form-group" style="margin:0">
-          <label style="font-size:.78rem">Method</label>
-          <select id="rem-new-method" style="font-size:.82rem">
-            <option value="bank_transfer">Bank Transfer</option>
-            <option value="interac">Interac e-Transfer</option>
-            <option value="cheque">Cheque</option>
-            <option value="paypal">PayPal</option>
-            <option value="stripe">Stripe</option>
-            <option value="cash">Cash</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-        <div class="form-group" style="margin:0">
-          <label style="font-size:.78rem">Reference #</label>
-          <input type="text" id="rem-new-ref" placeholder="e.g. TXN-20240416" style="font-size:.82rem">
-        </div>
-        <div class="form-group" style="margin:0;grid-column:span 2">
-          <label style="font-size:.78rem">Note (internal)</label>
-          <input type="text" id="rem-new-note" placeholder="Optional internal note…" style="font-size:.82rem">
+        <div id="rem-modal-body"></div>
+        <div class="modal-footer" id="rem-modal-footer">
+          <button class="btn btn-ghost btn-sm" onclick="closeRemittanceModal()">Close</button>
         </div>
       </div>
-      <div id="rem-payout-hint" class="alert-info" style="display:none;margin-bottom:.6rem">
-        <i class="fas fa-circle-info"></i>
-        <span id="rem-payout-hint-text"></span>
-      </div>
-      <button class="btn btn-warn btn-sm" onclick="createRemittance()"><i class="fas fa-plus"></i> Create Remittance</button>
-    </div>
-
-    <!-- Remittance history -->
-    <div class="card">
-      <div class="card-title"><i class="fas fa-list"></i> Remittance History</div>
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:.75rem">
-        <div>
-          <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:2px">Seller ID</label>
-          <input type="text" id="rem-filter-seller" placeholder="Filter by seller…" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);width:180px">
-        </div>
-        <div>
-          <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:2px">Status</label>
-          <select id="rem-filter-status" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface)">
-            <option value="">All</option>
-            <option value="pending">Pending</option>
-            <option value="paid">Paid</option>
-          </select>
-        </div>
-        <button class="btn btn-ghost btn-sm" onclick="loadRemittances()"><i class="fas fa-rotate-right"></i> Refresh</button>
-      </div>
-      <div id="rem-list"><div class="loading"><i class="fas fa-spinner fa-spin"></i></div></div>
     </div>
   </div>
 </div>
@@ -525,64 +573,124 @@ async function liftPayoutHold(sellerId) {
 
 // ── Remittances ────────────────────────────────────────────────────────────────
 
-let _remSellersList = []; // full enriched list for client-side search
+let _remSellersList  = [];   // enriched sellers list (storeName, email, availableCents)
+let _storeInfoMap    = {};   // storeId → { storeName, email } for remittance enrichment
+let _remittancesList = [];   // all loaded remittances for client-side filtering
+let _remittancesMap  = {};   // id → remittance object for modal lookup
 
 async function loadRemittances() {
-  const sellerId = document.getElementById('rem-filter-seller').value.trim();
-  const status   = document.getElementById('rem-filter-status').value;
-  const qs = new URLSearchParams();
-  if (sellerId) qs.set('sellerId', sellerId);
-  if (status)   qs.set('status', status);
   document.getElementById('rem-list').innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i></div>';
   try {
-    const data = await adminApi('GET', `/proxy/payments/remittances?${qs}`);
-    renderRemittances(data.rows || []);
-  } catch(err) { document.getElementById('rem-list').innerHTML = `<div style="color:var(--danger)">${err.message}</div>`; }
+    const data = await adminApi('GET', '/proxy/payments/remittances?limit=200');
+    _remittancesList = data.rows || [];
+    _remittancesMap  = {};
+    for (const r of _remittancesList) _remittancesMap[r._id] = r;
+    _applyRemittanceFilter();
+  } catch(err) {
+    document.getElementById('rem-list').innerHTML = `<div class="error-banner"><i class="fas fa-triangle-exclamation"></i><span>${err.message}</span></div>`;
+  }
+}
+
+function _applyRemittanceFilter() {
+  const q      = (document.getElementById('rem-filter-q')?.value || '').toLowerCase().trim();
+  const status = document.getElementById('rem-filter-status')?.value || '';
+  let rows = _remittancesList;
+  if (status) rows = rows.filter(r => r.status === status);
+  if (q) {
+    rows = rows.filter(r => {
+      const sid  = (r.sellerId || '').toLowerCase();
+      const info = _storeInfoMap[r.sellerId] || {};
+      const name  = (info.storeName || '').toLowerCase();
+      const email = (info.email     || '').toLowerCase();
+      return sid.includes(q) || name.includes(q) || email.includes(q);
+    });
+  }
+  renderRemittances(rows);
 }
 
 function renderRemittances(rows) {
   const el = document.getElementById('rem-list');
-  if (!rows.length) { el.innerHTML = '<div style="color:var(--muted);font-size:.83rem">No remittances found.</div>'; return; }
-  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.82rem">
-    <thead><tr style="color:var(--muted);font-size:.74rem;border-bottom:1px solid var(--border)">
-      <th style="text-align:left;padding:.3rem .4rem">ID</th>
-      <th style="text-align:left;padding:.3rem .4rem">Seller</th>
-      <th style="text-align:right;padding:.3rem .4rem">Amount</th>
-      <th style="text-align:left;padding:.3rem .4rem">Method</th>
-      <th style="text-align:left;padding:.3rem .4rem">Ref #</th>
-      <th style="text-align:left;padding:.3rem .4rem">Status</th>
-      <th style="text-align:left;padding:.3rem .4rem">Created</th>
-      <th style="padding:.3rem .4rem"></th>
+  if (!rows.length) { el.innerHTML = '<div class="rem-empty-msg">No remittances found.</div>'; return; }
+  el.innerHTML = `<table class="rem-table">
+    <thead><tr>
+      <th>Store</th>
+      <th class="th-r">Amount</th>
+      <th>Method</th>
+      <th>Status</th>
+      <th>Date</th>
     </tr></thead>
-    <tbody>` + rows.map(r => `
-      <tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:.35rem .4rem;color:var(--muted);font-family:monospace;font-size:.75rem">${r._id.slice(-8)}</td>
-        <td style="padding:.35rem .4rem;font-family:monospace;font-size:.75rem">${r.sellerId}</td>
-        <td style="text-align:right;padding:.35rem .4rem;font-weight:700">$${((r.amountCents||0)/100).toFixed(2)}</td>
-        <td style="padding:.35rem .4rem">${r.method}</td>
-        <td style="padding:.35rem .4rem;color:var(--muted)">${r.referenceNumber||'—'}</td>
-        <td style="padding:.35rem .4rem"><span style="padding:2px 7px;border-radius:999px;font-size:.72rem;background:${r.status==='paid'?'rgba(var(--rgb-green),.15)':'rgba(var(--rgb-warn),.15)'};color:${r.status==='paid'?'var(--color-green)':'var(--warn)'}">${r.status}</span></td>
-        <td style="padding:.35rem .4rem;color:var(--muted)">${new Date(r.createdAt).toLocaleDateString()}</td>
-        <td style="padding:.35rem .4rem">
-          ${r.status==='pending'?`<button class="btn btn-warn btn-sm" onclick="markRemittancePaid('${r._id}')"><i class="fas fa-check"></i> Mark Paid</button>`:''}
-        </td>
-      </tr>`).join('') + `</tbody></table>`;
+    <tbody>` + rows.map(r => {
+      const info  = _storeInfoMap[r.sellerId] || {};
+      const label = info.storeName || trunc(r.sellerId, 14);
+      return `<tr class="row-link" onclick="showRemittanceModal('${r._id}')">
+        <td class="rem-td-bold">${label}</td>
+        <td class="rem-td-r rem-td-bold">${fmt$(r.amountCents)}</td>
+        <td class="rem-td-muted">${r.method.replace(/_/g,' ')}</td>
+        <td><span class="${r.status === 'paid' ? 'badge-paid' : 'badge-pending'}">${r.status}</span></td>
+        <td class="rem-td-muted">${fmtDate(r.createdAt)}</td>
+      </tr>`;
+    }).join('') + `</tbody></table>`;
+}
+
+function showRemittanceModal(id) {
+  const r    = _remittancesMap[id];
+  if (!r) return;
+  const info    = _storeInfoMap[r.sellerId] || {};
+  const overlay = document.getElementById('rem-modal-overlay');
+  const body    = document.getElementById('rem-modal-body');
+  const footer  = document.getElementById('rem-modal-footer');
+
+  const row = (label, val) => val
+    ? `<div class="order-detail-row">
+         <span class="order-detail-label">${label}</span><span>${val}</span>
+       </div>`
+    : '';
+
+  body.innerHTML = `
+    ${row('Store',     info.storeName || '—')}
+    ${row('Account',   info.email || '—')}
+    ${row('Store ID',  `<code>${r.sellerId}</code>`)}
+    ${row('Amount',    `<b class="rem-modal-amount">${fmt$(r.amountCents)}</b>`)}
+    ${row('Method',    r.method.replace(/_/g,' '))}
+    ${row('Reference', r.referenceNumber || '—')}
+    ${row('Note',      r.note || '—')}
+    ${row('Status',    `<span class="${r.status === 'paid' ? 'badge-paid' : 'badge-pending'}">${r.status}</span>`)}
+    ${row('Created',   fmtTime(r.createdAt))}
+    ${r.paidAt ? row('Paid', fmtTime(r.paidAt)) : ''}
+  `;
+
+  footer.innerHTML = `
+    ${r.status === 'pending' ? `<button class="btn btn-warn btn-sm" onclick="markRemittancePaid('${r._id}');closeRemittanceModal()"><i class="fas fa-check"></i> Mark Paid</button>` : ''}
+    <button class="btn btn-ghost btn-sm" onclick="closeRemittanceModal()">Close</button>
+  `;
+
+  overlay.classList.add('open');
+}
+
+function closeRemittanceModal() {
+  document.getElementById('rem-modal-overlay').classList.remove('open');
 }
 
 async function loadSellerPayoutList() {
   const loadEl  = document.getElementById('rem-sellers-loading');
   const errEl   = document.getElementById('rem-sellers-error');
   const listEl  = document.getElementById('rem-sellers-list');
-  const emptyEl = document.getElementById('rem-sellers-empty');
   loadEl.style.display = 'block';
   errEl.style.display  = 'none';
   listEl.style.display = 'none';
   try {
     const data = await adminApi('GET', '/proxy/payments/sellers-with-payouts');
     _remSellersList = data.sellers || [];
+    // rebuild lookup map so remittance history can show names + enable email search
+    _storeInfoMap = {};
+    for (const s of _remSellersList) {
+      _storeInfoMap[s.storeId] = { storeName: s.storeName || '', email: s.email || '' };
+    }
     loadEl.style.display = 'none';
     listEl.style.display = 'block';
     renderSellerPayoutList(_remSellersList);
+    // re-render history with enriched names if already loaded
+    if (_remittancesList.length) _applyRemittanceFilter();
   } catch(err) {
     loadEl.style.display = 'none';
     errEl.textContent    = err.message;
@@ -595,29 +703,31 @@ function filterSellerPayoutList(q) {
   const filtered = term
     ? _remSellersList.filter(s =>
         (s.storeName || '').toLowerCase().includes(term) ||
-        (s.storeId   || '').toLowerCase().includes(term))
+        (s.storeId   || '').toLowerCase().includes(term) ||
+        (s.email     || '').toLowerCase().includes(term))
     : _remSellersList;
   renderSellerPayoutList(filtered);
 }
 
 function renderSellerPayoutList(list) {
-  const tbody  = document.getElementById('rem-sellers-body');
+  const tbody   = document.getElementById('rem-sellers-body');
   const emptyEl = document.getElementById('rem-sellers-empty');
   if (!list.length) {
-    tbody.innerHTML     = '';
+    tbody.innerHTML       = '';
     emptyEl.style.display = 'block';
     return;
   }
   emptyEl.style.display = 'none';
   tbody.innerHTML = list.map(s => `
-    <tr style="border-bottom:1px solid var(--border);cursor:pointer"
-        onclick="selectSellerForRemittance('${s.storeId}', ${s.availableCents})">
-      <td style="padding:.4rem .5rem;font-weight:600">${s.storeName || '—'}</td>
-      <td style="padding:.4rem .5rem;font-family:monospace;font-size:.74rem;color:var(--muted)">${trunc(s.storeId, 20)}</td>
-      <td style="padding:.4rem .5rem;text-align:right;font-weight:700;color:var(--color-green)">${fmt$(s.availableCents)}</td>
-      <td style="padding:.4rem .5rem">
-        <button class="btn btn-sm btn-warn" onclick="event.stopPropagation();selectSellerForRemittance('${s.storeId}',${s.availableCents})">
-          <i class="fas fa-file-invoice-dollar"></i> Remit
+    <tr class="row-link" onclick="selectSellerForRemittance('${s.storeId}', ${s.availableCents})">
+      <td>
+        <div class="rem-name-primary">${s.storeName || '—'}</div>
+        <div class="rem-name-sub">${s.email || trunc(s.storeId, 18)}</div>
+      </td>
+      <td class="rem-td-r rem-td-green">${fmt$(s.availableCents)}</td>
+      <td>
+        <button class="btn btn-xs btn-warn" onclick="event.stopPropagation();selectSellerForRemittance('${s.storeId}',${s.availableCents})" title="Remit">
+          <i class="fas fa-file-invoice-dollar"></i>
         </button>
       </td>
     </tr>`).join('');
@@ -632,16 +742,16 @@ async function selectSellerForRemittance(storeId, availableCents) {
 }
 
 async function createRemittance() {
-  const sellerId   = document.getElementById('rem-new-seller').value.trim();
-  const amountStr  = document.getElementById('rem-new-amount').value.trim();
-  const method     = document.getElementById('rem-new-method').value;
-  const ref        = document.getElementById('rem-new-ref').value.trim();
-  const note       = document.getElementById('rem-new-note').value.trim();
+  const sellerId  = document.getElementById('rem-new-seller').value.trim();
+  const amountStr = document.getElementById('rem-new-amount').value.trim();
+  const method    = document.getElementById('rem-new-method').value;
+  const ref       = document.getElementById('rem-new-ref').value.trim();
+  const note      = document.getElementById('rem-new-note').value.trim();
   if (!sellerId) { toast('Seller ID is required', 'error'); return; }
   const dollars = parseFloat(amountStr);
   if (isNaN(dollars) || dollars <= 0) { toast('Enter a valid amount', 'error'); return; }
   const amountCents = Math.round(dollars * 100);
-  const {confirmed} = await showConfirm({ title:'Create Remittance', body:`Record a manual payment of $${dollars.toFixed(2)} to seller ${sellerId}?`, danger: true });
+  const {confirmed} = await showConfirm({ title:'Create Remittance', body:`Record a manual payment of ${fmt$(amountCents)} to ${_storeInfoMap[sellerId]?.storeName || sellerId}?`, danger: true });
   if (!confirmed) return;
   try {
     await adminApi('POST', '/proxy/payments/remittances', { sellerId, amountCents, method, referenceNumber: ref, note });
@@ -696,8 +806,8 @@ async function fetchSellerPayoutMethodHint(storeIdOverride) {
       other:         () => [pm.reference]
     };
     const detail = (lines[pm.mode] ? lines[pm.mode]() : []).filter(Boolean).join(' · ');
-    hintText.textContent = `Seller payout method: ${pm.mode.replace(/_/g,' ')}${detail ? ' — ' + detail : ''}`;
+    hintText.textContent = `Payout method: ${pm.mode.replace(/_/g,' ')}${detail ? ' — ' + detail : ''}`;
     hint.style.display = 'block';
-  } catch (_) { /* non-critical — hint stays hidden */ }
+  } catch (_) { /* non-critical */ }
 }
 </script>

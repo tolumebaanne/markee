@@ -946,7 +946,7 @@ router.patch('/payments/remittances/:id/mark-paid',
   }
 );
 
-// Sellers with available (released, unremitted) payout balances — enriched with store names
+// Sellers with outstanding payout balances — enriched with store name + account email
 router.get('/payments/sellers-with-payouts', requirePermission('payments', 'remit'), async (req, res) => {
     const r = await callService('GET', `${paymentUrl()}/admin/payments/sellers-with-payouts`, null, req.admin.email);
     if (!r.ok) return res.status(r.status).json(r.data);
@@ -955,8 +955,15 @@ router.get('/payments/sellers-with-payouts', requirePermission('payments', 'remi
     const enriched = await Promise.all(sellers.map(async s => {
         try {
             const sr = await callService('GET', `${sellerUrl()}/admin/stores/${s.storeId}/profile`, null, req.admin.email);
-            return { ...s, storeName: sr.ok ? (sr.data.name || '—') : '—' };
-        } catch { return { ...s, storeName: '—' }; }
+            const storeName    = sr.ok ? (sr.data.name || '—') : '—';
+            const sellerUserId = sr.ok ? sr.data.sellerId?.toString() : null;
+            let email = '';
+            if (sellerUserId) {
+                const ur = await callService('GET', `${userUrl()}/admin/users/${sellerUserId}`, null, req.admin.email);
+                email = ur.ok ? (ur.data.profile?.email || '') : '';
+            }
+            return { ...s, storeName, email };
+        } catch { return { ...s, storeName: '—', email: '' }; }
     }));
     res.json({ sellers: enriched });
 });

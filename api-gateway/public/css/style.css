@@ -2446,3 +2446,48 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
     margin-top: 0.15rem;
 
 }
+
+/* ── Product page — stock count line ────────────────────────────────────── */
+.stock-count-line {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.stock-count-line .icon-green {
+    color: var(--color-green);
+    margin-right: 0.3rem;
+}
+
+/* ── Product page — pickup location card ────────────────────────────────── */
+.product-pickup-info {
+    margin-top: 0.75rem;
+}
+
+.product-pickup-card {
+    border: 1.5px solid var(--border-light);
+    border-radius: 8px;
+    padding: 0.75rem 0.9rem;
+    background: var(--bg-secondary);
+    font-size: 0.82rem;
+}
+
+.product-pickup-title {
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 0.3rem;
+}
+
+.product-pickup-title .fa {
+    margin-right: 0.35rem;
+}
+
+.product-pickup-address {
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.product-pickup-hours {
+    color: var(--text-muted);
+    margin-top: 0.15rem;
+}

@@ -40,15 +40,21 @@
 
         /* ── Payout section ───────────────────────────────────────────────── */
         .payout-status      { font-size: 0.88rem; margin-bottom: 0.6rem; }
-        .payout-info        { font-size: 0.82rem; color: var(--muted); }
+        .payout-info        { font-size: 0.82rem; color: var(--text-muted); }
 
         /* ── Payout balance display ───────────────────────────────────────── */
-        .payout-balance-grid   { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-bottom: 1.25rem; }
-        .payout-balance-card   { border: 1px solid var(--border-light); border-radius: 8px; padding: .75rem 1rem; background: var(--bg-secondary); }
-        .payout-balance-label  { font-size: .78rem; color: var(--text-muted); margin-bottom: .25rem; }
-        .payout-balance-value  { font-size: 1.3rem; font-weight: 700; }
-        .payout-mode-fields    { display: none; }
-        .payout-method-section { border-top: 1px solid var(--border-light); margin-top: 1.25rem; padding-top: 1.1rem; }
+        .payout-balance-grid        { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-bottom: 1.25rem; }
+        .payout-balance-card        { border: 1px solid var(--border-light); border-radius: 8px; padding: .75rem 1rem; background: var(--bg-secondary); }
+        .payout-balance-label       { font-size: .78rem; color: var(--text-muted); margin-bottom: .25rem; }
+        .payout-balance-value       { font-size: 1.3rem; font-weight: 700; }
+        .payout-balance-value--green{ color: var(--color-green); }
+        .payout-balance-hint        { font-size: .74rem; color: var(--text-muted); margin-top: .2rem; }
+        .payout-balance-error       { color: var(--color-error); }
+        .payout-mode-fields         { display: none; }
+        .payout-method-section      { border-top: 1px solid var(--border-light); margin-top: 1.25rem; padding-top: 1.1rem; }
+        .payout-method-section h4   { margin: 0 0 .6rem; font-size: .92rem; font-weight: 700; }
+        .wallet-page-header h2      { margin: 0; }
+        .wallet-section-header h3   { margin: 0; }
     </style>
 </head>
 <body>
@@ -64,13 +70,13 @@
     <div class="wallet-page-header">
         <a href="/account" class="wallet-back-link"><i class="fa fa-arrow-left"></i> Account</a>
         <span class="wallet-divider">/</span>
-        <h2 style="margin:0">Wallet</h2>
+        <h2>Wallet</h2>
     </div>
 
     <!-- ── Saved Cards ─────────────────────────────────────────────────────────── -->
     <div class="wallet-section">
         <div class="wallet-section-header">
-            <h3 style="margin:0"><i class="fa fa-credit-card wallet-section-icon"></i> Saved Cards</h3>
+            <h3><i class="fa fa-credit-card wallet-section-icon"></i> Saved Cards</h3>
             <button id="add-card-btn" onclick="showAddCardForm()" class="btn btn-sm btn-red">
                 <i class="fa fa-plus"></i>Add Card
             </button>
@@ -114,19 +120,19 @@
             <div class="payout-balance-card">
                 <div class="payout-balance-label">In Escrow</div>
                 <div class="payout-balance-value" id="payout-in-escrow">—</div>
-                <div style="font-size:.74rem;color:var(--text-muted);margin-top:.2rem">Held pending order completion</div>
+                <div class="payout-balance-hint">Held pending order completion</div>
             </div>
             <div class="payout-balance-card">
                 <div class="payout-balance-label">Available for Payout</div>
-                <div class="payout-balance-value" id="payout-available" style="color:var(--color-green)">—</div>
-                <div style="font-size:.74rem;color:var(--text-muted);margin-top:.2rem">Released earnings minus past payouts</div>
+                <div class="payout-balance-value payout-balance-value--green" id="payout-available">—</div>
+                <div class="payout-balance-hint">Released earnings minus past payouts</div>
             </div>
         </div>
-        <div id="payout-balance-error" style="display:none" class="wallet-hint" style="color:var(--color-error)"></div>
+        <div id="payout-balance-error" class="wallet-hint payout-balance-error" style="display:none"></div>
 
         <!-- Payout method form -->
         <div class="payout-method-section">
-            <h4 style="margin:0 0 .6rem;font-size:.92rem;font-weight:700">Payout Method</h4>
+            <h4>Payout Method</h4>
             <p class="wallet-hint">How you want to receive earnings. Saved details are used when admin processes your payout.</p>
 
             <div id="payout-method-loading" class="wallet-hint"><i class="fa fa-spinner fa-spin"></i> Loading…</div>
