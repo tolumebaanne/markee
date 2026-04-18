@@ -310,6 +310,11 @@ bus.on('user.role_changed', async (payload) => {
   try { await User.findByIdAndUpdate(payload.userId, { $set: { role: payload.newRole } }); }
   catch (err) { console.error('[AUTH] user.role_changed mirror error:', err.message); }
 });
+bus.on('user.profile_updated', async (payload) => {
+  if (!payload.displayName) return;
+  try { await User.findByIdAndUpdate(payload.userId, { $set: { displayName: payload.displayName } }); }
+  catch (err) { console.error('[AUTH] user.profile_updated mirror error:', err.message); }
+});
 
 router.get('/', (req, res) => {
   if (!req.session.user) return res.redirect('/login');

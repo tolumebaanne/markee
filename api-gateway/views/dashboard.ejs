@@ -2002,7 +2002,7 @@
                 method: 'POST', headers: { Authorization: `Bearer ${token}` }
             });
             const d = await r.json();
-            if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+            if (!r.ok) throw new Error(d.message || (typeof d.error === 'string' ? d.error : null) || `HTTP ${r.status}`);
             showToast('Listing submitted for review.', 'success');
             await _refreshProductRow(id);
         } catch (err) { showToast('Could not submit: ' + err.message, 'error'); }
@@ -2015,7 +2015,7 @@
                 method: 'POST', headers: { Authorization: `Bearer ${token}` }
             });
             const d = await r.json();
-            if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+            if (!r.ok) throw new Error(d.message || (typeof d.error === 'string' ? d.error : null) || `HTTP ${r.status}`);
             showToast('Listing resubmitted for review.', 'success');
             await _refreshProductRow(id);
         } catch (err) { showToast('Could not resubmit: ' + err.message, 'error'); }
@@ -2028,7 +2028,7 @@
                 method: 'POST', headers: { Authorization: `Bearer ${token}` }
             });
             const d = await r.json();
-            if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+            if (!r.ok) throw new Error(d.message || (typeof d.error === 'string' ? d.error : null) || `HTTP ${r.status}`);
             showToast('Listing restored — submitted for review.', 'success');
             await _refreshProductRow(id);
         } catch (err) { showToast('Could not restore: ' + err.message, 'error'); }
@@ -2041,7 +2041,7 @@
                 method: 'POST', headers: { Authorization: `Bearer ${token}` }
             });
             const d = await r.json();
-            if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+            if (!r.ok) throw new Error(d.message || (typeof d.error === 'string' ? d.error : null) || `HTTP ${r.status}`);
             showToast('Listing taken offline.', 'success');
             await _refreshProductRow(id);
         } catch (err) { showToast('Could not take offline: ' + err.message, 'error'); }
@@ -2779,7 +2779,7 @@
                     body: JSON.stringify({ orderId, carrier, trackingNumber: tracking, estimatedDelivery: delivery, sellerId: userData.storeId, fulfillmentType: 'shipping' })
                 });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                if (!res.ok) throw new Error(data.message || (typeof data.error === 'string' ? data.error : null) || `HTTP ${res.status}`);
                 showToast('Shipment created — order marked as shipped!', 'success', 3500, evt);
                 ordersLoaded = false; loadSellerOrders();
             } catch (err) { showInlineError(`shipment-error-${orderId}`, 'Error: ' + err.message); }
@@ -2792,7 +2792,7 @@
                     body: JSON.stringify({ orderId, sellerId: userData.storeId, fulfillmentType: 'pickup', estimatedDelivery: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0] })
                 });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                if (!res.ok) throw new Error(data.message || (typeof data.error === 'string' ? data.error : null) || `HTTP ${res.status}`);
                 await fetch(`/api/orders/${orderId}/status`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -3071,7 +3071,7 @@
                 body: JSON.stringify(product)
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            if (!res.ok) throw new Error(data.message || (typeof data.error === 'string' ? data.error : null) || `HTTP ${res.status}`);
             showToast(editId ? 'Listing updated!' : 'Listing posted — submitting for review…', 'success');
             closeModal();
             // Update map in-place so current filter/search state is preserved
@@ -3287,7 +3287,7 @@
             });
             if (!regRes.ok) {
                 const d = await regRes.json();
-                throw new Error(d.error || `HTTP ${regRes.status}`);
+                throw new Error(d.message || (typeof d.error === 'string' ? d.error : null) || `HTTP ${regRes.status}`);
             }
 
             // Activate the store (sets active: true in Seller Service)
@@ -3298,7 +3298,7 @@
                 });
                 if (!actRes.ok) {
                     const d = await actRes.json();
-                    throw new Error('Activation failed: ' + (d.error || `HTTP ${actRes.status}`));
+                    throw new Error('Activation failed: ' + (d.message || (typeof d.error === 'string' ? d.error : null) || `HTTP ${actRes.status}`));
                 }
             }
 

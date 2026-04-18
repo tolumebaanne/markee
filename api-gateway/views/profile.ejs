@@ -945,7 +945,7 @@
         } catch {}
     }
 
-    function saveBio(evt) {
+    async function saveBio(evt) {
         const bio = {
             name:     document.getElementById('bio-name').value.trim(),
             bio:      document.getElementById('bio-text').value.trim(),
@@ -953,6 +953,32 @@
         };
         localStorage.setItem(`markee_bio_${user.email}`, JSON.stringify(bio));
         if (bio.name) document.getElementById('profile-name-display').textContent = bio.name;
+
+        // Persist displayName to user-service so the JWT reflects it on next refresh
+        try {
+            await fetch('/api/users/me', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ displayName: bio.name || '' })
+            });
+            // Refresh JWT so dashboard banner clears on next load
+            const refreshToken = localStorage.getItem('refresh_token');
+            if (refreshToken) {
+                const rtRes = await fetch('/oauth/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refresh_token: refreshToken })
+                });
+                if (rtRes.ok) {
+                    const tokens = await rtRes.json();
+                    if (tokens.access_token) {
+                        localStorage.setItem('access_token',  tokens.access_token);
+                        if (tokens.refresh_token) localStorage.setItem('refresh_token', tokens.refresh_token);
+                    }
+                }
+            }
+        } catch (_) { /* non-fatal — localStorage copy is always saved */ }
+
         showToast('Bio saved!', 'success', 3500, evt);
     }
 
