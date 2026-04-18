@@ -272,6 +272,21 @@ router.put('/change-password', async (req, res) => {
   }
 });
 
+// ── Mark profile setup complete ───────────────────────────────────────────────
+router.post('/setup-done', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET || 'fallback-secret');
+    await User.findByIdAndUpdate(decoded.sub, { profileSetupDone: true });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[AUTH] setup-done error:', err.message);
+    res.status(500).json({ error: 'Failed to mark setup complete' });
+  }
+});
+
 // ── Admin: list all users (service-to-service, x-admin-email auth) ────────────
 router.get('/admin/users', async (req, res) => {
   if (!req.headers['x-admin-email']) return res.status(403).json({ error: 'Admin only' });

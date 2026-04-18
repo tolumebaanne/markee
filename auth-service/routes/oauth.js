@@ -222,14 +222,15 @@ router.post('/quick-login', async (req, res) => {
     const { scopes, storeActive } = await computeScopes(user);
 
     const payload = {
-      sub:             user._id.toString(),
-      email:           user.email,
-      role:            user.role === 'admin' ? 'admin' : 'user',
-      storeId:         user.storeId?.toString() || null,
+      sub:              user._id.toString(),
+      email:            user.email,
+      role:             user.role === 'admin' ? 'admin' : 'user',
+      storeId:          user.storeId?.toString() || null,
       storeActive,
-      displayName:     user.displayName || '',
+      displayName:      user.displayName || '',
       scopes,
-      pendingDeletion: user.status === 'pending_deletion',
+      pendingDeletion:  user.status === 'pending_deletion',
+      profileSetupDone: user.profileSetupDone === true,
       exp: Math.floor(Date.now() / 1000) + (60 * 60), // 1 hour
     };
 
@@ -272,14 +273,15 @@ router.post('/token', async (req, res) => {
     const user = authCodeDoc.userId;
     const { scopes, storeActive } = await computeScopes(user);
     const payload = {
-      sub:             user._id.toString(),
-      email:           user.email,
-      role:            user.role === 'admin' ? 'admin' : 'user',
-      storeId:         user.storeId?.toString() || null,
+      sub:              user._id.toString(),
+      email:            user.email,
+      role:             user.role === 'admin' ? 'admin' : 'user',
+      storeId:          user.storeId?.toString() || null,
       storeActive,
-      displayName:     user.displayName || '',
+      displayName:      user.displayName || '',
       scopes,
-      pendingDeletion: user.status === 'pending_deletion',
+      pendingDeletion:  user.status === 'pending_deletion',
+      profileSetupDone: user.profileSetupDone === true,
       exp: Math.floor(Date.now() / 1000) + (60 * 60) // 1 hour
     };
     const accessToken = jwt.sign(payload, process.env.JWT_SECRET || 'fallback-secret');
@@ -318,14 +320,15 @@ router.post('/refresh', async (req, res) => {
     const user = rtDoc.userId;
     const { scopes, storeActive } = await computeScopes(user);
     const payload = {
-      sub:             user._id.toString(),
-      email:           user.email,
-      role:            user.role === 'admin' ? 'admin' : 'user',
-      storeId:         user.storeId?.toString() || null,
+      sub:              user._id.toString(),
+      email:            user.email,
+      role:             user.role === 'admin' ? 'admin' : 'user',
+      storeId:          user.storeId?.toString() || null,
       storeActive,
-      displayName:     user.displayName || '',
+      displayName:      user.displayName || '',
       scopes,
-      pendingDeletion: user.status === 'pending_deletion',
+      pendingDeletion:  user.status === 'pending_deletion',
+      profileSetupDone: user.profileSetupDone === true,
       exp: Math.floor(Date.now() / 1000) + (60 * 60)
     };
     

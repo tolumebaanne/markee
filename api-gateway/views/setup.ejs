@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete Your Profile | Markee</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .setup-wrapper {
+            min-height: 100vh;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 2.5rem 1rem 3rem;
+            background: var(--bg-main, #f9fafb);
+        }
+        .setup-panel {
+            background: var(--bg-card, #fff);
+            border: 1.5px solid var(--border-light, #e5e7eb);
+            border-radius: 14px;
+            padding: 2rem 2rem 2.25rem;
+            width: 100%;
+            max-width: 520px;
+        }
+        .setup-logo {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        .setup-logo .brand {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--accent-red, #cc0000);
+        }
+        .setup-step {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--text-muted, #6b7280);
+            margin-bottom: 0.4rem;
+        }
+        .setup-title {
+            font-size: 1.35rem;
+            font-weight: 700;
+            margin: 0 0 0.35rem;
+        }
+        .setup-sub {
+            font-size: 0.875rem;
+            color: var(--text-muted, #6b7280);
+            margin-bottom: 1.75rem;
+        }
+        .setup-section {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted, #6b7280);
+            margin: 1.5rem 0 0.75rem;
+            padding-bottom: 0.4rem;
+            border-bottom: 1px solid var(--border-light, #e5e7eb);
+        }
+        .addr-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.65rem;
+        }
+        .addr-grid .full { grid-column: 1 / -1; }
+        @media (max-width: 480px) {
+            .addr-grid { grid-template-columns: 1fr; }
+            .addr-grid .full { grid-column: 1; }
+            .setup-panel { padding: 1.5rem 1.25rem; }
+        }
+        .setup-error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            color: #b91c1c;
+            font-size: 0.85rem;
+            padding: 0.65rem 0.9rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        .skip-link {
+            display: block;
+            text-align: center;
+            margin-top: 1rem;
+            font-size: 0.82rem;
+            color: var(--text-muted, #6b7280);
+        }
+        .skip-link a {
+            color: inherit;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="setup-wrapper">
+    <div class="setup-panel animate-fade">
+        <div class="setup-logo">
+            <a href="/"><span class="brand">Markee</span></a>
+        </div>
+
+        <div class="setup-step">Step 1 of 2 &mdash; Profile</div>
+        <h2 class="setup-title">Complete your profile</h2>
+        <p class="setup-sub">We need a phone number and delivery address so buyers and sellers can reach you. Takes 30 seconds.</p>
+
+        <div class="setup-error" id="setup-error"></div>
+
+        <!-- Identity -->
+        <div class="form-group">
+            <label>Display Name <span style="font-size:0.8rem;color:var(--text-muted);font-weight:400;">(optional — shown publicly)</span></label>
+            <input type="text" id="s-displayName" class="form-control" placeholder="e.g. Alex Johnson" maxlength="50" autocomplete="name">
+        </div>
+
+        <div class="form-group">
+            <label>Phone Number <span style="color:var(--accent-red,#cc0000)">*</span></label>
+            <input type="tel" id="s-phone" class="form-control" placeholder="+1 (555) 000-0000" autocomplete="tel">
+            <span id="err-phone" style="color:#ef4444;font-size:0.8rem;display:block;margin-top:0.2rem;"></span>
+        </div>
+
+        <!-- Default delivery address -->
+        <div class="setup-section">Default Delivery Address</div>
+
+        <div class="addr-grid">
+            <div class="full">
+                <label class="form-label">Street Address <span style="color:var(--accent-red,#cc0000)">*</span></label>
+                <input type="text" id="s-street" class="form-control" placeholder="123 Main St, Apt 4" maxlength="200" autocomplete="street-address">
+            </div>
+            <div>
+                <label class="form-label">City <span style="color:var(--accent-red,#cc0000)">*</span></label>
+                <input type="text" id="s-city" class="form-control" placeholder="Toronto" maxlength="100" autocomplete="address-level2">
+            </div>
+            <div>
+                <label class="form-label">Province / State <span style="color:var(--accent-red,#cc0000)">*</span></label>
+                <input type="text" id="s-province" class="form-control" placeholder="ON" maxlength="100" autocomplete="address-level1">
+            </div>
+            <div>
+                <label class="form-label">Postal / ZIP Code <span style="color:var(--accent-red,#cc0000)">*</span></label>
+                <input type="text" id="s-postalCode" class="form-control" placeholder="M5V 2T6" maxlength="20" autocomplete="postal-code">
+            </div>
+            <div>
+                <label class="form-label">Country</label>
+                <input type="text" id="s-country" class="form-control" value="Canada" maxlength="100" autocomplete="country-name">
+            </div>
+        </div>
+
+        <button class="btn btn-red" style="width:100%;margin-top:1.5rem;" id="setup-btn" onclick="submitSetup()">
+            Save &amp; Continue <i class="fa fa-arrow-right" style="margin-left:0.4rem;"></i>
+        </button>
+
+        <p class="skip-link">
+            <a onclick="skipSetup()">Skip for now — I'll do this later</a>
+        </p>
+    </div>
+</div>
+
+<script>
+const _next = (() => {
+    try {
+        const p = new URLSearchParams(window.location.search).get('next');
+        if (p && /^\/[^/]/.test(p)) return p;
+    } catch {}
+    return '/dashboard';
+})();
+
+function getToken() { return localStorage.getItem('access_token'); }
+
+function parseJwt(t) {
+    try { return JSON.parse(atob(t.split('.')[1])); } catch { return null; }
+}
+
+function showError(msg) {
+    const el = document.getElementById('setup-error');
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+
+function hideError() {
+    document.getElementById('setup-error').style.display = 'none';
+}
+
+// On load: check if setup already done, pre-fill fields
+window.addEventListener('DOMContentLoaded', async () => {
+    const token = getToken();
+    if (!token) { window.location.replace('/login'); return; }
+
+    const claims = parseJwt(token);
+    if (!claims) { window.location.replace('/login'); return; }
+
+    // Already done — skip to destination
+    if (claims.profileSetupDone === true) {
+        window.location.replace(_next);
+        return;
+    }
+
+    // Pre-fill from profile
+    try {
+        const r = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
+        if (r.ok) {
+            const p = await r.json();
+            if (p.displayName) document.getElementById('s-displayName').value = p.displayName;
+            if (p.phone)       document.getElementById('s-phone').value = p.phone;
+            // If phone + address already set, fast-track setup-done
+            if (p.phone && p.addresses && p.addresses.length > 0) {
+                await markSetupDone(token);
+                window.location.replace(_next);
+            }
+        }
+    } catch {}
+});
+
+async function markSetupDone(token) {
+    try {
+        await fetch('/api/auth/setup-done', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` }
+        });
+    } catch {}
+}
+
+async function submitSetup() {
+    hideError();
+    const token = getToken();
+    if (!token) { window.location.replace('/login'); return; }
+
+    const displayName = document.getElementById('s-displayName').value.trim();
+    const phone       = document.getElementById('s-phone').value.trim();
+    const street      = document.getElementById('s-street').value.trim();
+    const city        = document.getElementById('s-city').value.trim();
+    const province    = document.getElementById('s-province').value.trim();
+    const postalCode  = document.getElementById('s-postalCode').value.trim();
+    const country     = document.getElementById('s-country').value.trim() || 'Canada';
+
+    // Validate
+    if (!phone) { showError('Phone number is required.'); document.getElementById('s-phone').focus(); return; }
+    if (!/^\+?[0-9\s\-().]{7,}$/.test(phone)) { showError('Enter a valid phone number (e.g. +1 416 555 0100).'); return; }
+    if (!street)     { showError('Street address is required.');    return; }
+    if (!city)       { showError('City is required.');              return; }
+    if (!province)   { showError('Province / State is required.');  return; }
+    if (!postalCode) { showError('Postal / ZIP code is required.'); return; }
+
+    const btn = document.getElementById('setup-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving…';
+
+    try {
+        // 1. Update profile (phone + displayName)
+        const profileBody = { phone };
+        if (displayName) profileBody.displayName = displayName;
+
+        const pRes = await fetch('/api/users/me', {
+            method:  'PUT',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body:    JSON.stringify(profileBody)
+        });
+        if (!pRes.ok) {
+            const d = await pRes.json().catch(() => ({}));
+            throw new Error(d.message || d.error || `Profile save failed (HTTP ${pRes.status})`);
+        }
+
+        // 2. Save default delivery address
+        const aRes = await fetch('/api/users/me/addresses', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body:    JSON.stringify({ label: 'Home', street, city, province, postalCode, country, isDefault: true })
+        });
+        if (!aRes.ok) {
+            const d = await aRes.json().catch(() => ({}));
+            throw new Error(d.message || d.error || `Address save failed (HTTP ${aRes.status})`);
+        }
+
+        // 3. Mark setup done in auth-service
+        await markSetupDone(token);
+
+        // Done — go to destination
+        window.location.replace(_next);
+
+    } catch (err) {
+        showError(err.message || 'Something went wrong. Please try again.');
+        btn.disabled = false;
+        btn.innerHTML = 'Save &amp; Continue <i class="fa fa-arrow-right" style="margin-left:0.4rem;"></i>';
+    }
+}
+
+async function skipSetup() {
+    // Mark done so user isn't interrupted on every login after skipping
+    const token = getToken();
+    if (token) await markSetupDone(token);
+    window.location.replace(_next);
+}
+</script>
+</body>
+</html>

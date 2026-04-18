@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Set Up Your Store | Markee</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .setup-wrapper {
+            min-height: 100vh;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 2.5rem 1rem 3rem;
+            background: var(--bg-main, #f9fafb);
+        }
+        .setup-panel {
+            background: var(--bg-card, #fff);
+            border: 1.5px solid var(--border-light, #e5e7eb);
+            border-radius: 14px;
+            padding: 2rem 2rem 2.25rem;
+            width: 100%;
+            max-width: 520px;
+        }
+        .setup-logo { text-align: center; margin-bottom: 1.5rem; }
+        .setup-logo .brand { font-size: 1.6rem; font-weight: 800; color: var(--accent-red, #cc0000); }
+        .setup-step {
+            font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.07em; color: var(--text-muted, #6b7280); margin-bottom: 0.4rem;
+        }
+        .setup-title { font-size: 1.35rem; font-weight: 700; margin: 0 0 0.35rem; }
+        .setup-sub   { font-size: 0.875rem; color: var(--text-muted, #6b7280); margin-bottom: 1.75rem; }
+        .setup-section {
+            font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--text-muted, #6b7280);
+            margin: 1.5rem 0 0.75rem;
+            padding-bottom: 0.4rem;
+            border-bottom: 1px solid var(--border-light, #e5e7eb);
+        }
+        .fulfillment-grid { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.25rem; }
+        .fulfillment-opt  {
+            display: flex; align-items: center; gap: 0.75rem;
+            border: 1.5px solid var(--border-light, #e5e7eb);
+            border-radius: 9px; padding: 0.65rem 0.9rem; cursor: pointer;
+            transition: border-color 0.15s;
+        }
+        .fulfillment-opt input[type=checkbox] { width: 1rem; height: 1rem; accent-color: var(--accent-red, #cc0000); cursor: pointer; }
+        .fulfillment-opt:has(input:checked) { border-color: var(--accent-red, #cc0000); background: #fff5f5; }
+        .fulfillment-label { font-weight: 600; font-size: 0.875rem; }
+        .fulfillment-desc  { font-size: 0.78rem; color: var(--text-muted, #6b7280); }
+        .pickup-fields { margin-top: 1rem; display: none; }
+        .pickup-fields.show { display: block; }
+        .addr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
+        .addr-grid .full { grid-column: 1 / -1; }
+        .setup-error {
+            background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
+            color: #b91c1c; font-size: 0.85rem; padding: 0.65rem 0.9rem;
+            margin-bottom: 1rem; display: none;
+        }
+        .skip-link { display: block; text-align: center; margin-top: 1rem; font-size: 0.82rem; color: var(--text-muted, #6b7280); }
+        .skip-link a { color: inherit; text-decoration: underline; cursor: pointer; }
+        @media (max-width: 480px) {
+            .addr-grid { grid-template-columns: 1fr; }
+            .addr-grid .full { grid-column: 1; }
+            .setup-panel { padding: 1.5rem 1.25rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="setup-wrapper">
+    <div class="setup-panel animate-fade">
+        <div class="setup-logo">
+            <a href="/"><span class="brand">Markee</span></a>
+        </div>
+
+        <div class="setup-step">Step 2 of 2 &mdash; Store</div>
+        <h2 class="setup-title">Set up your storefront</h2>
+        <p class="setup-sub">Tell buyers how to find and contact your store. You can update these any time from your dashboard.</p>
+
+        <div class="setup-error" id="setup-error"></div>
+
+        <!-- Store identity -->
+        <div class="form-group">
+            <label>Store Name <span style="color:var(--accent-red,#cc0000)">*</span></label>
+            <input type="text" id="ss-name" class="form-control" placeholder="My Shop" maxlength="100">
+        </div>
+
+        <div class="form-group" style="margin-bottom:0">
+            <label>Store Contact Phone <span style="font-size:0.8rem;color:var(--text-muted);font-weight:400;">(optional — shown to buyers)</span></label>
+            <input type="tel" id="ss-phone" class="form-control" placeholder="+1 (555) 000-0000" autocomplete="tel">
+        </div>
+
+        <!-- Fulfillment -->
+        <div class="setup-section">How will you fulfil orders?</div>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem;">Select at least one. You can enable more options later.</p>
+
+        <div class="fulfillment-grid">
+            <label class="fulfillment-opt">
+                <input type="checkbox" id="ff-shipping" value="shipping" checked>
+                <div>
+                    <div class="fulfillment-label"><i class="fa fa-truck" style="margin-right:0.4rem;color:var(--accent-red,#cc0000)"></i>Shipping</div>
+                    <div class="fulfillment-desc">Ship orders via courier directly to buyers.</div>
+                </div>
+            </label>
+            <label class="fulfillment-opt">
+                <input type="checkbox" id="ff-pickup" value="pickup" onchange="togglePickup()">
+                <div>
+                    <div class="fulfillment-label"><i class="fa fa-map-marker-alt" style="margin-right:0.4rem;color:var(--accent-red,#cc0000)"></i>Local Pickup</div>
+                    <div class="fulfillment-desc">Buyers collect from your location.</div>
+                </div>
+            </label>
+            <label class="fulfillment-opt">
+                <input type="checkbox" id="ff-self" value="self_fulfilled">
+                <div>
+                    <div class="fulfillment-label"><i class="fa fa-handshake" style="margin-right:0.4rem;color:var(--accent-red,#cc0000)"></i>Self-Fulfilled / Digital</div>
+                    <div class="fulfillment-desc">You handle delivery yourself (digital goods, hand-offs, etc.).</div>
+                </div>
+            </label>
+        </div>
+
+        <!-- Pickup location (shown only when pickup is checked) -->
+        <div class="pickup-fields" id="pickup-fields">
+            <div class="setup-section" style="margin-top:1.25rem;">Pickup Location</div>
+            <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem;">Where should buyers pick up their orders?</p>
+            <div class="addr-grid">
+                <div class="full">
+                    <label class="form-label">Street Address <span style="color:var(--accent-red,#cc0000)">*</span></label>
+                    <input type="text" id="pu-street" class="form-control" placeholder="123 Main St" maxlength="200">
+                </div>
+                <div>
+                    <label class="form-label">City <span style="color:var(--accent-red,#cc0000)">*</span></label>
+                    <input type="text" id="pu-city" class="form-control" placeholder="Toronto" maxlength="100">
+                </div>
+                <div>
+                    <label class="form-label">Province / State</label>
+                    <input type="text" id="pu-province" class="form-control" placeholder="ON" maxlength="100">
+                </div>
+                <div>
+                    <label class="form-label">Postal / ZIP</label>
+                    <input type="text" id="pu-postalCode" class="form-control" placeholder="M5V 2T6" maxlength="20">
+                </div>
+                <div>
+                    <label class="form-label">Country</label>
+                    <input type="text" id="pu-country" class="form-control" value="Canada" maxlength="100">
+                </div>
+                <div class="full">
+                    <label class="form-label">Hours / Instructions <span style="font-size:0.8rem;font-weight:400;color:var(--text-muted)">(optional)</span></label>
+                    <input type="text" id="pu-hours" class="form-control" placeholder="Mon–Fri 9am–6pm" maxlength="100">
+                </div>
+            </div>
+        </div>
+
+        <button class="btn btn-red" style="width:100%;margin-top:1.5rem;" id="setup-btn" onclick="submitStoreSetup()">
+            Save &amp; Go to Dashboard <i class="fa fa-arrow-right" style="margin-left:0.4rem;"></i>
+        </button>
+
+        <p class="skip-link">
+            <a onclick="skipStoreSetup()">Skip for now &mdash; I'll set this up from my dashboard</a>
+        </p>
+    </div>
+</div>
+
+<script>
+const _next = (() => {
+    try {
+        const p = new URLSearchParams(window.location.search).get('next');
+        if (p && /^\/[^/]/.test(p)) return p;
+    } catch {}
+    return '/dashboard';
+})();
+
+function getToken() { return localStorage.getItem('access_token'); }
+function parseJwt(t) { try { return JSON.parse(atob(t.split('.')[1])); } catch { return null; } }
+
+function showError(msg) {
+    const el = document.getElementById('setup-error');
+    el.textContent = msg;
+    el.style.display = 'block';
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function hideError() { document.getElementById('setup-error').style.display = 'none'; }
+
+function togglePickup() {
+    const show = document.getElementById('ff-pickup').checked;
+    document.getElementById('pickup-fields').classList.toggle('show', show);
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+    const token = getToken();
+    if (!token) { window.location.replace('/login'); return; }
+
+    const claims = parseJwt(token);
+    if (!claims || !claims.storeId) { window.location.replace('/dashboard'); return; }
+
+    try {
+        const r = await fetch(`/api/public-seller/${claims.storeId}`);
+        if (r.ok) {
+            const store = await r.json();
+
+            // Already set up — skip
+            if (store.storeSetupDone === true) {
+                window.location.replace(_next);
+                return;
+            }
+
+            // Pre-fill
+            if (store.name) document.getElementById('ss-name').value = store.name;
+            if (store.phone) document.getElementById('ss-phone').value = store.phone;
+
+            const opts = store.fulfillmentOptions || [];
+            document.getElementById('ff-shipping').checked  = opts.includes('shipping');
+            document.getElementById('ff-pickup').checked    = opts.includes('pickup');
+            document.getElementById('ff-self').checked      = opts.includes('self_fulfilled');
+            togglePickup();
+        }
+    } catch {}
+});
+
+async function submitStoreSetup() {
+    hideError();
+    const token = getToken();
+    if (!token) { window.location.replace('/login'); return; }
+
+    const claims = parseJwt(token);
+    if (!claims?.storeId) { window.location.replace('/dashboard'); return; }
+
+    const name  = document.getElementById('ss-name').value.trim();
+    const phone = document.getElementById('ss-phone').value.trim();
+
+    if (!name) { showError('Store name is required.'); document.getElementById('ss-name').focus(); return; }
+
+    const fulfillmentOptions = [];
+    if (document.getElementById('ff-shipping').checked) fulfillmentOptions.push('shipping');
+    if (document.getElementById('ff-pickup').checked)   fulfillmentOptions.push('pickup');
+    if (document.getElementById('ff-self').checked)     fulfillmentOptions.push('self_fulfilled');
+
+    if (!fulfillmentOptions.length) {
+        showError('Select at least one fulfilment method.');
+        return;
+    }
+
+    const body = { name, fulfillmentOptions, storeSetupDone: true };
+    if (phone) body.phone = phone;
+
+    const btn = document.getElementById('setup-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving…';
+
+    try {
+        // Save store core fields
+        const storeRes = await fetch(`/api/seller/${claims.storeId}`, {
+            method:  'PUT',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body:    JSON.stringify(body)
+        });
+        if (!storeRes.ok) {
+            const d = await storeRes.json().catch(() => ({}));
+            throw new Error(d.message || d.error || `Store save failed (HTTP ${storeRes.status})`);
+        }
+
+        // If pickup selected and address provided, save pickup location
+        if (document.getElementById('ff-pickup').checked) {
+            const puStreet = document.getElementById('pu-street').value.trim();
+            const puCity   = document.getElementById('pu-city').value.trim();
+            if (puStreet && puCity) {
+                await fetch(`/api/seller/${claims.storeId}/pickup-locations`, {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({
+                        label:       'Main Location',
+                        street:      puStreet,
+                        city:        puCity,
+                        province:    document.getElementById('pu-province').value.trim(),
+                        postalCode:  document.getElementById('pu-postalCode').value.trim(),
+                        country:     document.getElementById('pu-country').value.trim() || 'Canada',
+                        hours:       document.getElementById('pu-hours').value.trim(),
+                        active:      true
+                    })
+                });
+            }
+        }
+
+        window.location.replace(_next);
+
+    } catch (err) {
+        showError(err.message || 'Something went wrong. Please try again.');
+        btn.disabled = false;
+        btn.innerHTML = 'Save &amp; Go to Dashboard <i class="fa fa-arrow-right" style="margin-left:0.4rem;"></i>';
+    }
+}
+
+async function skipStoreSetup() {
+    // Mark storeSetupDone so the prompt doesn't repeat after a deliberate skip
+    const token = getToken();
+    const claims = parseJwt(token);
+    if (token && claims?.storeId) {
+        try {
+            await fetch(`/api/seller/${claims.storeId}`, {
+                method:  'PUT',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body:    JSON.stringify({ storeSetupDone: true })
+            });
+        } catch {}
+    }
+    window.location.replace(_next);
+}
+</script>
+</body>
+</html>

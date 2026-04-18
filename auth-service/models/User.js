@@ -32,9 +32,10 @@ const UserSchema = new mongoose.Schema({
 
 // Normalize email before every save — lowercase + trim enforced at model layer
 // regardless of which call path creates or updates the document.
-UserSchema.pre('save', function(next) {
+// Mongoose 9 passes an options object (not a function) as first arg to callback-style
+// pre hooks; async style is the correct form for Mongoose 9.
+UserSchema.pre('save', async function() {
   if (this.email) this.email = this.email.toLowerCase().trim();
-  next();
 });
 
 UserSchema.statics.validatePassword = async function(email, password) {

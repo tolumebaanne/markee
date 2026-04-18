@@ -165,6 +165,9 @@ const StoreSchema = new mongoose.Schema({
     stripeConnectAccountId: { type: String, default: null },
     stripeConnectStatus:    { type: String, enum: ['not_connected', 'pending', 'active'], default: 'not_connected' },
 
+    // Onboarding — false until seller completes Phase 2 store setup (name, phone, fulfillment)
+    storeSetupDone: { type: Boolean, default: false },
+
     createdAt: { type: Date, default: Date.now }
 });
 

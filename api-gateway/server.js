@@ -372,6 +372,8 @@ app.get('/checkout',    (req, res) => {
 app.get('/cart',        (req, res) => res.render('cart'));
 app.get('/product/:id',    (req, res) => res.render('product',    { productId: req.params.id }));
 app.get('/store/:storeId', (req, res) => res.render('storefront', { storeId: req.params.storeId }));
+app.get('/setup',       (_req, res) => res.render('setup'));
+app.get('/setup/store', (_req, res) => res.render('setup-store'));
 app.get('/profile',              (_req, res) => res.render('profile'));
 app.get('/account',              (_req, res) => res.render('account'));
 app.get('/account/addresses',    (_req, res) => res.render('account-addresses'));
@@ -429,9 +431,14 @@ app.get('/callback', async (req, res) => {
                 localStorage.setItem('refresh_token', '${data.refresh_token}');
                 // Fold any guest cart items into the now-identified user cart
                 if (window.MarkeeCart) MarkeeCart.migrateGuestCart();
-                const role = JSON.parse(atob('${data.access_token}'.split('.')[1])).role;
-                // Redirect admin to /admin; regular users go to ?next= or /dashboard
-                window.location.replace(role === 'admin' ? '/admin' : ${JSON.stringify(nextUrl)});
+                const _tok = JSON.parse(atob('${data.access_token}'.split('.')[1]));
+                const _role = _tok.role;
+                const _setupDone = _tok.profileSetupDone === true;
+                const _next = ${JSON.stringify(nextUrl)};
+                // Admins skip onboarding; new users go to /setup; returning users go to destination
+                const _dest = _role === 'admin' ? '/admin'
+                    : (!_setupDone ? '/setup?next=' + encodeURIComponent(_next) : _next);
+                window.location.replace(_dest);
             </script>
         `);
     } catch (err) {

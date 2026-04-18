@@ -443,6 +443,18 @@
             </div>
         </div>
 
+        <!-- Store setup nudge — shown to sellers who haven't completed Phase 2 setup -->
+        <div id="store-setup-nudge" style="display:none; align-items:center; justify-content:space-between; gap:1rem; background:#fffbeb; border:1.5px solid #fde68a; border-radius:10px; padding:0.9rem 1.1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:0.65rem;">
+                <i class="fa fa-store" style="color:#b45309;font-size:1.1rem;"></i>
+                <div>
+                    <div style="font-weight:700;font-size:0.875rem;color:#92400e;">Finish setting up your store</div>
+                    <div style="font-size:0.8rem;color:#b45309;margin-top:0.1rem;">Add your contact phone, fulfilment method, and pickup location so buyers can reach you.</div>
+                </div>
+            </div>
+            <a href="/setup/store?next=/dashboard" class="btn" style="background:#b45309;color:#fff;font-size:0.82rem;white-space:nowrap;flex-shrink:0;">Complete Setup</a>
+        </div>
+
         <!-- ═══ PANEL: OPERATIONS ═══ -->
         <div id="panel-operations" class="dash-panel" style="display:none;">
             <!-- ── Schedule & Hours ── -->
@@ -1720,7 +1732,13 @@
             const store = await res.json();
             
             document.getElementById('store-name-display').textContent = store.name || '—';
-            
+
+            // Nudge existing sellers who skipped or pre-date the store setup flow
+            if (store.storeSetupDone === false) {
+                const nudge = document.getElementById('store-setup-nudge');
+                if (nudge) nudge.style.display = 'flex';
+            }
+
             // Open/Closed logic
             const badge = document.getElementById('store-open-badge');
             if (store.isOpen) {
@@ -3345,8 +3363,9 @@
 
             localStorage.setItem('access_token',  newToken);
             localStorage.setItem('refresh_token', tokens.refresh_token);
-            showToast('Storefront activated! Welcome to selling on Markee.', 'success', 3500, evt);
-            setTimeout(() => window.location.reload(), 1200);
+            showToast('Storefront activated! Setting up your store…', 'success', 2000, evt);
+            // Go to store setup — it will redirect to /dashboard after completion
+            setTimeout(() => window.location.replace('/setup/store?next=/dashboard'), 1000);
 
         } catch (err) {
             showInlineError('activate-store-error-container', 'Error: ' + err.message);

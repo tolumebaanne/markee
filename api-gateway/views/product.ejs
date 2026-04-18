@@ -208,15 +208,107 @@
 
         /* ── S34 — Q&A ───────────────────────────────────────────────────────── */
         .qa-item {
-            border-left: 3px solid #bfdbfe;
+            border-left: 3px solid var(--toast-info-border);
             padding: 0.6rem 0.75rem;
             margin-bottom: 0.75rem;
-            background: #f8faff;
+            background: var(--toast-info-bg);
             border-radius: 0 8px 8px 0;
         }
         .qa-question { font-weight: 600; font-size: 0.875rem; }
         .qa-answer   { font-size: 0.85rem; color: var(--text-main); margin-top: 0.4rem; line-height: 1.5; }
-        .qa-answer-label { font-weight: 700; color: #1d4ed8; font-size: 0.78rem; margin-right: 0.35rem; }
+        .qa-answer-label { font-weight: 700; color: var(--toast-info-fg); font-size: 0.78rem; margin-right: 0.35rem; }
+
+        /* ── Product hero image container ───────────────────────────────────── */
+        .product-hero {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            height: 460px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* ── Price row (price + history btn) ────────────────────────────────── */
+        .product-price-row { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 1rem; }
+
+        /* ── Price history ───────────────────────────────────────────────────── */
+        .price-history-trigger { position: relative; }
+        .price-history-btn {
+            background: none;
+            border: 1px solid var(--border-light);
+            border-radius: 6px;
+            padding: 0.15rem 0.5rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .price-history-btn:hover { border-color: var(--text-main); color: var(--text-main); }
+        .price-history-popover {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            z-index: 200;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            box-shadow: var(--shadow-md);
+            min-width: 220px;
+            padding: 0.75rem;
+        }
+        .price-history-popover-label {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 0.5rem;
+        }
+
+        /* ── Sidebar rating ──────────────────────────────────────────────────── */
+        .sidebar-stars { font-size: 0.95rem; color: #f59e0b; }
+        .sidebar-avg   { font-weight: 600; font-size: 0.9rem; }
+
+        /* ── Store name bar ──────────────────────────────────────────────────── */
+        .store-name-bar-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+        .store-name-label { font-size: 0.78rem; color: var(--text-muted); }
+        .visit-store-link { font-size: 0.72rem; font-weight: 700; color: var(--accent-red); text-decoration: none; white-space: nowrap; }
+        .visit-store-link:hover { color: var(--accent-red-hover); }
+
+        /* ── Q&A ask form ────────────────────────────────────────────────────── */
+        .qa-ask-divider { border-top: 1px solid var(--border-light); margin-top: 0.75rem; padding-top: 0.75rem; }
+        .qa-ask-label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.04em; }
+        .qa-ask-row { display: flex; gap: 0.5rem; align-items: flex-end; }
+
+        /* ── Contact reveal box ──────────────────────────────────────────────── */
+        .contact-reveal-box {
+            padding: 1rem;
+            border: 1px dashed #22c55e;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+        }
+        .contact-reveal-box p { margin-bottom: 0.35rem; }
+        .contact-reveal-box p:last-child { margin-bottom: 0; }
+        .contact-icon-green { color: #22c55e; margin-right: 0.5rem; }
+
+        /* ── Review modal internals ──────────────────────────────────────────── */
+        .modal-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+        .modal-title-row h4 { margin: 0; }
+        .modal-product-subtitle { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem; }
+        .modal-rating-group { margin-bottom: 1rem; }
+        .modal-rating-hint { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.3rem; }
+        .modal-char-counter { font-size: 0.7rem; color: var(--text-muted); text-align: right; margin-top: 0.2rem; }
+        .modal-photo-hint { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.2rem; }
+        .modal-footer-note { margin-top: 0.75rem; text-align: center; }
     </style>
 </head>
 <body class="bg-light">
@@ -237,7 +329,7 @@
         <div class="main-column">
 
             <!-- Image hero -->
-            <div style="background:white; border:1px solid var(--border-light); border-radius:12px; height:460px; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+            <div class="product-hero">
                 <img id="main-image" alt="Product Image"
                      style="max-width:100%; max-height:100%; object-fit:contain; transition:opacity 0.2s;"
                      onerror="this.onerror=null; this.style.display='none'">
@@ -285,16 +377,16 @@
                     <div class="section-card-body">
                         <div id="qa-list"></div>
                         <div id="qa-ask-wrap">
-                            <div style="border-top:1px solid var(--border-light); margin-top:0.75rem; padding-top:0.75rem;">
-                                <div style="font-size:0.8rem; font-weight:600; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase; letter-spacing:0.04em;">Ask a question</div>
-                                <div style="display:flex; gap:0.5rem; align-items:flex-end;">
-                                    <textarea id="qa-input" rows="2" placeholder="Ask the seller about this product…" style="flex:1; font-size:0.85rem; border-radius:8px; resize:vertical;"></textarea>
-                                    <button onclick="submitQuestion()" style="padding:0.5rem 1rem; border-radius:7px; background:#1d4ed8; color:white; font-size:0.82rem; font-weight:600; border:none; cursor:pointer; flex-shrink:0;">
+                            <div class="qa-ask-divider">
+                                <div class="qa-ask-label">Ask a question</div>
+                                <div class="qa-ask-row">
+                                    <textarea id="qa-input" rows="2" placeholder="Ask the seller about this product…" style="flex:1; font-size:0.85rem; resize:vertical;"></textarea>
+                                    <button onclick="submitQuestion()" class="btn btn-blue btn-sm" style="flex-shrink:0;">
                                         <i class="fa fa-paper-plane" style="margin-right:0.35rem;"></i> Ask
                                     </button>
                                 </div>
-                                <div id="qa-login-hint" style="display:none; font-size:0.78rem; color:var(--text-muted); margin-top:0.4rem;">
-                                    <a href="/login" style="color:var(--accent-red);">Log in</a> to ask a question.
+                                <div id="qa-login-hint" class="text-muted small" style="display:none; margin-top:0.4rem;">
+                                    <a href="/login" class="text-red">Log in</a> to ask a question.
                                 </div>
                             </div>
                         </div>
@@ -323,16 +415,15 @@
         <!-- RIGHT: Contact/CTA sidebar -->
         <aside class="sidebar-column">
             <div class="contact-box-jiji">
-                <div style="display:flex; align-items:baseline; gap:0.6rem; margin-bottom:1rem;">
+                <div class="product-price-row">
                     <div class="price-box-jiji" id="product-price" style="margin-bottom:0;">$0.00</div>
                     <!-- S34 — price history indicator -->
-                    <div id="price-history-wrap" style="display:none; position:relative;">
-                        <button id="price-history-btn" onclick="togglePriceHistory(event)"
-                            style="background:none; border:1px solid var(--border-light); border-radius:6px; padding:0.15rem 0.5rem; font-size:0.72rem; font-weight:600; color:var(--text-muted); cursor:pointer; white-space:nowrap;">
+                    <div id="price-history-wrap" class="price-history-trigger" style="display:none;">
+                        <button id="price-history-btn" class="price-history-btn" onclick="togglePriceHistory(event)">
                             <i class="fa fa-chart-line" style="margin-right:0.25rem;"></i> History
                         </button>
-                        <div id="price-history-popover" style="display:none; position:absolute; top:calc(100% + 6px); left:0; z-index:200; background:white; border:1px solid var(--border-light); border-radius:10px; box-shadow:0 4px 16px rgba(0,0,0,0.12); min-width:220px; padding:0.75rem;">
-                            <div style="font-size:0.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.5rem;">Recent Price Changes</div>
+                        <div id="price-history-popover" class="price-history-popover" style="display:none;">
+                            <div class="price-history-popover-label">Recent Price Changes</div>
                             <div id="price-history-list"></div>
                         </div>
                     </div>
@@ -340,29 +431,29 @@
 
                 <!-- Avg rating (compact in sidebar) -->
                 <div class="avg-rating-row" id="sidebar-rating-row" style="display:none; margin-bottom:1rem;">
-                    <span style="font-size:0.95rem; color:#f59e0b;" id="sidebar-stars"></span>
-                    <span style="font-weight:600; font-size:0.9rem;" id="sidebar-avg"></span>
+                    <span class="sidebar-stars" id="sidebar-stars"></span>
+                    <span class="sidebar-avg" id="sidebar-avg"></span>
                     <a href="#reviews-section-anchor" class="text-muted small" id="sidebar-count"></a>
                 </div>
 
-                <!-- Out of stock banner (shown when available=0) -->
-                <div id="oos-banner" style="display:none; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:0.65rem 1rem; margin-bottom:0.75rem; font-size:0.82rem; color:#b91c1c; font-weight:600;">
+                <!-- Out of stock banner -->
+                <div id="oos-banner" class="banner banner-error" style="display:none;">
                     <i class="fa fa-exclamation-triangle" style="margin-right:0.4rem;"></i> Out of Stock
                 </div>
-                <!-- S34 — low stock warning (shown when available is low but > 0) -->
-                <div id="low-stock-banner" style="display:none; background:#fefce8; border:1px solid #fef08a; border-radius:8px; padding:0.65rem 1rem; margin-bottom:0.75rem; font-size:0.82rem; color:#a16207; font-weight:600;">
+                <!-- S34 — low stock warning -->
+                <div id="low-stock-banner" class="banner banner-warning" style="display:none;">
                     <i class="fa fa-exclamation-circle" style="margin-right:0.4rem;"></i> <span id="low-stock-text">Only a few left</span>
                 </div>
 
                 <!-- Store name bar (shown above CTA) — links to full storefront -->
                 <div id="store-name-bar" style="display:none; margin-bottom:0.85rem;">
-                    <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem;">
-                        <div style="font-size:0.78rem; color:var(--text-muted);">
+                    <div class="store-name-bar-inner">
+                        <div class="store-name-label">
                             <i class="fa fa-store" style="margin-right:0.3rem;"></i>
                             Sold by <strong id="store-name-label">—</strong>
                             <span id="store-open-dot" style="margin-left:0.4rem;"></span>
                         </div>
-                        <a id="visit-store-link" href="#" style="font-size:0.72rem; font-weight:700; color:var(--accent-red); text-decoration:none; white-space:nowrap;">
+                        <a id="visit-store-link" href="#" class="visit-store-link">
                             Visit Store →
                         </a>
                     </div>
@@ -375,12 +466,12 @@
 
                 <!-- Edit listing (own product) -->
                 <div id="edit-own-btn-wrap" style="display:none; margin-bottom:0.75rem;">
-                    <button class="btn w-100" id="edit-own-btn" style="background:#1d4ed8; color:white;" onclick="window.location='/dashboard?edit=' + (window._productId || '')">
+                    <button class="btn btn-blue w-100" id="edit-own-btn" onclick="window.location='/dashboard?edit=' + (window._productId || '')">
                         <i class="fa fa-pen" style="margin-right:0.5rem;"></i> Edit This Listing
                     </button>
                 </div>
 
-                <button class="btn w-100 mb-2" id="add-cart-btn" style="background:var(--accent-red); color:white; font-weight:bold;" onclick="addToCart()">
+                <button class="btn btn-red w-100 mb-2" id="add-cart-btn" onclick="addToCart()">
                     <i class="fa fa-cart-plus" style="margin-right:0.5rem;"></i> Add to Cart
                 </button>
 
@@ -395,17 +486,17 @@
                     </button>
                 </div>
 
-                <button class="btn w-100 mb-2" style="background:#22c55e; color:white; font-weight:600;" id="reveal-btn" onclick="revealContact()">
+                <button class="btn btn-green w-100 mb-2" id="reveal-btn" onclick="revealContact()">
                     <i class="fa fa-phone" style="margin-right:0.5rem;"></i> Show Contact
                 </button>
 
-                <button class="btn btn-outline w-100 mb-3" style="border-color:#22c55e; color:#22c55e;" id="chat-btn" onclick="handleStartChat()">
+                <button class="btn btn-outline-green w-100 mb-3" id="chat-btn" onclick="handleStartChat()">
                     <i class="fa fa-comment" style="margin-right:0.5rem;"></i> Start Chat
                 </button>
 
-                <div id="contact-info" style="display:none; padding:1rem; border:1px dashed #22c55e; border-radius:8px; margin-bottom:1rem; font-size:0.875rem;" class="animate-fade">
-                    <p style="margin-bottom:0.35rem;"><i class="fa fa-phone" style="color:#22c55e; margin-right:0.5rem;"></i> <span id="revealed-phone">—</span></p>
-                    <p><i class="fa fa-envelope" style="color:#22c55e; margin-right:0.5rem;"></i> <span id="revealed-email">—</span></p>
+                <div id="contact-info" class="contact-reveal-box animate-fade" style="display:none;">
+                    <p><i class="fa fa-phone contact-icon-green"></i> <span id="revealed-phone">—</span></p>
+                    <p><i class="fa fa-envelope contact-icon-green"></i> <span id="revealed-email">—</span></p>
                 </div>
 
                 <!-- Write Review (only shown when delivered buyer) -->
@@ -444,13 +535,13 @@
 <!-- ============ REVIEW MODAL ============ -->
 <div class="review-modal-overlay" id="review-modal" onclick="handleModalOutsideClick(event)">
     <div class="review-modal">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
-            <h4 style="margin:0;">Leave a Review</h4>
-            <button onclick="closeReviewModal()" style="background:none; border:none; cursor:pointer; font-size:1.25rem; color:var(--text-muted);">&times;</button>
+        <div class="modal-title-row">
+            <h4>Leave a Review</h4>
+            <button onclick="closeReviewModal()" class="btn-icon-close">&times;</button>
         </div>
-        <div style="font-size:0.875rem; color:var(--text-muted); margin-bottom:1rem;" id="modal-product-name"></div>
-        <div style="margin-bottom:1rem;">
-            <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.5rem;">Your Rating</label>
+        <div class="modal-product-subtitle" id="modal-product-name"></div>
+        <div class="modal-rating-group">
+            <label>Your Rating</label>
             <div class="star-picker" id="star-picker">
                 <span class="star-pick" data-val="1" onclick="setRating(1)">&#9733;</span>
                 <span class="star-pick" data-val="2" onclick="setRating(2)">&#9733;</span>
@@ -458,25 +549,23 @@
                 <span class="star-pick" data-val="4" onclick="setRating(4)">&#9733;</span>
                 <span class="star-pick" data-val="5" onclick="setRating(5)">&#9733;</span>
             </div>
-            <div id="rating-hint" style="font-size:0.7rem; color:var(--text-muted); margin-top:0.3rem;">1 = Poor &nbsp;·&nbsp; 3 = Okay &nbsp;·&nbsp; 5 = Excellent</div>
+            <div id="rating-hint" class="modal-rating-hint">1 = Poor &nbsp;·&nbsp; 3 = Okay &nbsp;·&nbsp; 5 = Excellent</div>
         </div>
         <div class="form-group" style="margin-bottom:0.85rem;">
             <label>Your Review</label>
             <textarea id="review-body" placeholder="Share your experience with this product..." rows="4"
                 oninput="document.getElementById('body-char-counter').textContent = this.value.length + ' / 1000'"></textarea>
-            <div id="body-char-counter" style="font-size:0.7rem; color:var(--text-muted); text-align:right; margin-top:0.2rem;">0 / 1000</div>
+            <div id="body-char-counter" class="modal-char-counter">0 / 1000</div>
         </div>
         <div class="form-group mb-4">
-            <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.4rem;">
-                Photo URL <span style="font-weight:400; color:var(--text-muted);">(optional)</span>
-            </label>
-            <input type="url" id="review-image-url" placeholder="https://..." style="width:100%; padding:0.5rem 0.75rem; border:1px solid var(--border-light); border-radius:8px; font-size:0.82rem; box-sizing:border-box;">
-            <div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.2rem;">Reviews with photos earn higher quality scores.</div>
+            <label>Photo URL <span class="text-muted" style="font-weight:400;">(optional)</span></label>
+            <input type="url" id="review-image-url" placeholder="https://...">
+            <div class="modal-photo-hint">Reviews with photos earn higher quality scores.</div>
         </div>
-        <button id="review-submit-btn" class="btn" style="background:var(--accent-red); color:white; width:100%;" onclick="submitReview()">
+        <button id="review-submit-btn" class="btn btn-red w-100" onclick="submitReview()">
             Submit Review
         </button>
-        <p class="text-muted small text-center" style="margin-top:0.75rem;">
+        <p class="text-muted small modal-footer-note">
             Your review will appear immediately as a verified purchase.
         </p>
     </div>
