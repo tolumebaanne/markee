@@ -13,6 +13,7 @@ zip -r "$OUTPUT" "$SCRIPT_DIR" \
   --exclude "*/node_modules/*" \
   --exclude "*/.git/*" \
   --exclude "*/m0t_base_protocol_v3_1.md" \
-  --exclude "*/.DS_Store"
+  --exclude "*/.DS_Store" \
+  --exclude "*/zip-project.sh"
 
 echo "Created: $OUTPUT"
