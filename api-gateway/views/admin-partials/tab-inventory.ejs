@@ -91,11 +91,11 @@ async function loadInventoryAll(page) {
   if (oos) qs += `&outOfStock=true`;
   try {
     const data = await adminApi('GET', `/proxy/inventory?${qs}`);
-    const inv = data.inventory || [];
+    const inv = data.records || data.inventory || [];
     _invTotal = data.total || inv.length;
     document.getElementById('inv-count').textContent = `${_invTotal} records`;
     if (!inv.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No inventory records found.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No inventory records — stock will appear as sellers list products.</td></tr>';
       document.getElementById('inv-all-pagination').innerHTML = '';
       return;
     }
@@ -116,14 +116,16 @@ async function loadInventoryAll(page) {
 }
 
 function _invRow(i, showActions) {
-  const avail = (i.quantity||0) - (i.reservedQuantity||0);
-  const lowStock = avail <= (i.threshold||0);
+  const reserved = i.reserved || i.reservedQuantity || 0;
+  const threshold = i.lowStockThreshold || i.threshold || 0;
+  const avail = (i.quantity||0) - reserved;
+  const lowStock = avail <= threshold;
   return `<tr style="${lowStock?'background:rgba(239,68,68,.05)':''}">
     <td style="font-family:monospace;font-size:.74rem">${trunc(i.productId,20)}</td>
     <td><b style="color:${i.quantity===0?'#ef4444':'inherit'}">${i.quantity||0}</b></td>
-    <td>${i.reservedQuantity||0}</td>
-    <td style="color:${avail<=0?'#ef4444':avail<=(i.threshold||0)?'#f59e0b':'inherit'}"><b>${avail}</b></td>
-    ${showActions ? `<td>${i.threshold||0}</td>` : ''}
+    <td>${reserved}</td>
+    <td style="color:${avail<=0?'#ef4444':avail<=threshold?'#f59e0b':'inherit'}"><b>${avail}</b></td>
+    ${showActions ? `<td>${threshold}</td>` : ''}
     <td style="font-family:monospace;font-size:.74rem">${trunc(i.sellerId,16)}</td>
     <td>${fmtDate(i.updatedAt)}</td>
     ${showActions ? `<td class="btn-gap">
@@ -139,7 +141,7 @@ async function loadOutOfStock() {
   tbody.innerHTML = '<tr><td colspan="7" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
   try {
     const data = await adminApi('GET', '/proxy/inventory/out-of-stock');
-    const inv = data.inventory || (Array.isArray(data) ? data : []);
+    const inv = data.records || data.inventory || (Array.isArray(data) ? data : []);
     if (!inv.length) {
       tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No out-of-stock products found.</td></tr>';
       return;
@@ -148,8 +150,8 @@ async function loadOutOfStock() {
       <tr>
         <td style="font-family:monospace;font-size:.74rem">${trunc(i.productId,20)}</td>
         <td><b style="color:#ef4444">0</b></td>
-        <td>${i.reservedQuantity||0}</td>
-        <td>${i.threshold||0}</td>
+        <td>${i.reserved||i.reservedQuantity||0}</td>
+        <td>${i.lowStockThreshold||i.threshold||0}</td>
         <td style="font-family:monospace;font-size:.74rem">${trunc(i.sellerId,16)}</td>
         <td>${fmtDate(i.updatedAt)}</td>
         <td><button class="btn btn-xs btn-info" onclick="adjustInventory('${i.productId}')"><i class="fas fa-sliders"></i> Adjust</button></td>
@@ -167,7 +169,7 @@ async function loadDormantStock() {
   tbody.innerHTML = '<tr><td colspan="5" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
   try {
     const data = await adminApi('GET', '/proxy/inventory/dormant');
-    const inv = data.inventory || (Array.isArray(data) ? data : []);
+    const inv = data.records || data.inventory || (Array.isArray(data) ? data : []);
     if (!inv.length) {
       tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No dormant stock found.</td></tr>';
       return;
@@ -176,7 +178,7 @@ async function loadDormantStock() {
       <tr>
         <td style="font-family:monospace;font-size:.74rem">${trunc(i.productId,22)}</td>
         <td>${i.quantity||0}</td>
-        <td>${i.reservedQuantity||0}</td>
+        <td>${i.reserved||i.reservedQuantity||0}</td>
         <td style="font-family:monospace;font-size:.74rem">${trunc(i.sellerId,16)}</td>
         <td>${fmtDate(i.updatedAt)}</td>
       </tr>`).join('');
@@ -193,7 +195,7 @@ async function loadReservations() {
   tbody.innerHTML = '<tr><td colspan="3" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
   try {
     const data = await adminApi('GET', '/proxy/inventory/reservation-summary');
-    const reservations = data.reservations || (Array.isArray(data) ? data : []);
+    const reservations = data.records || data.reservations || (Array.isArray(data) ? data : []);
     if (!reservations.length) {
       tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No active reservations.</td></tr>';
       return;
@@ -201,7 +203,7 @@ async function loadReservations() {
     tbody.innerHTML = reservations.map(r => `
       <tr>
         <td style="font-family:monospace;font-size:.74rem">${trunc(r.productId,24)}</td>
-        <td><b>${r.quantity||r.reserved||0}</b></td>
+        <td><b>${r.qty||r.quantity||r.reserved||0}</b></td>
         <td>${r.count||r.reservationCount||'—'}</td>
       </tr>`).join('');
   } catch(err) {

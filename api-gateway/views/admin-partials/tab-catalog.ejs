@@ -60,7 +60,7 @@ async function loadCatalogPending() {
     // update sidebar badge
     const sb=document.getElementById('badge-catalog');
     if(sb&&products.length>0){sb.textContent=products.length;sb.style.display='inline-flex';}
-    if(!products.length){el.innerHTML=`<div class="empty-state"><i class="fas fa-check-double"></i>No products pending review<p>All submissions processed.</p></div>`;return;}
+    if(!products.length){el.innerHTML=`<div class="empty-state"><i class="fas fa-check-double"></i>No products awaiting review<p>All submissions processed.</p></div>`;return;}
     el.innerHTML=`<div class="table-wrap"><table>
       <thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Seller</th><th>Submitted</th><th>Rejections</th><th>Actions</th></tr></thead>
       <tbody>${products.map(p=>`<tr>
@@ -94,7 +94,7 @@ async function loadCatalogAll(page=1) {
     const data=await adminApi('GET',`/proxy/catalog/products/admin?${qs}`);
     const products=data.products||[];
     const total=data.total||products.length;
-    if(!products.length){el.innerHTML=`<div class="empty-state"><i class="fas fa-box-open"></i>No products found</div>`;document.getElementById('cata-pagination').innerHTML='';return;}
+    if(!products.length){el.innerHTML=`<div class="empty-state"><i class="fas fa-box-open"></i>No products listed yet</div>`;document.getElementById('cata-pagination').innerHTML='';return;}
     el.innerHTML=`<div class="table-wrap"><table>
       <thead><tr><th>Title</th><th>Category</th><th>Price</th><th>Status</th><th>Seller</th><th>Created</th><th>Actions</th></tr></thead>
       <tbody>${products.map(p=>`<tr>
