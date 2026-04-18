@@ -929,7 +929,7 @@
             });
 
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to submit rating');
+            if (!res.ok) throw new Error(data.message || (typeof data.error === 'string' ? data.error : null) || 'Failed to submit rating');
             
             showToast('Seller rated successfully', 'success', 3500);
             document.getElementById('seller-review-modal').classList.remove('open');

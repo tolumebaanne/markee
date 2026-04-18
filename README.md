@@ -1,16 +1,89 @@
 # Markee — Marketplace Platform
 
 **Author:** Toluwalase Mebaanne  
-**Type:** Full-stack distributed system — architectural portfolio piece  
+**Course Context:** INFO 6250 — Web Development Tools & Methods  
+**Type:** Backend architecture project delivered as a service-oriented monorepo  
 **Stack:** Node.js · Express · MongoDB · EJS · JWT · EventBus · PM2 · Cloudflare Tunnel
 
 ---
 
 ## What This Is
 
-Markee is a production-grade marketplace platform built from the ground up as a microservice monorepo. It covers the full lifecycle of a two-sided marketplace — buyers discovering and purchasing products, sellers managing inventory and storefronts, and operators running the platform through a comprehensive admin control system.
+Markee is a multi-vendor marketplace platform built to satisfy backend architecture goals for a web development course while still being implemented as a real working system. It covers the full lifecycle of a two-sided marketplace — buyers discovering and purchasing products, sellers managing inventory and storefronts, and operators running the platform through an admin control system.
 
-This is not a tutorial project. Every architectural decision was made with real operational concerns in mind: how does lockdown propagate across 15 services simultaneously? How do you ensure a spawned admin account can never exceed the permissions of the account that created it? How do you build an escrow system where funds are only released when both parties confirm?
+The project is intentionally organized by service boundaries because the business problem is naturally split across domains such as auth, catalog, inventory, orders, payments, shipping, reviews, messaging, search, analytics, user profiles, seller storefronts, and admin operations.
+
+At the same time, the current implementation deliberately runs all services in one Node.js process during development and demonstration. That choice is not accidental. It is how the platform preserves cross-service coordination through the shared in-process EventBus without introducing extra broker infrastructure that was outside the course scope.
+
+This means the right way to describe Markee is:
+
+- service-oriented in design
+- monorepo in code organization
+- single-process coordinated in runtime
+- distributed in architectural thinking, but not yet broker-backed in deployment
+
+That tradeoff was chosen consciously to demonstrate backend architecture patterns clearly within course constraints.
+
+---
+
+## How This Meets The Course Requirements
+
+This project was shaped around the kinds of backend concerns the course emphasizes:
+
+- **Node.js + Express** as the application runtime and framework
+- **MongoDB + Mongoose** for persistence
+- **EJS-rendered views** through the gateway instead of introducing an unnecessary frontend framework
+- **Authentication and authorization** implemented in the backend with JWT, refresh tokens, scopes, and OAuth-style flows
+- **Clear route, middleware, model, and service separation**
+- **Inter-service communication** modeled through REST and asynchronous events
+- **Backend architecture reasoning** around state transitions, operational controls, and domain boundaries
+
+In other words, this is not just a CRUD store. It is a backend systems project where the main deliverable is the architecture itself: how services are separated, how they coordinate, how they enforce ownership, and how platform-wide state changes propagate safely.
+
+---
+
+## Why I Chose Coordinated Monolith Runtime Instead Of Fully Separate Service Processes
+
+The most important architectural decision in this project is the distinction between logical service separation and runtime deployment style.
+
+### What I kept
+
+- separate services by business domain
+- separate Express apps
+- separate ports
+- separate MongoDB ownership
+- separate route surfaces
+- explicit inter-service REST dependencies
+- explicit async event flows
+
+### What I did not add yet
+
+- Redis pub/sub
+- RabbitMQ / Kafka
+- cross-process event transport
+- container orchestration
+- distributed tracing infrastructure
+
+### Why
+
+For this course, the goal was to demonstrate backend architecture clearly without spending the project's complexity budget on infrastructure plumbing that would not change the underlying domain design. A fully split runtime would have required introducing a real broker for events. Without that, the event-driven parts of the platform would break across process boundaries.
+
+So instead of pretending the system was fully distributed when it was not, I chose a more honest and stable implementation:
+
+- the services remain separate by responsibility
+- the coordination layer remains event-driven
+- all services run in one Node process through `start-monolith.js`
+- the shared `EventBus` works correctly because the module singleton is truly shared
+
+This preserves the architectural idea while keeping the system demonstrable, debuggable, and aligned with course scope.
+
+### The tradeoff
+
+The benefit is clear service design with low infrastructure overhead.
+
+The limitation is also clear: this is not yet a production-grade distributed event system. If the platform were split into separate containers or hosts, `shared/eventBus.js` would need to be replaced by a real broker such as Redis pub/sub or RabbitMQ.
+
+That limitation is known and documented in `foundational_docs/service_dependency_map.md`.
 
 ---
 
@@ -51,7 +124,7 @@ This is not a tutorial project. Every architectural decision was made with real 
 └────────┘  └──────────┘  └──────────┘  └──────────┘  └──────────┘
 ```
 
-**15 services. One monorepo. One EventBus. Zero shared databases.**
+**15 service boundaries. One monorepo. One shared process in dev/runtime coordination mode. Zero shared databases.**
 
 ---
 
@@ -154,6 +227,8 @@ shared/
     └── errorResponse.js  # Consistent error shape across all services
 ```
 
+The most important implementation detail here is that `eventBus.js` is process-local. The architecture depends on `start-monolith.js` loading every service in the same Node runtime so the EventBus remains shared.
+
 ---
 
 ## Deployment
@@ -161,18 +236,36 @@ shared/
 The platform is designed for self-hosted deployment with zero cloud vendor lock-in:
 
 - **PM2** manages all 15 service processes with auto-restart
-- **GitHub Actions self-hosted runner** handles CI/CD — push to `main`, runner on host machine pulls and reloads
-- **Cloudflare Tunnel** exposes the platform publicly without opening ports or configuring a router
+- **GitHub Actions self-hosted runner** handles CI/CD — push to `main`, runner on the host machine pulls and reloads
+- **Cloudflare Tunnel + custom domain routing** expose the platform publicly without opening ports or configuring a router
 - **MongoDB** runs locally on the host machine
+
+### Real Project Delivery Setup
+
+In practice, this project has been served from:
+
+- `markee.azah.trade`
+
+That setup has been useful for testing because it lets the application run from my local machine while still being reachable through a stable public URL.
+
+The deployment pattern is:
+
+- the code lives in GitHub
+- a self-hosted GitHub runner runs on my local computer
+- pushes trigger pull/reload behavior on that machine
+- PM2 keeps the Markee process alive
+- Cloudflare Tunnel maps the local service to `markee.azah.trade`
+
+This made it possible to test the system in a more realistic way than localhost-only development, while still keeping infrastructure lightweight and under my control.
 
 ```
 git push origin main
        ↓
-GitHub Actions (self-hosted runner on host machine)
+GitHub Actions (self-hosted runner on local host machine)
        ↓
 git pull + pm2 reload all
        ↓
-Live in ~15 seconds via Cloudflare Tunnel
+Live via Cloudflare Tunnel at markee.azah.trade
 ```
 
 ---
@@ -190,13 +283,27 @@ cp auth-service/.env.example auth-service/.env
 # Start the full platform
 node start-monolith.js
 
-# Or start individual services
-node api-gateway/server.js
-node auth-service/server.js
-# etc.
+# Legacy debugging only: separate processes
+./start-all.sh --legacy
 ```
 
 Each service requires its own `.env` file. See `.env.example` in each service directory for required variables.
+
+### Recommended Way To Run It
+
+Use:
+
+```bash
+node start-monolith.js
+```
+
+or:
+
+```bash
+./start-all.sh
+```
+
+Do not present `--legacy` mode as the normal runtime. In legacy mode, services run as separate OS processes and the in-process EventBus no longer coordinates cross-service events correctly.
 
 ---
 
@@ -207,6 +314,16 @@ This platform was built against a self-authored architectural protocol (m0t Base
 - **BUILDER.9** — every service must verify its own platform state, not rely on the gateway alone
 - **OPERATOR.1.3** — be fully informed before acting (no blind mutations, always fetch current state first)
 - **SYSTEM** — state changes cascade simultaneously across DB write, event emission, and audit log
+
+### Practical Architectural Position
+
+For class discussion, the clearest description is:
+
+- Markee is not a classic single-codebase monolith where all domains are mixed together.
+- Markee is not yet a fully broker-backed distributed microservice deployment either.
+- Markee is a service-oriented backend system implemented in a monorepo and coordinated through a single-process runtime so that its event-driven workflows remain correct within project scope.
+
+That distinction is important because it explains both the strengths of the system and its current limitation honestly.
 
 ---
 

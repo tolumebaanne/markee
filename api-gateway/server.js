@@ -4,6 +4,7 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const path = require('path');
+const jwt         = require('jsonwebtoken');
 const verifyToken = require('../shared/middleware/verifyToken');
 const enforceScope = require('../shared/middleware/enforceScope');
 const errorResponse = require('../shared/utils/errorResponse');
@@ -88,7 +89,17 @@ app.use('/api/catalog', (req, res, next) => {
         && !req.path.includes('/my-products')
         && !isAdminReviewPath;
 
-    if (isTelemetry || isPublicGet) return proxy(CATALOG_URL)(req, res, next);
+    if (isTelemetry || isPublicGet) {
+        // Optional auth: enrich x-user if a valid token is present (e.g. seller viewing their own offline product)
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            try {
+                const decoded = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET || 'fallback-secret');
+                req.headers['x-user'] = JSON.stringify(decoded);
+            } catch {}
+        }
+        return proxy(CATALOG_URL)(req, res, next);
+    }
 
     verifyToken(req, res, () => {
         if (isAdminReviewPath) {

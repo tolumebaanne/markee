@@ -385,7 +385,7 @@ bus.on('product.created', async (p) => {
             originalPrice: discount.enabled ? p.price : undefined,
             onSale:       !!onSale,
             listedAt:     p.createdAt   ? new Date(p.createdAt) : new Date(),
-            status:       'active',
+            status:       'hidden', // new listings start hidden; set active on approval event
             storeActive:  true,
         });
         // Refresh autocomplete title Set (append only — no full rebuild)
@@ -401,12 +401,16 @@ bus.on('product.updated', async (p) => {
         lastEventAt = new Date();
         const discount = p.discount || {};
         const onSale   = discount.enabled && discount.discountedPrice && discount.discountedPrice < p.price;
-        const updateFields = {
-            title:    p.title,
-            category: p.category,
-            price:    p.price,
-            status:   p.status === 'deleted' ? 'deleted' : p.status === 'active' ? 'active' : 'hidden',
-        };
+        const updateFields = {};
+        if (p.title    !== undefined) updateFields.title    = p.title;
+        if (p.category !== undefined) updateFields.category = p.category;
+        if (p.price    !== undefined) updateFields.price    = p.price;
+        // Map status: prefer explicit p.status; fall back to displayStatus from review events
+        if (p.status !== undefined) {
+            updateFields.status = p.status === 'deleted' ? 'deleted' : p.status === 'active' ? 'active' : 'hidden';
+        } else if (p.displayStatus !== undefined) {
+            updateFields.status = p.displayStatus === 'visible' ? 'active' : 'hidden';
+        }
         if (p.description  !== undefined) updateFields.description  = p.description;
         if (p.storeName    !== undefined) updateFields.storeName    = p.storeName;
         if (discount.enabled !== undefined) {

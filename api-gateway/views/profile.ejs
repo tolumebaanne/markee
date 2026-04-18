@@ -521,6 +521,10 @@
     roleEl.className = `role-pill ${roleClass}`;
     roleEl.textContent = (user.role || 'buyer').toUpperCase();
 
+    // ── Store settings ────────────────────────────────────────────────────────
+    let _originalStore = null;
+    let _storeId = user.storeId;
+
     // Role-based navigation
     const isSeller = user.storeActive === true || user.role === 'admin';
     if (isSeller) {
@@ -538,10 +542,6 @@
     }
 
     loadNotifications();
-
-    // ── Store settings ────────────────────────────────────────────────────────
-    let _originalStore = null;
-    let _storeId = user.storeId;
 
     async function loadNotifications() {
         try {
@@ -929,15 +929,27 @@
     }
 
     // ── Bio ───────────────────────────────────────────────────────────────────
-    function loadBio() {
+    async function loadBio() {
+        // Server is source of truth; localStorage used as immediate fallback on cold load
         try {
             const saved = localStorage.getItem(`markee_bio_${user.email}`);
-            if (!saved) return;
-            const bio = JSON.parse(saved);
-            document.getElementById('bio-name').value     = bio.name     || '';
-            document.getElementById('bio-text').value     = bio.bio      || '';
-            document.getElementById('bio-location').value = bio.location || '';
-            if (bio.name) document.getElementById('profile-name-display').textContent = bio.name;
+            if (saved) {
+                const bio = JSON.parse(saved);
+                document.getElementById('bio-name').value     = bio.name     || '';
+                document.getElementById('bio-text').value     = bio.bio      || '';
+                document.getElementById('bio-location').value = bio.location || '';
+                if (bio.name) document.getElementById('profile-name-display').textContent = bio.name;
+            }
+        } catch {}
+        try {
+            const r = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
+            if (!r.ok) return;
+            const profile = await r.json();
+            document.getElementById('bio-name').value     = profile.displayName || '';
+            document.getElementById('bio-text').value     = profile.bio         || '';
+            document.getElementById('bio-location').value = profile.location    || '';
+            if (profile.displayName) document.getElementById('profile-name-display').textContent = profile.displayName;
+            localStorage.setItem(`markee_bio_${user.email}`, JSON.stringify({ name: profile.displayName, bio: profile.bio, location: profile.location }));
         } catch {}
     }
 
@@ -950,12 +962,12 @@
         localStorage.setItem(`markee_bio_${user.email}`, JSON.stringify(bio));
         if (bio.name) document.getElementById('profile-name-display').textContent = bio.name;
 
-        // Persist displayName to user-service so the JWT reflects it on next refresh
+        // Persist bio fields to user-service; displayName also triggers JWT refresh
         try {
             await fetch('/api/users/me', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ displayName: bio.name || '' })
+                body: JSON.stringify({ displayName: bio.name || '', bio: bio.bio || '', location: bio.location || '' })
             });
             // Refresh JWT so dashboard banner clears on next load
             const refreshToken = localStorage.getItem('refresh_token');

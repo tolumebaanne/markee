@@ -2169,7 +2169,7 @@
         const counts = {
             '':               all.length,
             active:           all.filter(p => p.reviewStatus === 'published' || (!p.reviewStatus && p.status === 'active')).length,
-            paused:           all.filter(p => p.status === 'paused' || p.reviewStatus === 'offline').length,
+            paused:           all.filter(p => p.status === 'paused' && p.reviewStatus !== 'offline').length,
             pending_review:   all.filter(p => ['pending_review','in_review','approved'].includes(p.reviewStatus)).length,
             needs_changes:    all.filter(p => p.reviewStatus === 'needs_changes').length,
             rejected:         all.filter(p => p.reviewStatus === 'rejected').length,
@@ -2245,7 +2245,7 @@
             if (tab === 'active') {
                 matchTab = p.reviewStatus === 'published' || (!p.reviewStatus && p.status === 'active');
             } else if (tab === 'paused') {
-                matchTab = p.status === 'paused' || p.reviewStatus === 'offline';
+                matchTab = p.status === 'paused' && p.reviewStatus !== 'offline';
             } else if (tab === 'pending_review') {
                 matchTab = ['pending_review', 'in_review', 'approved'].includes(p.reviewStatus);
             } else if (tab === 'needs_changes') {

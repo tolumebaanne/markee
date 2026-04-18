@@ -70,6 +70,7 @@ const ProfileSchema = new mongoose.Schema({
     phone:       { type: String, default: '' },
     avatarUrl:   { type: String, default: '' },
     bio:         { type: String, default: '' },
+    location:    { type: String, default: '' },
     country:     { type: String, default: 'CA' },
     province:    { type: String, default: 'ON' },
 
@@ -237,7 +238,7 @@ app.get('/users/me', async (req, res) => {
 // PUT /users/me — partial update
 app.put('/users/me', async (req, res) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
-    const allowed = ['displayName', 'phone', 'avatarUrl', 'bio', 'country', 'province', 'notificationPreferences'];
+    const allowed = ['displayName', 'phone', 'avatarUrl', 'bio', 'location', 'country', 'province', 'notificationPreferences'];
     const update  = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
     update.updatedAt = new Date();
