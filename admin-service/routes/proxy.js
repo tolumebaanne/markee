@@ -371,16 +371,8 @@ router.patch('/reviews/:id/moderate',
   }
 );
 
-router.delete('/reviews/:id',
-  requirePermission('reviews', 'delete'),
-  auditLog('review.delete', 'Review'),
-  async (req, res) => {
-    const r = await callService('DELETE', `${reviewUrl()}/admin/${req.params.id}`, { reason: req.body.reason }, req.admin.email);
-    res.status(r.status).json(r.data);
-  }
-);
-
-// Segment 6: BuyerReview admin moderation
+// Segment 6: BuyerReview admin moderation — must be registered BEFORE the generic /:id DELETE
+// to prevent Express matching buyer/:id with :id="buyer"
 router.get('/reviews/buyer-all',
   requirePermission('reviews', 'read'),
   async (req, res) => {
@@ -394,6 +386,15 @@ router.delete('/reviews/buyer/:id',
   auditLog('buyerReview.delete', 'BuyerReview'),
   async (req, res) => {
     const r = await callService('DELETE', `${reviewUrl()}/admin/buyer-review/${req.params.id}`, { reason: req.body?.reason }, req.admin.email);
+    res.status(r.status).json(r.data);
+  }
+);
+
+router.delete('/reviews/:id',
+  requirePermission('reviews', 'delete'),
+  auditLog('review.delete', 'Review'),
+  async (req, res) => {
+    const r = await callService('DELETE', `${reviewUrl()}/admin/${req.params.id}`, { reason: req.body.reason }, req.admin.email);
     res.status(r.status).json(r.data);
   }
 );

@@ -6,7 +6,7 @@
   </div>
 
   <div class="sub-tabs" id="rev-tabs">
-    <button class="sub-tab active" onclick="switchSubTab('rev','queue',this);renderReviews(window._revData||[],'rev-queue')">All Reviews</button>
+    <button class="sub-tab active" onclick="switchSubTab('rev','queue',this);renderReviews(window._revData||[],'rev-queue','No reviews yet — reviews will appear here as buyers leave them.')">All Reviews</button>
     <button class="sub-tab" onclick="switchSubTab('rev','pending',this);renderReviews((window._revData||[]).filter(r=>r.status==='pending'),'rev-pending')">Pending</button>
     <button class="sub-tab" onclick="switchSubTab('rev','flagged',this);renderReviews((window._revData||[]).filter(r=>r.status==='flagged'),'rev-flagged')">Flagged</button>
     <button class="sub-tab" onclick="switchSubTab('rev','buyer',this);loadBuyerReviews()">Buyer Reviews</button>
@@ -55,7 +55,7 @@
       // If the backend returned all reviews, show them in the queue; fall back to pending+flagged only
       window._revData = all.length ? all : [...pending, ...flagged];
       loading.style.display = 'none';
-      renderReviews(window._revData, 'rev-queue');
+      renderReviews(window._revData, 'rev-queue', 'No reviews yet — reviews will appear here as buyers leave them.');
       renderReviews(window._revData.filter(r => r.status === 'pending'), 'rev-pending');
       renderReviews(window._revData.filter(r => r.status === 'flagged'), 'rev-flagged');
     } catch (err) {
@@ -65,14 +65,15 @@
     }
   }
 
-  function renderReviews(reviews, containerId) {
+  function renderReviews(reviews, containerId, emptyMsg) {
     const container = document.getElementById(containerId + '-list') || document.getElementById(containerId);
     const listEl = document.getElementById(containerId + '-list');
     const target = listEl || container;
     if (!target) return;
 
     if (!reviews || !reviews.length) {
-      target.innerHTML = '<div class="empty-state"><i class="fas fa-star"></i><p>No reviews in this category.</p></div>';
+      const msg = emptyMsg || 'No reviews in this category.';
+      target.innerHTML = `<div class="empty-state"><i class="fas fa-star"></i><p>${msg}</p></div>`;
       return;
     }
 
@@ -119,7 +120,7 @@
       toast(`Review ${action === 'approved' ? 'approved' : 'flagged'} successfully.`, action === 'approved' ? 'success' : 'warn');
       // Update local data
       window._revData = window._revData.map(r => r._id === id ? { ...r, status: action } : r);
-      renderReviews(window._revData, 'rev-queue');
+      renderReviews(window._revData, 'rev-queue', 'No reviews yet — reviews will appear here as buyers leave them.');
       renderReviews(window._revData.filter(r => r.status === 'pending'), 'rev-pending');
       renderReviews(window._revData.filter(r => r.status === 'flagged'), 'rev-flagged');
     } catch (err) {
@@ -139,7 +140,7 @@
       await adminApi('DELETE', `/proxy/reviews/${id}`, { reason: result.reason });
       toast('Review deleted and rating recalculated.', 'success');
       window._revData = window._revData.filter(r => r._id !== id);
-      renderReviews(window._revData, 'rev-queue');
+      renderReviews(window._revData, 'rev-queue', 'No reviews yet — reviews will appear here as buyers leave them.');
       renderReviews(window._revData.filter(r => r.status === 'pending'), 'rev-pending');
       renderReviews(window._revData.filter(r => r.status === 'flagged'), 'rev-flagged');
     } catch (err) {
