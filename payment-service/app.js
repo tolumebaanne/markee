@@ -40,12 +40,10 @@ app.use(cors());
 app.use(parseUser);
 app.use(platformGuard);
 
-const db = mongoose.createConnection(process.env.MONGODB_URI, {
-    serverSelectionTimeoutMS: 10000,
-    connectTimeoutMS:         15000,
-});
-db.on('connected', () => console.log('Payment DB Connected'));
-db.on('error', (err) => console.error('[PAYMENT] DB error:', err.message));
+const db = mongoose.createConnection(process.env.MONGODB_URI);
+db.on('connected',    () => console.log('Payment DB Connected'));
+db.on('disconnected', () => console.warn('[PAYMENT] DB disconnected — will auto-reconnect'));
+db.on('error',        (err) => console.error('[PAYMENT] DB error:', err.message));
 
 // ── S1 — Schemas ──────────────────────────────────────────────────────────────
 

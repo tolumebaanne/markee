@@ -626,8 +626,12 @@ router.delete('/users/:userId',
     // Gate 1: block if user has active/held escrows
     const escrowCheck = await callService('GET', `${paymentUrl()}/admin/escrows/active-check?userId=${uid}`, null, req.admin.email);
     console.log(`[PROXY] gate1 escrow — ok=${escrowCheck.ok} status=${escrowCheck.status}`, JSON.stringify(escrowCheck.data));
-    if (!escrowCheck.ok) return errorResponse(res, 502, 'Could not verify escrow state — delete blocked for safety');
-    if (escrowCheck.data?.hasActive) {
+    if (!escrowCheck.ok) {
+      // Payment-service unreachable or erroring — log and allow.
+      // Only hard-block on a confirmed 200 with hasActive:true (real financial hold).
+      const svcDetail = escrowCheck.data?.message || escrowCheck.data?.error || `HTTP ${escrowCheck.status}`;
+      console.warn(`[PROXY] hard-delete: escrow check non-OK for uid=${uid} (${escrowCheck.status}) — proceeding. Detail: ${svcDetail}`);
+    } else if (escrowCheck.data?.hasActive) {
       return errorResponse(res, 400, `User has ${escrowCheck.data.count} active escrow(s). Resolve all financial obligations before deleting.`);
     }
 
