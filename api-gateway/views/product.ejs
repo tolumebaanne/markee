@@ -69,7 +69,7 @@
             margin-bottom: 0.75rem;
         }
 
-        .star-display-lg { font-size: 1.1rem; color: #f59e0b; letter-spacing: 1px; }
+        .star-display-lg { font-size: 1.1rem; color: var(--color-amber); letter-spacing: 1px; }
         .avg-rating-num  { font-weight: 700; font-size: 1.05rem; }
         .avg-rating-count { font-size: 0.8rem; color: var(--text-muted); }
 
@@ -95,7 +95,7 @@
 
         .reviewer-name { font-weight: 600; font-size: 0.875rem; }
         .review-date   { font-size: 0.75rem; color: var(--text-muted); }
-        .review-stars  { font-size: 0.9rem; color: #f59e0b; letter-spacing: 1px; }
+        .review-stars  { font-size: 0.9rem; color: var(--color-amber); letter-spacing: 1px; }
         .review-text   { font-size: 0.875rem; color: var(--text-main); line-height: 1.6; margin-top: 0.35rem; }
 
         /* ── Write Review button (visible only when delivered) ───────────────── */
@@ -107,9 +107,9 @@
             border-radius: 8px;
             font-size: 0.85rem;
             font-weight: 600;
-            border: 1.5px solid #bbf7d0;
-            background: #f0fdf4;
-            color: #15803d;
+            border: 1.5px solid var(--toast-success-border);
+            background: var(--toast-success-bg);
+            color: var(--toast-success-fg);
             cursor: pointer;
             transition: all 0.2s;
             width: 100%;
@@ -158,14 +158,14 @@
         .star-pick {
             font-size: 2rem;
             cursor: pointer;
-            color: #d1d5db;
+            color: var(--border-light);
             transition: color 0.15s;
             line-height: 1;
             user-select: none;
         }
 
-        .star-pick.filled { color: #f59e0b; }
-        .star-pick:hover  { color: #f59e0b; }
+        .star-pick.filled { color: var(--color-amber); }
+        .star-pick:hover  { color: var(--color-amber); }
 
         /* ── Section card ────────────────────────────────────────────────────── */
         .section-card {
@@ -269,7 +269,7 @@
         }
 
         /* ── Sidebar rating ──────────────────────────────────────────────────── */
-        .sidebar-stars { font-size: 0.95rem; color: #f59e0b; }
+        .sidebar-stars { font-size: 0.95rem; color: var(--color-amber); }
         .sidebar-avg   { font-weight: 600; font-size: 0.9rem; }
 
         /* ── Store name bar ──────────────────────────────────────────────────── */
@@ -372,7 +372,7 @@
             <div id="qa-section" style="display:none; margin-top:1.5rem;">
                 <div class="section-card">
                     <div class="section-card-header">
-                        <h4 style="margin:0;"><i class="fa fa-question-circle" style="margin-right:0.5rem; color:#1d4ed8;"></i> Questions &amp; Answers</h4>
+                        <h4 style="margin:0;"><i class="fa fa-question-circle" style="margin-right:0.5rem; color:var(--color-blue);"></i> Questions &amp; Answers</h4>
                     </div>
                     <div class="section-card-body">
                         <div id="qa-list"></div>
@@ -482,7 +482,7 @@
                     <button class="btn btn-outline" id="watchlist-btn" title="Save to Watchlist"
                             style="width:44px; padding:0; display:flex; align-items:center; justify-content:center; font-size:1.1rem;"
                             onclick="toggleWatchlist()">
-                        <i class="fa fa-heart" id="watchlist-icon" style="color:#d1d5db;"></i>
+                        <i class="fa fa-heart" id="watchlist-icon" style="color:var(--border-light);"></i>
                     </button>
                 </div>
 
@@ -575,7 +575,7 @@
     const PRODUCT_ID = '<%- productId %>';
     let sellerUserId = null;
     let _selectedRating = 0;
-    let _deliveredOrderId = null; // set if buyer has a delivered order for this product
+    let _deliveredOrderId = null;
 
     // ── Auth state ────────────────────────────────────────────────────────────
     const token = localStorage.getItem('access_token');
@@ -606,7 +606,6 @@
             const imgs = data.images || [];
             document.getElementById('main-image').src = imgs[0] || '';
 
-            // data.sellerId = storeId; resolve to seller's personal userId via store profile
             const _storeId = data.sellerId;
             window.currentProduct = data;
             // Disable chat/reveal until personal userId is resolved (no storeId fallback)
@@ -635,7 +634,6 @@
                 `).join('');
             }
 
-            // Show edit button if viewer is the active seller who owns this product
             if (user && user.storeActive && user.storeId && data.sellerId?.toString() === user.storeId?.toString()) {
                 document.getElementById('edit-own-btn-wrap').style.display = 'block';
                 document.getElementById('add-cart-btn').style.display = 'none';
@@ -643,7 +641,6 @@
                 document.getElementById('chat-btn').style.display     = 'none';
             }
 
-            // Micro-FOMO Badge execution
             if (data.smartMetrics && data.smartMetrics.activeCartCount >= 3) {
                 const fomo = document.createElement('div');
                 fomo.style = 'background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 8px; padding: 0.65rem 1rem; margin-bottom: 0.75rem; font-size: 0.82rem; font-weight: 600; display: flex; align-items: center; animation: pulse 2s infinite;';
@@ -651,12 +648,7 @@
                 document.getElementById('oos-banner').before(fomo);
             }
 
-            // Store name is loaded in the seller fetch callback above (with correct personal userId)
-
-            // Check watchlist state
             updateWatchlistIcon();
-
-            // Load reviews now that we have the product
             loadReviews(data.rating);
 
             // Check review eligibility — any authenticated user (backend gate handles the rest)
@@ -664,7 +656,6 @@
                 checkReviewEligibility();
             }
 
-            // S34 — confidence badge, price history, stock status, Q&A
             renderConfidenceBadge(data);
             renderPriceHistory(data);
             loadStockStatus();
@@ -834,13 +825,11 @@
             const res = await fetch(url);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            // API now returns {reviews, avgRating, totalCount, breakdown}
             const reviews   = Array.isArray(data) ? data : (data.reviews || []);
             const avg       = data.avgRating || existingRating || 0;
             const total     = data.totalCount || reviews.length;
             const breakdown = data.breakdown || null;
 
-            // Cache for re-renders
             if (!sort && !stars) _allReviewData = data;
 
             document.getElementById('reviews-skeleton').style.display = 'none';
@@ -860,7 +849,6 @@
                 document.getElementById('sidebar-avg').textContent = avg.toFixed(1);
                 document.getElementById('sidebar-count').textContent = countLabel;
 
-                // Breakdown bars (only on initial load, not filtered views)
                 if (breakdown && !sort && !stars) {
                     renderBreakdown(breakdown, total);
                 }
@@ -869,7 +857,6 @@
             const countText = total ? `${total} verified review${total !== 1 ? 's' : ''}` : '';
             document.getElementById('review-count-label').textContent = countText;
 
-            // Controls (sort + star filter) — inject once
             if (!document.getElementById('review-controls')) {
                 injectReviewControls();
             }
@@ -943,7 +930,6 @@
                 <option value="rating_desc">Highest Rated</option>
                 <option value="rating_asc">Lowest Rated</option>
             </select>`;
-        // Insert before reviews-list
         document.getElementById('reviews-list').before(ctrl);
     }
 
@@ -1243,7 +1229,6 @@
 
             closeReviewModal();
             showToast('Review submitted! Your review is now live.', 'success');
-            // Replace button with "already reviewed" label
             document.getElementById('write-review-wrapper').innerHTML = `
                 <div style="border-top:1px solid var(--border-light); padding-top:1rem;">
                     <div style="font-size:0.82rem; color:var(--text-muted); text-align:center; padding:0.6rem; background:var(--bg-secondary); border-radius:8px; border:1px solid var(--border-light);">
@@ -1301,7 +1286,6 @@
                 loadSellerAbout(store._id, store.name);
             }
             document.getElementById('store-name-bar').style.display = 'block';
-            // Show Message Seller button only if not viewing own product
             const msgBtn = document.getElementById('msg-seller-btn');
             if (msgBtn && !(user && user.storeId && store._id && user.storeId.toString() === store._id.toString())) {
                 msgBtn.style.display = 'block';
@@ -1314,7 +1298,7 @@
             const res = await fetch(`/api/reviews/seller/${storeId}/stats`);
             if (!res.ok) return;
             const stats = await res.json();
-            if (!stats.totalCount) return; // no reviews yet — don't show section
+            if (!stats.totalCount) return;
             const starsHtml = renderStars(stats.avgRating || 0);
             const replyPct  = stats.replyRate != null ? Math.round(stats.replyRate * 100) : null;
             document.getElementById('about-seller-body').innerHTML = `
