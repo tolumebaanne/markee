@@ -4,13 +4,13 @@ module.exports = function createThreadRoutes(services) {
     const { threadService, unreadService, identityService, logger } = services;
     const errorResponse = require('../../shared/utils/errorResponse');
 
-    const USER_URL = process.env.USER_SERVICE_URL || 'http://localhost:5013';
+    const AUTH_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:5001';
 
     async function fetchDisplayNames(userIds) {
         if (!userIds.length) return {};
         try {
             const r = await fetch(
-                `${USER_URL}/users/internal/display-names?ids=${userIds.join(',')}`,
+                `${AUTH_URL}/internal/display-names?ids=${userIds.join(',')}`,
                 { headers: { 'x-internal-service': 'messaging-service' } }
             );
             return r.ok ? await r.json() : {};
@@ -60,8 +60,10 @@ module.exports = function createThreadRoutes(services) {
                     const id = m.userId?.toString();
                     if (!id || id === userId) return m;
                     const fresh = nameMap[id];
-                    if (!fresh) return m;
-                    return { ...m, displayName: fresh.displayName || m.displayName || '', emailFallback: fresh.email };
+                    const storeName = identityService.getStoreName(id);
+                    const resolvedName = (fresh && fresh.displayName) || m.displayName || storeName || '';
+                    const emailFallback = (fresh && fresh.email) || '';
+                    return { ...m, displayName: resolvedName, emailFallback };
                 })
             }));
 

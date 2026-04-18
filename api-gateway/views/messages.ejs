@@ -938,7 +938,9 @@ function renderThreadHeader(thread) {
     var otherMeta = (thread.participantMeta || []).find(function(m) {
         return m.userId && m.userId.toString() !== user.sub;
     });
-    var displayName = (otherMeta && otherMeta.displayName) ? otherMeta.displayName : ('\u2026' + (thread._id || '').slice(-6));
+    var displayName = (otherMeta && otherMeta.displayName)
+        ? otherMeta.displayName
+        : (otherMeta && otherMeta.emailFallback ? otherMeta.emailFallback.split('@')[0] : 'User');
     var avatar = document.getElementById('chat-avatar');
     avatar.style.background = stringToColor(thread._id);
     avatar.style.color      = 'white';

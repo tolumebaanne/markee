@@ -513,4 +513,22 @@ router.post('/reset-password', express.urlencoded({ extended: false }), async (r
   }
 });
 
+// GET /internal/display-names?ids=id1,id2 — messaging-service name enrichment
+router.get('/internal/display-names', async (req, res) => {
+  if (req.headers['x-internal-service'] !== 'messaging-service') return res.status(403).json({ error: 'Internal only' });
+  try {
+    const ids = (req.query.ids || '').split(',').filter(Boolean);
+    if (!ids.length) return res.json({});
+    const users = await User.find(
+      { _id: { $in: ids }, status: { $ne: 'deleted' } },
+      { _id: 1, email: 1, displayName: 1 }
+    ).lean();
+    const map = {};
+    for (const u of users) {
+      map[u._id.toString()] = { displayName: u.displayName || '', email: u.email || '' };
+    }
+    res.json(map);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;
