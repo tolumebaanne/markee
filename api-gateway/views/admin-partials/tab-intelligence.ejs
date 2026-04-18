@@ -86,21 +86,24 @@
       const tier = data.tierDistribution || {};
       const pay = data.paymentSummary || {};
 
-      grid.innerHTML = `
-        <div class="stat-card"><div class="stat-label">Total Active Stores</div><div class="stat-value" id="intel-c-stores">0</div></div>
-        <div class="stat-card"><div class="stat-label">Verified Stores</div><div class="stat-value" id="intel-c-verified">0</div></div>
-        <div class="stat-card"><div class="stat-label" style="color:#fbbf24">Top Sellers</div><div class="stat-value" id="intel-c-top">0</div></div>
-        <div class="stat-card"><div class="stat-label" style="color:#60a5fa">Rising Sellers</div><div class="stat-value" id="intel-c-rising">0</div></div>
-        <div class="stat-card"><div class="stat-label">Standard Sellers</div><div class="stat-value" id="intel-c-standard">0</div></div>
-        <div class="stat-card"><div class="stat-label">Total Orders</div><div class="stat-value" id="intel-c-orders">0</div></div>
-      `;
-
-      animateCounter(document.getElementById('intel-c-stores'), data.totalActiveStores||0, '', '');
-      animateCounter(document.getElementById('intel-c-verified'), data.verifiedStores||0, '', '');
-      animateCounter(document.getElementById('intel-c-top'), tier.top||0, '', '');
-      animateCounter(document.getElementById('intel-c-rising'), tier.rising||0, '', '');
-      animateCounter(document.getElementById('intel-c-standard'), tier.standard||0, '', '');
-      animateCounter(document.getElementById('intel-c-orders'), data.totalOrders||0, '', '');
+      if (!data.totalActiveStores && !data.totalOrders) {
+        grid.innerHTML = '<div class="empty-state" style="padding:1.5rem 0"><i class="fas fa-store-slash"></i><p>No sellers yet — marketplace balance will populate once stores are created.</p></div>';
+      } else {
+        grid.innerHTML = `
+          <div class="stat-card"><div class="stat-label">Total Active Stores</div><div class="stat-value" id="intel-c-stores">0</div></div>
+          <div class="stat-card"><div class="stat-label">Verified Stores</div><div class="stat-value" id="intel-c-verified">0</div></div>
+          <div class="stat-card"><div class="stat-label" style="color:#fbbf24">Top Sellers</div><div class="stat-value" id="intel-c-top">0</div></div>
+          <div class="stat-card"><div class="stat-label" style="color:#60a5fa">Rising Sellers</div><div class="stat-value" id="intel-c-rising">0</div></div>
+          <div class="stat-card"><div class="stat-label">Standard Sellers</div><div class="stat-value" id="intel-c-standard">0</div></div>
+          <div class="stat-card"><div class="stat-label">Total Orders</div><div class="stat-value" id="intel-c-orders">0</div></div>
+        `;
+        animateCounter(document.getElementById('intel-c-stores'), data.totalActiveStores||0, '', '');
+        animateCounter(document.getElementById('intel-c-verified'), data.verifiedStores||0, '', '');
+        animateCounter(document.getElementById('intel-c-top'), tier.top||0, '', '');
+        animateCounter(document.getElementById('intel-c-rising'), tier.rising||0, '', '');
+        animateCounter(document.getElementById('intel-c-standard'), tier.standard||0, '', '');
+        animateCounter(document.getElementById('intel-c-orders'), data.totalOrders||0, '', '');
+      }
 
       if (pay.totalHeldCents !== undefined || pay.platformRevenueCents !== undefined) {
         paymentCard.style.display = 'block';
@@ -135,23 +138,26 @@
         { key: 'fullyOnboarded', pctKey: 'fullyOnboardedPct', label: 'Fully Onboarded', icon: 'fa-check-circle', color: '#4ade80' }
       ];
 
-      const total = data.total || 1;
-      steps.innerHTML = funnelSteps.map(step => {
-        const count = data[step.key] || 0;
-        const pct = step.pctKey ? (data[step.pctKey] || 0) : 100;
-        const displayPct = step.pctKey ? pct : (count > 0 ? 100 : 0);
-        return `
-          <div style="margin-bottom:1.1rem">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem">
-              <span style="color:#e2e8f0;font-size:0.9rem"><i class="fas ${step.icon}" style="color:${step.color};margin-right:0.5rem"></i>${step.label}</span>
-              <span style="color:#94a3b8;font-size:0.85rem">${count.toLocaleString()} <span style="color:${step.color}">(${displayPct}%)</span></span>
+      if (!data.total) {
+        steps.innerHTML = '<div class="empty-state" style="padding:1.5rem 0"><i class="fas fa-filter"></i><p>No sellers registered yet — funnel data will appear once sellers create stores.</p></div>';
+      } else {
+        steps.innerHTML = funnelSteps.map(step => {
+          const count = data[step.key] || 0;
+          const pct = step.pctKey ? (data[step.pctKey] || 0) : 100;
+          const displayPct = step.pctKey ? pct : (count > 0 ? 100 : 0);
+          return `
+            <div style="margin-bottom:1.1rem">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem">
+                <span style="color:#e2e8f0;font-size:0.9rem"><i class="fas ${step.icon}" style="color:${step.color};margin-right:0.5rem"></i>${step.label}</span>
+                <span style="color:#94a3b8;font-size:0.85rem">${count.toLocaleString()} <span style="color:${step.color}">(${displayPct}%)</span></span>
+              </div>
+              <div class="health-bar-wrap" style="height:8px;background:#1e2d45;border-radius:4px;overflow:hidden">
+                <div class="health-bar" style="height:100%;width:${Math.min(displayPct,100)}%;background:${step.color};border-radius:4px;transition:width 0.5s ease"></div>
+              </div>
             </div>
-            <div class="health-bar-wrap" style="height:8px;background:#1e2d45;border-radius:4px;overflow:hidden">
-              <div class="health-bar" style="height:100%;width:${Math.min(displayPct,100)}%;background:${step.color};border-radius:4px;transition:width 0.5s ease"></div>
-            </div>
-          </div>
-        `;
-      }).join('');
+          `;
+        }).join('');
+      }
     } catch (err) {
       loading.style.display = 'none';
       showErr('intel-funnel-error', err.message);

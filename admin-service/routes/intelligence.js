@@ -20,11 +20,17 @@ const errorResponse     = require('../../shared/utils/errorResponse');
 router.use(requireAdminAuth, sessionActivity);
 
 // ── Service fetch helper ──────────────────────────────────────────────────────
-async function fetchService(url, timeout = 5000) {
+// extraHeaders: optional object merged into the request headers.
+// All calls to admin-guarded endpoints must pass { 'x-admin-email': adminEmail }
+// so downstream services accept the request (they check x-admin-email OR req.user.role=admin).
+async function fetchService(url, timeout = 5000, extraHeaders = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', ...extraHeaders }
+    });
     clearTimeout(timer);
     if (!res.ok) return { error: `Service returned ${res.status}` };
     return await res.json();
@@ -87,11 +93,12 @@ router.get('/marketplace-balance', requirePermission('intelligence', 'balance'),
     const catalogUrl = process.env.CATALOG_SERVICE_URL   || 'http://localhost:5002';
     const orderUrl   = process.env.ORDER_SERVICE_URL     || 'http://localhost:5003';
     const paymentUrl = process.env.PAYMENT_SERVICE_URL   || 'http://localhost:5004';
+    const adminHdr   = { 'x-admin-email': req.admin.email };
 
     const [stores, orders, payments] = await Promise.all([
-      fetchService(`${sellerUrl}/admin/stores?limit=100`),
-      fetchService(`${orderUrl}/admin/orders?limit=1&count=true`),
-      fetchService(`${paymentUrl}/admin/summary`)
+      fetchService(`${sellerUrl}/admin/stores?limit=100`, 5000, adminHdr),
+      fetchService(`${orderUrl}/admin/orders?limit=1`, 5000, adminHdr),
+      fetchService(`${paymentUrl}/admin/summary`, 5000, adminHdr)
     ]);
 
     const storeList = stores.stores || [];
@@ -115,7 +122,8 @@ router.get('/marketplace-balance', requirePermission('intelligence', 'balance'),
 router.get('/onboarding-funnel', requirePermission('intelligence', 'funnel'), async (req, res) => {
   try {
     const sellerUrl = process.env.SELLER_SERVICE_URL || 'http://localhost:5005';
-    const { stores } = await fetchService(`${sellerUrl}/admin/stores?limit=500`);
+    const adminHdr  = { 'x-admin-email': req.admin.email };
+    const { stores } = await fetchService(`${sellerUrl}/admin/stores?limit=500`, 5000, adminHdr);
     const list = stores || [];
 
     const funnel = {
@@ -184,14 +192,16 @@ router.get('/fraud-signals', requirePermission('intelligence', 'fraudSignals'), 
   try {
     const orderUrl   = process.env.ORDER_SERVICE_URL   || 'http://localhost:5003';
     const paymentUrl = process.env.PAYMENT_SERVICE_URL || 'http://localhost:5004';
+    const adminHdr   = { 'x-admin-email': req.admin.email };
 
-    const [recentOrders, paymentData] = await Promise.all([
-      fetchService(`${orderUrl}/admin/orders?limit=200&sort=createdAt_desc`),
-      fetchService(`${paymentUrl}/admin/refunds?limit=100`)
+    const [recentOrders, refundData] = await Promise.all([
+      fetchService(`${orderUrl}/admin/orders?limit=200`, 5000, adminHdr),
+      // /admin/refunds does not exist — use /admin/escrows?status=refunded (same data, same service)
+      fetchService(`${paymentUrl}/admin/escrows?status=refunded&limit=100`, 5000, adminHdr)
     ]);
 
-    const orders = recentOrders.orders || [];
-    const refunds = paymentData.refunds || [];
+    const orders  = recentOrders.orders || [];
+    const refunds = refundData.escrows  || [];
 
     // Basic heuristic fraud signals
     const signals = [];
