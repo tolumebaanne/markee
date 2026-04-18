@@ -1,21 +1,36 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
+/* ── Design tokens ────────────────────────────────────────────────────────── */
 :root {
-  --bg-primary: #ffffff;
+  /* Backgrounds */
+  --bg-primary:   #ffffff;
   --bg-secondary: #f4f6f8;
-  --text-main: #111827;
+  --card-bg:      #ffffff;
+
+  /* Text */
+  --text-main:  #111827;
   --text-muted: #6b7280;
-  --accent-red: #cc0000;
+
+  /* Brand */
+  --accent-red:       #cc0000;
   --accent-red-hover: #990000;
+
+  /* Semantic colours */
+  --color-error: #b91c1c;
+  --color-green: #16a34a;
+  --color-amber: #f59e0b;
+  --color-blue:  #1d4ed8;
+
+  /* Aliases (legacy — keep for backward compat) */
+  --primary-red: #cc0000;
+  --bg-dark:     #111827;
+
+  /* Borders & shadows */
   --border-light: #e5e7eb;
-  --color-error:  #b91c1c;   /* error text — 74 occurrences across views */
-  --color-green:  #16a34a;   /* positive action green — badges, active states */
-  --color-amber:  #f59e0b;   /* warning / rating stars */
-  --color-blue:   #1d4ed8;   /* info / link blue */
-  --card-bg: #ffffff;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  /* Toast colours */
+
+  /* Toast palette */
   --toast-success-bg: #f0fdf4; --toast-success-fg: #166534; --toast-success-border: #bbf7d0;
   --toast-error-bg:   #fef2f2; --toast-error-fg:   #991b1b; --toast-error-border:   #fecaca;
   --toast-info-bg:    #eff6ff; --toast-info-fg:    #1e40af; --toast-info-border:    #bfdbfe;
@@ -36,7 +51,7 @@ body {
 a { color: var(--text-main); text-decoration: none; transition: 0.2s ease; }
 a:hover { color: var(--accent-red); }
 
-/* Utility Classes */
+/* ── Utilities ───────────────────────────────────────────────────────────── */
 .text-red { color: var(--accent-red); }
 .text-muted { color: var(--text-muted); }
 .font-bold { font-weight: 700; }
@@ -45,7 +60,7 @@ a:hover { color: var(--accent-red); }
 .mb-3 { margin-bottom: 1.5rem; }
 .mb-4 { margin-bottom: 2rem; }
 
-/* Navbar */
+/* ── Base & Layout ───────────────────────────────────────────────────────── */
 .navbar {
   display: flex; justify-content: space-between; align-items: center;
   padding: 1rem 5%; background: var(--bg-primary);
@@ -69,11 +84,11 @@ a:hover { color: var(--accent-red); }
 .container { padding: 3rem 5%; flex-grow: 1; max-width: 1400px; margin: 0 auto; width: 100%;}
 h1, h2, h3 { font-weight: 700; color: var(--text-main); margin-bottom: 1rem; letter-spacing: -0.5px;}
 
-/* Grid / List Layouts */
+/* ── Grid & List Layouts ─────────────────────────────────────────────────── */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; }
 .flex-between { display: flex; justify-content: space-between; align-items: center; }
 
-/* Product Cards */
+/* ── Cards ───────────────────────────────────────────────────────────────── */
 .card {
   background: var(--card-bg); border: 1px solid var(--border-light);
   border-radius: 12px; overflow: hidden;
@@ -89,7 +104,7 @@ h1, h2, h3 { font-weight: 700; color: var(--text-main); margin-bottom: 1rem; let
 .price { font-size: 1.15rem; font-weight: 700; color: var(--text-main); }
 .badge { background: #f3f4f6; color: var(--text-muted); padding: 0.25rem 0.6rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600; border: 1px solid var(--border-light); text-transform: uppercase;}
 
-/* Forms & Auth */
+/* ── Forms & Auth ────────────────────────────────────────────────────────── */
 .auth-wrapper { display: flex; justify-content: center; align-items: center; min-height: 80vh; padding: 2rem;}
 .auth-panel { background: var(--bg-primary); border-radius: 16px; padding: 2.5rem; width: 100%; max-width: 440px; box-shadow: var(--shadow-md); border: 1px solid var(--border-light); text-align: center; }
 .form-group { margin-bottom: 1.25rem; text-align: left; position: relative;}
@@ -105,7 +120,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 .forgot-pass { display: block; text-align: right; font-size: 0.8rem; margin-top: 0.5rem; color: var(--text-muted); font-weight: 500;}
 .forgot-pass:hover { color: var(--accent-red); }
 
-/* Alerts */
+/* ── Alerts & Banners ────────────────────────────────────────────────────── */
 .alert { padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.9rem; font-weight: 500; text-align: left;}
 .alert-error { background: var(--toast-error-bg); color: var(--toast-error-fg); border: 1px solid var(--toast-error-border); }
 .alert-success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
@@ -123,7 +138,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
     font-size: 0.875rem;
 }
 
-/* Buttons */
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
 .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; background: var(--text-main); color: white; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; transition: background-color 0.2s; font-size: 0.95rem; width: 100%; }
 .btn:hover { background: var(--accent-red); color: white;}
 .btn-red { background: var(--accent-red); }
@@ -143,12 +158,12 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 .btn-ghost { background: transparent; color: var(--text-main); border: 1.5px solid var(--border-light); width: auto; }
 .btn-ghost:hover { background: var(--bg-secondary); border-color: var(--text-main); }
 
-/* Status banners */
+/* ── Status banners ──────────────────────────────────────────────────────── */
 .banner { border-radius: 8px; padding: 0.65rem 1rem; margin-bottom: 0.75rem; font-size: 0.82rem; font-weight: 600; }
 .banner-error   { background: var(--toast-error-bg);   color: var(--toast-error-fg);   border: 1px solid var(--toast-error-border); }
 .banner-warning { background: var(--toast-warning-bg); color: var(--toast-warning-fg); border: 1px solid var(--toast-warning-border); }
 
-/* Sidebar Layout Core (Dashboard/Profile) */
+/* ── Sidebar layout (Dashboard/Profile) ─────────────────────────────────── */
 .dashboard-layout { display: flex; gap: 2rem; min-height: calc(100vh - 150px); }
 .sidebar { width: 260px; background: var(--bg-primary); border-radius: 12px; padding: 1.5rem; border: 1px solid var(--border-light); height: fit-content; flex-shrink: 0;}
 .sidebar h4 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.75rem; margin-top: 1.5rem; }
@@ -158,19 +173,19 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 .sidebar a.active { font-weight: 600; color: var(--accent-red); }
 .main-content { flex-grow: 1; min-width: 0;}
 
-/* Stats (Dashboard) */
+/* ── Stat cards ──────────────────────────────────────────────────────────── */
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
 .stat-card { background: var(--bg-primary); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border-light); display: flex; flex-direction: column;}
 .stat-value { font-size: 2.5rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.25rem; letter-spacing: -1px;}
 .stat-label { color: var(--text-muted); font-size: 0.85rem; font-weight: 600;}
 
-/* Lists */
+/* ── List groups ─────────────────────────────────────────────────────────── */
 .list-group { background: var(--bg-primary); border-radius: 12px; border: 1px solid var(--border-light); overflow: hidden;}
 .list-item { padding: 1.25rem; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;}
 .list-item:hover { background: var(--bg-secondary); }
 .list-item:last-child { border-bottom: none; }
 
-/* Product Details Page Specifics */
+/* ── Product detail page (legacy pdp-* classes) ──────────────────────────── */
 .pdp-layout { display: flex; gap: 3rem; background: var(--bg-primary); padding: 2.5rem; border-radius: 12px; border: 1px solid var(--border-light);}
 .pdp-image { flex: 1; background: var(--bg-secondary); border-radius: 12px; min-height: 400px; }
 .pdp-info { flex: 1; display: flex; flex-direction: column;}
@@ -179,19 +194,19 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .animate-fade { animation: fadeIn 0.4s ease forwards; opacity: 0; }
 
-/* Jiji Style Structural Overhaul */
+/* ── Jiji layout (homepage) ──────────────────────────────────────────────── */
 .hero-jiji {
-    background: linear-gradient(135deg, var(--bg-dark) 20%, #1a1a1a 100%);
+    background: linear-gradient(135deg, var(--text-main) 20%, #1a1a1a 100%);
     padding: 5rem 0;
     text-align: center;
-    border-bottom: 2px solid var(--primary-red);
+    border-bottom: 2px solid var(--accent-red);
 }
 
 .search-bar-jiji {
     display: flex;
     max-width: 700px;
     margin: 0 auto;
-    background: white;
+    background: var(--bg-primary);
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 4px 20px rgba(0,0,0,0.2);
@@ -203,13 +218,13 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
     padding: 1rem 1.5rem;
     font-size: 1.1rem;
     outline: none;
-    color: var(--bg-dark);
+    color: var(--text-main);
 }
 
 .search-bar-jiji .btn {
     border-radius: 0;
     width: 80px;
-    background: var(--primary-red);
+    background: var(--accent-red);
     color: white;
 }
 
@@ -221,7 +236,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 }
 
 .sidebar-categories {
-    background: white;
+    background: var(--bg-primary);
     padding: 1.5rem;
     border-radius: 8px;
     border: 1px solid var(--border-light);
@@ -245,79 +260,19 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 
 .cat-list li:hover {
     background: var(--bg-secondary);
-    color: var(--primary-red);
+    color: var(--accent-red);
 }
 
 .product-feed h3 {
-    border-bottom: 2px solid var(--primary-red);
+    border-bottom: 2px solid var(--accent-red);
     display: inline-block;
     padding-bottom: 0.5rem;
 }
 
-/* Dashboard & Interaction Wiring Styles */
-.stat-card {
-    background: white;
-    padding: 1.5rem;
-    border-radius: 8px;
-    border-left: 4px solid var(--primary-red);
-    box-shadow: var(--shadow-sm);
-    text-align: left;
-}
+/* ── Product detail page layout ──────────────────────────────────────────── */
+/* .product-detail-layout and .contact-box-jiji are defined in product.ejs <style> */
 
-.stat-value {
-    display: block;
-    font-size: 2rem;
-    font-weight: 700;
-    color: var(--bg-dark);
-}
-
-.stat-label {
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05rem;
-}
-
-.product-detail-layout {
-    display: grid;
-    grid-template-columns: 1fr 350px;
-    gap: 2rem;
-    padding-top: 2rem;
-}
-
-.contact-box-jiji {
-    background: white;
-    padding: 1.5rem;
-    border-radius: 8px;
-    border: 1px solid var(--border-light);
-    position: sticky;
-    top: 2rem;
-    box-shadow: var(--shadow-sm);
-}
-
-.price-box-jiji {
-    font-size: 2rem;
-    font-weight: 800;
-    color: var(--primary-red);
-    margin-bottom: 1rem;
-}
-
-.reveal-btn {
-    width: 100%;
-    background: var(--color-green); /* Green for contact reveal */
-    color: white;
-    font-weight: 700;
-    padding: 1rem;
-    margin-bottom: 1rem;
-}
-
-.reveal-btn:hover {
-    background: var(--color-green);
-}
-
-/* ========================================
-   PRODUCT GRID & CARD STYLES (Home Page)
-   ======================================== */
+/* ── Product grid & card styles ──────────────────────────────────────────── */
 
 .product-grid {
     display: grid;
@@ -326,7 +281,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 }
 
 .product-card {
-    background: white;
+    background: var(--bg-primary);
     border: 1px solid var(--border-light);
     border-radius: 12px;
     overflow: hidden;
@@ -391,7 +346,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
     width: fit-content;
 }
 
-/* Product Card CTA buttons */
+/* ── Product card CTA buttons ─────────────────────────────────────────────── */
 .card-cta-row {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
@@ -436,9 +391,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 }
 .cta-btn-chat:hover { background: #dcfce7; }
 
-/* ========================================
-   NAVBAR OVERHAUL
-   ======================================== */
+/* ── Navbar ───────────────────────────────────────────────────────────────── */
 
 .nav-cart-btn {
     position: relative;
@@ -497,10 +450,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 .nav-pill-outline:hover { background: var(--bg-secondary); color: var(--text-main); }
 
 .nav-pill-red {
-    background: #cc0000;
+    background: var(--accent-red);
     color: white;
 }
-.nav-pill-red:hover { background: #990000; color: white; }
+.nav-pill-red:hover { background: var(--accent-red-hover); color: white; }
 
 /* ── Nav icon buttons (messages, bell) ──────────────────────────────────── */
 .nav-icon-btn {
@@ -764,7 +717,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 
 .nav-search-clear:hover { color: var(--accent-red); }
 
-/* Autocomplete results */
+/* ── Autocomplete results ─────────────────────────────────────────────────── */
 .nav-search-results {
     position: absolute;
     top: calc(100% + 8px);
@@ -826,9 +779,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
     .nav-search-bar { display: none; } /* Show in a separate drawer or mobile search bar if needed */
 }
 
-/* ========================================
-   TOAST NOTIFICATIONS
-   ======================================== */
+/* ── Toast notifications ──────────────────────────────────────────────────── */
 
 #toast-container {
     position: fixed;
@@ -886,9 +837,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 }
 .toast-close:hover { opacity: 1; }
 
-/* ========================================
-   AUTH MODAL (Sign-In Inline)
-   ======================================== */
+/* ── Auth modal ───────────────────────────────────────────────────────────── */
 
 .modal-overlay {
     position: fixed;
@@ -944,9 +893,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 }
 .modal-close-btn:hover { background: #e5e7eb; color: var(--text-main); }
 
-/* ========================================
-   INFINITY SCROLL SENTINEL
-   ======================================== */
+/* ── Infinite scroll sentinel ─────────────────────────────────────────────── */
 
 .load-more-sentinel {
     height: 60px;
@@ -970,9 +917,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ========================================
-   UTILITIES & RESPONSIVE
-   ======================================== */
+/* ── Utilities & responsive ───────────────────────────────────────────────── */
 
 .clickable { cursor: pointer; }
 .py-4 { padding-top: 2rem; padding-bottom: 2rem; }
@@ -983,7 +928,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 .gap-2 { gap: 1rem; }
 .mr-2 { margin-right: 0.5rem; }
 .overflow-hidden { overflow: hidden; }
-.bg-white { background: white; }
+.bg-white { background: var(--bg-primary); }
 .bg-light { background: var(--bg-secondary); }
 .flex-center { display: flex; align-items: center; }
 .border-bottom { border-bottom: 1px solid var(--border-light); }
@@ -1007,11 +952,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
     .grid-2, .grid-3, .grid-4, .mc-grid { grid-template-columns: 1fr; }
 }
 
-/* CSS custom property aliases */
-:root {
-    --primary-red: #cc0000;
-    --bg-dark: #111827;
-}
+/* ── Aliases already defined in :root above ─────────────────────────────── */
 
 /* ── Dark Mode Token Layer ── */
 [data-theme="dark"] {
@@ -2153,9 +2094,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 
         @keyframes shimmer { to { background-position: -200% 0; } }
 
-/* ===========================
-   Activity Stats Grid
-   =========================== */
+/* ── Activity stats grid ──────────────────────────────────────────────────── */
 
 .activity-stats-grid {
     /* display */
@@ -2284,9 +2223,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 
 }
 
-/* ===========================
-   Reputation Card
-   =========================== */
+/* ── Reputation card ──────────────────────────────────────────────────────── */
 
 .reputation-unified {
     /* display */
@@ -2374,9 +2311,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 .rep-badge.silver { background: #9e9e9e; }
 .rep-badge.gold   { background: #f5c518; color: #333; }
 
-/* ===========================
-   Watchlist Snapshot
-   =========================== */
+/* ── Watchlist snapshot ───────────────────────────────────────────────────── */
 
 .watchlist-snap-grid {
     /* display */
@@ -2446,9 +2381,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 
 }
 
-/* ===========================
-   Achievements
-   =========================== */
+/* ── Achievements ─────────────────────────────────────────────────────────── */
 
 .achievements-grid {
     /* display */
