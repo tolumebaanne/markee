@@ -2224,6 +2224,13 @@
             }
 
             list.innerHTML = products.map(renderProductRow).join('');
+
+            // Auto-open edit modal if redirected from product page with ?edit=<id>
+            const editParam = new URLSearchParams(window.location.search).get('edit');
+            if (editParam && _productsMap[editParam]) {
+                history.replaceState(null, '', '/dashboard');
+                openEditModal(editParam);
+            }
         } catch {
             list.innerHTML = '<p class="text-red p-4">Error loading listings.</p>';
         }

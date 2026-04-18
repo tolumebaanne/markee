@@ -375,7 +375,7 @@
 
                 <!-- Edit listing (own product) -->
                 <div id="edit-own-btn-wrap" style="display:none; margin-bottom:0.75rem;">
-                    <button class="btn w-100" style="background:#1d4ed8; color:white;" onclick="window.location='/dashboard'">
+                    <button class="btn w-100" id="edit-own-btn" style="background:#1d4ed8; color:white;" onclick="window.location='/dashboard?edit=' + (window._productId || '')">
                         <i class="fa fa-pen" style="margin-right:0.5rem;"></i> Edit This Listing
                     </button>
                 </div>
@@ -506,6 +506,7 @@
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
+            window._productId = data._id;
 
             document.title = `${data.title} | Markee`;
             document.getElementById('product-title').textContent = data.title;
