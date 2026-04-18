@@ -379,6 +379,7 @@ app.get('/account',              (_req, res) => res.render('account'));
 app.get('/account/addresses',    (_req, res) => res.render('account-addresses'));
 app.get('/account/wallet',       (_req, res) => res.render('wallet'));          // S21
 app.get('/account/security',     (_req, res) => res.render('account-security'));   // Password reset / change
+app.get('/account/payout',       (_req, res) => res.render('account-payout'));     // Seller payout method
 app.get('/orders',      (req, res) => res.render('orders'));
 app.get('/orders/:id',  (req, res) => res.render('order-detail', { orderId: req.params.id }));
 app.get('/purchases/history', (req, res) => res.render('purchases-history'));

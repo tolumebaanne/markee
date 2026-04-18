@@ -75,6 +75,13 @@
             <div class="account-card-desc">Your notification centre and activity.</div>
             <div class="account-card-arrow"><i class="fa fa-arrow-right"></i></div>
         </a>
+        <!-- Payout Method — shown only if user has storeActive -->
+        <a href="/account/payout" class="account-card" id="payout-card" style="display:none">
+            <div class="account-card-icon"><i class="fa fa-money-bill-transfer"></i></div>
+            <div class="account-card-title">Payout Method</div>
+            <div class="account-card-desc">Bank, cheque, PayPal, or Interac — how you receive your earnings.</div>
+            <div class="account-card-arrow"><i class="fa fa-arrow-right"></i></div>
+        </a>
         <!-- Store Settings — shown only if user has storeActive -->
         <a href="/dashboard" class="account-card" id="store-card" style="display:none">
             <div class="account-card-icon"><i class="fa fa-store"></i></div>
@@ -101,7 +108,8 @@
         if (!r.ok) return;
         const p = await r.json();
         if (p.storeActive === true) {
-            document.getElementById('store-card').style.display = '';
+            document.getElementById('store-card').style.display  = '';
+            document.getElementById('payout-card').style.display = '';
         }
     } catch (_) {}
 })();

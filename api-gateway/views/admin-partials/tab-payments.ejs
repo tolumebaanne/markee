@@ -101,7 +101,9 @@
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem;margin-bottom:.6rem">
         <div class="form-group" style="margin:0">
           <label style="font-size:.78rem">Seller ID</label>
-          <input type="text" id="rem-new-seller" placeholder="ObjectId…" style="font-size:.82rem">
+          <input type="text" id="rem-new-seller" placeholder="ObjectId…" style="font-size:.82rem"
+                 onblur="fetchSellerPayoutMethod()"
+                 oninput="if(!this.value.trim()){document.getElementById('rem-payout-hint').style.display='none';}">
         </div>
         <div class="form-group" style="margin:0">
           <label style="font-size:.78rem">Amount ($)</label>
@@ -111,8 +113,10 @@
           <label style="font-size:.78rem">Method</label>
           <select id="rem-new-method" style="font-size:.82rem">
             <option value="bank_transfer">Bank Transfer</option>
-            <option value="interac">Interac</option>
+            <option value="interac">Interac e-Transfer</option>
             <option value="cheque">Cheque</option>
+            <option value="paypal">PayPal</option>
+            <option value="stripe">Stripe</option>
             <option value="cash">Cash</option>
             <option value="other">Other</option>
           </select>
@@ -126,6 +130,12 @@
           <input type="text" id="rem-new-note" placeholder="Optional internal note…" style="font-size:.82rem">
         </div>
       </div>
+      <!-- Seller payout method hint — populated when seller ID is entered -->
+      <div id="rem-payout-hint" class="alert-info" style="display:none;margin-bottom:.6rem">
+        <i class="fas fa-circle-info"></i>
+        <span id="rem-payout-hint-text"></span>
+      </div>
+
       <button class="btn btn-warn btn-sm" onclick="createRemittance()"><i class="fas fa-plus"></i> Create Remittance</button>
     </div>
 
@@ -552,6 +562,7 @@ async function createRemittance() {
     document.getElementById('rem-new-amount').value = '';
     document.getElementById('rem-new-ref').value    = '';
     document.getElementById('rem-new-note').value   = '';
+    document.getElementById('rem-payout-hint').style.display = 'none';
     loadRemittances();
   } catch(err) { toast('Error: ' + err.message, 'error'); }
 }
@@ -564,5 +575,46 @@ async function markRemittancePaid(id) {
     toast('Remittance marked as paid', 'success');
     loadRemittances();
   } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+// Auto-populate method + hint when admin enters a seller ID in the remittance form
+async function fetchSellerPayoutMethod() {
+  const sellerId = document.getElementById('rem-new-seller').value.trim();
+  const hint     = document.getElementById('rem-payout-hint');
+  const hintText = document.getElementById('rem-payout-hint-text');
+  hint.style.display = 'none';
+  if (!sellerId) return;
+
+  try {
+    const data = await adminApi('GET', `/proxy/sellers/${sellerId}/payout-method`);
+    const pm   = data.payoutMethod;
+    if (!pm) {
+      hintText.textContent = 'No payout method saved by this seller.';
+      hint.style.display = 'block';
+      return;
+    }
+
+    // Map seller's saved mode to the dropdown option value
+    const modeMap = { bank_transfer:'bank_transfer', cheque:'cheque', paypal:'paypal',
+                      interac:'interac', stripe:'stripe', other:'other' };
+    const sel = document.getElementById('rem-new-method');
+    if (modeMap[pm.mode]) sel.value = modeMap[pm.mode];
+
+    // Build a human-readable summary of the saved details
+    const lines = { bank_transfer: () => [pm.accountHolderName, pm.institutionName,
+                      pm.transitNumber ? 'Transit: ' + pm.transitNumber : '',
+                      pm.accountNumber ? 'Acct: ****' + pm.accountNumber.slice(-4) : ''],
+                    cheque:        () => [pm.payableTo, pm.mailingStreet, pm.mailingCity,
+                      pm.mailingProvince, pm.mailingPostal, pm.mailingCountry],
+                    paypal:        () => [pm.paypalEmail],
+                    interac:       () => [pm.interacContact],
+                    stripe:        () => [pm.stripeAccountId],
+                    other:         () => [pm.reference] };
+    const detail = (lines[pm.mode] ? lines[pm.mode]() : []).filter(Boolean).join(' · ');
+    hintText.textContent = `Seller payout method: ${pm.mode.replace('_',' ')}${detail ? ' — ' + detail : ''}`;
+    hint.style.display = 'block';
+  } catch (_) {
+    // Non-fatal: hint simply stays hidden if lookup fails
+  }
 }
 </script>

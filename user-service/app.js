@@ -34,6 +34,34 @@ const AddressSchema = new mongoose.Schema({
     isDefault:     { type: Boolean, default: false }
 });
 
+// ── Payout Method ────────────────────────────────────────────────────────────
+const PAYOUT_MODES = ['bank_transfer', 'cheque', 'paypal', 'interac', 'stripe', 'other'];
+
+const PayoutMethodSchema = new mongoose.Schema({
+    mode:              { type: String, enum: PAYOUT_MODES, default: 'bank_transfer' },
+    // bank_transfer fields
+    accountHolderName: { type: String, default: '' },
+    institutionName:   { type: String, default: '' },
+    transitNumber:     { type: String, default: '' },
+    accountNumber:     { type: String, default: '' },
+    // cheque fields
+    payableTo:         { type: String, default: '' },
+    mailingStreet:     { type: String, default: '' },
+    mailingCity:       { type: String, default: '' },
+    mailingProvince:   { type: String, default: '' },
+    mailingPostal:     { type: String, default: '' },
+    mailingCountry:    { type: String, default: 'Canada' },
+    // paypal fields
+    paypalEmail:       { type: String, default: '' },
+    // interac fields
+    interacContact:    { type: String, default: '' },
+    // stripe connect fields
+    stripeAccountId:   { type: String, default: '' },
+    // other / freeform
+    reference:         { type: String, default: '' },
+    updatedAt:         { type: Date }
+}, { _id: false });
+
 const ProfileSchema = new mongoose.Schema({
     userId:      { type: mongoose.Schema.Types.ObjectId, required: true, unique: true },
     storeId:     { type: mongoose.Schema.Types.ObjectId }, // populated from user.registered; required for hard-delete payload
@@ -86,6 +114,8 @@ const ProfileSchema = new mongoose.Schema({
     pendingDeletion: { type: Boolean, default: false },
     deletedAt:      { type: Date },
     originalEmail:  { type: String }, // stored in DB only, never emitted or returned to non-super callers
+
+    payoutMethod:   { type: PayoutMethodSchema, default: null }
 });
 
 // No explicit index needed, unique: true on the field suffices.
@@ -454,6 +484,51 @@ app.get('/users/:userId', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
+// GET /users/me/payout-method — seller reads own saved payout details
+app.get('/users/me/payout-method', async (req, res) => {
+    if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
+    try {
+        const profile = await Profile.findOne({ userId: req.user.sub }).lean();
+        res.json({ payoutMethod: profile?.payoutMethod || null });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// PUT /users/me/payout-method — seller saves payout details (storeId required)
+app.put('/users/me/payout-method', async (req, res) => {
+    if (!req.user?.sub)    return errorResponse(res, 401, 'Unauthorized');
+    if (!req.user.storeId) return errorResponse(res, 403, 'Seller account required');
+    const { mode, accountHolderName, institutionName, transitNumber, accountNumber,
+            payableTo, mailingStreet, mailingCity, mailingProvince, mailingPostal,
+            mailingCountry, paypalEmail, interacContact, stripeAccountId, reference } = req.body;
+    if (!mode || !PAYOUT_MODES.includes(mode)) return errorResponse(res, 400, 'Invalid payout mode');
+    const payoutMethod = {
+        mode,
+        accountHolderName: accountHolderName || '',
+        institutionName:   institutionName   || '',
+        transitNumber:     transitNumber     || '',
+        accountNumber:     accountNumber     || '',
+        payableTo:         payableTo         || '',
+        mailingStreet:     mailingStreet     || '',
+        mailingCity:       mailingCity       || '',
+        mailingProvince:   mailingProvince   || '',
+        mailingPostal:     mailingPostal     || '',
+        mailingCountry:    mailingCountry    || 'Canada',
+        paypalEmail:       paypalEmail       || '',
+        interacContact:    interacContact    || '',
+        stripeAccountId:   stripeAccountId   || '',
+        reference:         reference         || '',
+        updatedAt:         new Date()
+    };
+    try {
+        await Profile.findOneAndUpdate(
+            { userId: req.user.sub },
+            { $set: { payoutMethod, updatedAt: new Date() } },
+            { upsert: true }
+        );
+        res.json({ ok: true, payoutMethod });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
 // ── ADMIN ROUTES ──────────────────────────────────────────────────────────────
 
 // MUST be declared before /admin/users/:userId to avoid param capture
@@ -564,6 +639,24 @@ app.patch('/admin/users/:userId/role', async (req, res) => {
         );
         bus.emit('user.role_changed', { userId: req.params.userId, newRole: role, reason: reason || null });
         res.json({ userId: req.params.userId, role });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// GET /admin/users/:userId/payout-method — declared before /:userId to avoid param capture
+app.get('/admin/users/:userId/payout-method', async (req, res) => {
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
+    try {
+        const profile = await Profile.findOne({ userId: req.params.userId }).lean();
+        res.json({ payoutMethod: profile?.payoutMethod || null });
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
+// GET /admin/sellers/:storeId/payout-method — lookup by storeId (used by remittance form)
+app.get('/admin/sellers/:storeId/payout-method', async (req, res) => {
+    if (!req.headers['x-admin-email']) return errorResponse(res, 403, 'Admin only');
+    try {
+        const profile = await Profile.findOne({ storeId: req.params.storeId }).lean();
+        res.json({ payoutMethod: profile?.payoutMethod || null });
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 

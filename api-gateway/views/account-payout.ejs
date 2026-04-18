@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payout Method | Markee</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/js/toast.js"></script>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="brand-combo">
+        <a href="/"><span class="brand">Markee</span></a>
+    </div>
+    <%- include('_nav') %>
+</nav>
+
+<div class="container py-4 animate-fade">
+
+    <div class="mb-1">
+        <a href="/account" class="nav-text-link"><i class="fa fa-arrow-left"></i> My Account</a>
+    </div>
+
+    <h2 class="mb-1"><i class="fa fa-money-bill-transfer" style="color:var(--accent-red)"></i> Payout Method</h2>
+    <p class="text-muted mb-3">How you want to receive your seller earnings. Saved details are used by the admin team when processing remittances.</p>
+
+    <div class="card" style="max-width:600px">
+
+        <div class="form-group">
+            <label for="payout-mode">Payout Mode</label>
+            <select id="payout-mode" onchange="switchPayoutMode(this.value)">
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="cheque">Cheque</option>
+                <option value="paypal">PayPal</option>
+                <option value="interac">Interac e-Transfer</option>
+                <option value="stripe">Stripe Connect</option>
+                <option value="other">Other / Custom</option>
+            </select>
+        </div>
+
+        <!-- Bank Transfer -->
+        <div id="fields-bank_transfer" class="payout-fields">
+            <div class="form-group">
+                <label for="bank-holder">Account Holder Name</label>
+                <input type="text" id="bank-holder" placeholder="Full legal name on account" maxlength="100">
+            </div>
+            <div class="form-group">
+                <label for="bank-institution">Institution / Bank Name</label>
+                <input type="text" id="bank-institution" placeholder="e.g. TD Canada Trust" maxlength="100">
+            </div>
+            <div class="form-group">
+                <label for="bank-transit">Transit Number</label>
+                <input type="text" id="bank-transit" placeholder="5-digit transit number" maxlength="20">
+            </div>
+            <div class="form-group">
+                <label for="bank-account">Account Number</label>
+                <input type="text" id="bank-account" placeholder="7–12 digit account number" maxlength="20">
+            </div>
+        </div>
+
+        <!-- Cheque -->
+        <div id="fields-cheque" class="payout-fields" style="display:none">
+            <div class="form-group">
+                <label for="cheque-payable">Make Cheque Payable To</label>
+                <input type="text" id="cheque-payable" placeholder="Full name or business name" maxlength="100">
+            </div>
+            <div class="form-group">
+                <label for="cheque-street">Mailing Address — Street</label>
+                <input type="text" id="cheque-street" placeholder="123 Main St" maxlength="200">
+            </div>
+            <div class="form-group">
+                <label for="cheque-city">City</label>
+                <input type="text" id="cheque-city" placeholder="City" maxlength="100">
+            </div>
+            <div class="form-group">
+                <label for="cheque-province">Province / State</label>
+                <input type="text" id="cheque-province" placeholder="e.g. ON" maxlength="100">
+            </div>
+            <div class="form-group">
+                <label for="cheque-postal">Postal / ZIP Code</label>
+                <input type="text" id="cheque-postal" placeholder="e.g. M5V 3A8" maxlength="20">
+            </div>
+            <div class="form-group">
+                <label for="cheque-country">Country</label>
+                <input type="text" id="cheque-country" placeholder="Canada" maxlength="100">
+            </div>
+        </div>
+
+        <!-- PayPal -->
+        <div id="fields-paypal" class="payout-fields" style="display:none">
+            <div class="form-group">
+                <label for="paypal-email">PayPal Email</label>
+                <input type="email" id="paypal-email" placeholder="your@paypal.com" maxlength="200">
+            </div>
+        </div>
+
+        <!-- Interac -->
+        <div id="fields-interac" class="payout-fields" style="display:none">
+            <div class="form-group">
+                <label for="interac-contact">Interac Email or Phone</label>
+                <input type="text" id="interac-contact" placeholder="email@example.com or 416-555-0100" maxlength="200">
+            </div>
+        </div>
+
+        <!-- Stripe Connect -->
+        <div id="fields-stripe" class="payout-fields" style="display:none">
+            <div class="form-group">
+                <label for="stripe-account">Stripe Account ID or Email</label>
+                <input type="text" id="stripe-account" placeholder="acct_1234… or seller@email.com" maxlength="200">
+            </div>
+        </div>
+
+        <!-- Other -->
+        <div id="fields-other" class="payout-fields" style="display:none">
+            <div class="form-group">
+                <label for="other-reference">Payment Reference / Instructions</label>
+                <textarea id="other-reference" rows="3" placeholder="Describe how you'd like to be paid…" maxlength="500"></textarea>
+            </div>
+        </div>
+
+        <div id="payout-save-error" style="display:none" class="alert-error mb-2"></div>
+
+        <button class="btn" id="payout-save-btn" onclick="savePayoutMethod()">
+            <i class="fa fa-save"></i> Save Payout Method
+        </button>
+
+    </div>
+
+</div>
+
+<script>
+(async () => {
+    const token = localStorage.getItem('access_token') || '';
+    if (!token) { window.location.replace('/login?next=/account/payout'); return; }
+
+    let user;
+    try { user = JSON.parse(atob(token.split('.')[1])); } catch { window.location.replace('/login'); return; }
+
+    // Gate: sellers only
+    if (!user.storeId && !user.storeActive) {
+        window.location.replace('/account');
+        return;
+    }
+
+    // Load existing payout method
+    try {
+        const r = await fetch('/api/users/me/payout-method', {
+            headers: { Authorization: 'Bearer ' + token }
+        });
+        if (r.ok) {
+            const { payoutMethod } = await r.json();
+            if (payoutMethod) populateForm(payoutMethod);
+        }
+    } catch (_) {}
+})();
+
+function switchPayoutMode(mode) {
+    document.querySelectorAll('.payout-fields').forEach(el => el.style.display = 'none');
+    const target = document.getElementById('fields-' + mode);
+    if (target) target.style.display = 'block';
+}
+
+function populateForm(pm) {
+    const sel = document.getElementById('payout-mode');
+    if (pm.mode) {
+        sel.value = pm.mode;
+        switchPayoutMode(pm.mode);
+    }
+    const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+    set('bank-holder',      pm.accountHolderName);
+    set('bank-institution', pm.institutionName);
+    set('bank-transit',     pm.transitNumber);
+    set('bank-account',     pm.accountNumber);
+    set('cheque-payable',   pm.payableTo);
+    set('cheque-street',    pm.mailingStreet);
+    set('cheque-city',      pm.mailingCity);
+    set('cheque-province',  pm.mailingProvince);
+    set('cheque-postal',    pm.mailingPostal);
+    set('cheque-country',   pm.mailingCountry);
+    set('paypal-email',     pm.paypalEmail);
+    set('interac-contact',  pm.interacContact);
+    set('stripe-account',   pm.stripeAccountId);
+    set('other-reference',  pm.reference);
+}
+
+async function savePayoutMethod() {
+    const token = localStorage.getItem('access_token') || '';
+    const errEl = document.getElementById('payout-save-error');
+    const btn   = document.getElementById('payout-save-btn');
+
+    errEl.style.display = 'none';
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving…';
+
+    const mode = document.getElementById('payout-mode').value;
+    const body = {
+        mode,
+        accountHolderName: document.getElementById('bank-holder').value.trim(),
+        institutionName:   document.getElementById('bank-institution').value.trim(),
+        transitNumber:     document.getElementById('bank-transit').value.trim(),
+        accountNumber:     document.getElementById('bank-account').value.trim(),
+        payableTo:         document.getElementById('cheque-payable').value.trim(),
+        mailingStreet:     document.getElementById('cheque-street').value.trim(),
+        mailingCity:       document.getElementById('cheque-city').value.trim(),
+        mailingProvince:   document.getElementById('cheque-province').value.trim(),
+        mailingPostal:     document.getElementById('cheque-postal').value.trim(),
+        mailingCountry:    document.getElementById('cheque-country').value.trim(),
+        paypalEmail:       document.getElementById('paypal-email').value.trim(),
+        interacContact:    document.getElementById('interac-contact').value.trim(),
+        stripeAccountId:   document.getElementById('stripe-account').value.trim(),
+        reference:         document.getElementById('other-reference').value.trim()
+    };
+
+    try {
+        const res = await fetch('/api/users/me/payout-method', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+        showToast('Payout method saved', 'success', 3000);
+    } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa fa-save"></i> Save Payout Method';
+    }
+}
+</script>
+</body>
+</html>

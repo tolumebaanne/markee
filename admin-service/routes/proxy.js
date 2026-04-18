@@ -612,6 +612,18 @@ router.get('/users/:userId/profile', requirePermission('auth', 'read'), async (r
   res.status(r.status).json(r.data);
 });
 
+// Seller payout method — read by userId (user profile view)
+router.get('/users/:userId/payout-method', requirePermission('auth', 'read'), async (req, res) => {
+  const r = await callService('GET', `${userUrl()}/admin/users/${req.params.userId}/payout-method`, null, req.admin.email);
+  res.status(r.status).json(r.data);
+});
+
+// Seller payout method — read by storeId (remittance auto-fill)
+router.get('/sellers/:storeId/payout-method', requirePermission('auth', 'read'), async (req, res) => {
+  const r = await callService('GET', `${userUrl()}/admin/sellers/${req.params.storeId}/payout-method`, null, req.admin.email);
+  res.status(r.status).json(r.data);
+});
+
 // Hard-delete — superuser only, pre-condition gates enforced before forwarding
 router.delete('/users/:userId',
   (req, res, next) => {
