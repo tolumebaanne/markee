@@ -561,6 +561,161 @@ input:focus, select:focus, textarea:focus { border-color: var(--text-main); }
 .nav-dropdown-item.logout { color: #b91c1c; border-top: 1px solid var(--border-light); }
 .nav-dropdown-item.logout i { color: #b91c1c; }
 
+/* ── Nav link items (Market, Dashboard — desktop visible, icon + label) ── */
+.nav-link-item {
+    display: flex; align-items: center; gap: 0.35rem;
+    padding: 0.35rem 0.6rem; border-radius: 8px;
+    font-size: 0.85rem; font-weight: 600;
+    color: var(--text-muted); text-decoration: none;
+    white-space: nowrap;
+    transition: color 0.15s, background 0.15s;
+}
+.nav-link-item:hover { color: var(--text-main); background: var(--bg-secondary); }
+.nav-link-item i { font-size: 0.9rem; }
+.nav-link-label { font-size: 0.82rem; }
+
+/* ── User pill (display name + icon → /account) ──────────────────────── */
+.nav-user-pill {
+    display: flex; align-items: center; gap: 0.45rem;
+    padding: 0.35rem 0.75rem 0.35rem 0.5rem;
+    border-radius: 999px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-light);
+    color: var(--text-main); text-decoration: none;
+    font-size: 0.82rem; font-weight: 600;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+}
+.nav-user-pill:hover { background: var(--card-bg); border-color: var(--text-muted); }
+.nav-user-pill i { font-size: 1rem; color: var(--text-muted); }
+
+/* ── Logout icon (slight red tint on hover) ──────────────────────────── */
+.nav-logout-btn { color: var(--text-muted); }
+.nav-logout-btn:hover { color: #b91c1c; background: #fef2f2; }
+
+/* ── Mobile burger ───────────────────────────────────────────────────── */
+.nav-burger {
+    display: none;
+    flex-direction: column; justify-content: center; align-items: center; gap: 5px;
+    width: 38px; height: 38px;
+    border: none; background: none; cursor: pointer;
+    padding: 0; flex-shrink: 0;
+    border-radius: 8px;
+    transition: background 0.15s;
+}
+.nav-burger:hover { background: var(--bg-secondary); }
+.burger-bar {
+    display: block; width: 20px; height: 2px;
+    background: var(--text-main); border-radius: 2px;
+    transition: transform 0.2s, opacity 0.2s;
+}
+
+/* ── Mobile overlay ──────────────────────────────────────────────────── */
+.nav-mobile-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45); z-index: 400;
+}
+.nav-mobile-overlay.open { display: block; }
+
+/* ── Mobile slide-in drawer ──────────────────────────────────────────── */
+.nav-mobile-drawer {
+    position: fixed; top: 0; right: 0;
+    width: min(320px, 85vw); height: 100dvh;
+    background: var(--bg-primary);
+    border-left: 1px solid var(--border-light);
+    box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+    z-index: 401; overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(.4,0,.2,1);
+    display: flex; flex-direction: column;
+}
+.nav-mobile-drawer.open { transform: translateX(0); }
+
+.nav-drawer-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.1rem;
+    border-bottom: 1px solid var(--border-light);
+    flex-shrink: 0;
+}
+.nav-drawer-close {
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    border: none; background: none; cursor: pointer;
+    color: var(--text-muted); font-size: 1.1rem; border-radius: 6px;
+    transition: background 0.15s, color 0.15s;
+}
+.nav-drawer-close:hover { background: var(--bg-secondary); color: var(--text-main); }
+
+.nav-drawer-user {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 1rem 1.1rem;
+    border-bottom: 1px solid var(--border-light);
+    background: var(--bg-secondary);
+    flex-shrink: 0;
+}
+.nav-drawer-user i { font-size: 2rem; color: var(--text-muted); flex-shrink: 0; }
+.nav-drawer-username { font-weight: 700; font-size: 0.95rem; color: var(--text-main); }
+.nav-drawer-userrole { font-size: 0.75rem; color: var(--text-muted); text-transform: capitalize; margin-top: 0.1rem; }
+
+.nav-drawer-nav {
+    display: flex; flex-direction: column;
+    padding: 0.5rem 0; flex: 1;
+}
+.nav-drawer-item {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.8rem 1.25rem;
+    font-size: 0.9rem; font-weight: 500;
+    color: var(--text-main); text-decoration: none;
+    border: none; background: none; text-align: left;
+    width: 100%; cursor: pointer; font-family: inherit;
+    transition: background 0.12s;
+}
+.nav-drawer-item i { width: 18px; text-align: center; color: var(--text-muted); flex-shrink: 0; }
+.nav-drawer-item:hover { background: var(--bg-secondary); }
+.nav-drawer-logout { color: #b91c1c; margin-top: auto; border-top: 1px solid var(--border-light); }
+.nav-drawer-logout i { color: #b91c1c; }
+
+.nav-drawer-divider {
+    border-top: 1px solid var(--border-light);
+    padding-top: 0.25rem; margin-top: 0.25rem;
+}
+.nav-drawer-section-label {
+    display: block; padding: 0.5rem 1.25rem 0.25rem;
+    font-size: 0.7rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--text-muted);
+}
+.drawer-badge {
+    margin-left: auto; background: var(--accent-red); color: #fff;
+    font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.45rem;
+    border-radius: 999px; min-width: 18px; text-align: center;
+}
+
+/* ── Responsive: show burger / hide desktop-only items on mobile ─────── */
+@media (max-width: 768px) {
+    .nav-burger { display: flex; }
+    .nav-link-item,
+    .nav-user-pill,
+    .nav-logout-btn,
+    #nav-msg-btn,
+    #nav-bell-link,
+    #nav-sell-btn,
+    #nav-admin,
+    #user-links > a,
+    #auth-links { display: none !important; }
+    /* Keep cart visible on mobile */
+    #nav-cart-link { display: flex !important; }
+}
+@media (min-width: 769px) {
+    .nav-burger { display: none !important; }
+    .nav-mobile-drawer,
+    .nav-mobile-overlay { display: none !important; }
+}
+
+/* ── Utility ─────────────────────────────────────────────────────────── */
+.w-full { width: 100%; }
+
 /* ── Global Search Bar (Global Nav) ─────────────────────────────────────── */
 .nav-search-bar {
     position: relative;

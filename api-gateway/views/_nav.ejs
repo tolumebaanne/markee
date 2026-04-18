@@ -1,20 +1,46 @@
 <%# Unified nav partial — included by all pages %>
     <div class="nav-search-bar">
         <i class="fa fa-search nav-search-icon"></i>
-        <input type="text" id="nav-search-input" placeholder="Search products & categories..." 
-               oninput="onNavSearchInput()" 
+        <input type="text" id="nav-search-input" placeholder="Search products & categories..."
+               oninput="onNavSearchInput()"
                onkeydown="if(event.key==='Enter') executeNavSearch()">
         <button class="nav-search-clear" id="nav-search-clear" onclick="clearNavSearch()">&times;</button>
         <div class="nav-search-results" id="nav-search-results"></div>
     </div>
 
     <div class="nav-links">
+
+        <%# ── Market link (always visible, desktop only) ── %>
+        <a href="/" class="nav-link-item" title="Browse Market">
+            <i class="fa fa-store"></i>
+            <span class="nav-link-label">Market</span>
+        </a>
+
+        <%# ── Dashboard link (logged-in, hidden until initNav) ── %>
+        <a href="/dashboard" class="nav-link-item" id="nav-dashboard-link" style="display:none" title="Dashboard">
+            <i class="fa fa-th-large"></i>
+            <span class="nav-link-label">Dashboard</span>
+        </a>
+
+        <%# ── Messages icon ── %>
+        <a href="/messages" class="nav-icon-btn" id="nav-msg-btn" style="display:none" title="Messages">
+            <i class="fa fa-comments"></i>
+            <span class="nav-icon-badge" id="msg-nav-badge" style="display:none;"></span>
+        </a>
+
+        <%# ── Notifications icon → /notifications page (no dropdown) ── %>
+        <a href="/notifications" class="nav-icon-btn" id="nav-bell-link" style="display:none" title="Notifications">
+            <i class="fa fa-bell"></i>
+            <span class="nav-icon-badge" id="bell-badge" style="display:none;"></span>
+        </a>
+
+        <%# ── Cart (always visible) ── %>
         <a href="/cart" class="nav-cart-btn" id="nav-cart-link" title="View Cart">
             <i class="fa fa-shopping-cart"></i>
             <span class="cart-count-badge" id="cart-count-badge">0</span>
         </a>
 
-        <%# Guest state %>
+        <%# ── Guest state ── %>
         <div id="auth-links" style="display:flex; gap:0.5rem; align-items:center;">
             <button type="button" class="nav-pill nav-pill-outline" onclick="openSignInModal()">Sign In</button>
             <button type="button" class="nav-pill nav-pill-red" onclick="navigateSell()">
@@ -22,137 +48,183 @@
             </button>
         </div>
 
-        <%# Logged-in state %>
+        <%# ── Logged-in state ── %>
         <div id="user-links" style="display:none; align-items:center; gap:0.35rem;">
 
-            <%# Messages %>
-            <button type="button" class="nav-icon-btn" id="nav-msg-btn" title="Messages" onclick="window.location='/messages'">
-                <i class="fa fa-comments"></i>
-                <span class="nav-icon-badge" id="msg-nav-badge" style="display:none;"></span>
-            </button>
-
-            <%# Bell %>
-            <div class="nav-notif-wrap">
-                <button type="button" class="nav-icon-btn" id="nav-bell-btn" title="Notifications" onclick="toggleBellDropdown()">
-                    <i class="fa fa-bell"></i>
-                    <span class="nav-icon-badge" id="bell-badge" style="display:none;"></span>
-                </button>
-                <div id="bell-dropdown" class="notif-dropdown" style="display:none;">
-                    <div class="notif-panel-header">
-                        <span style="font-weight:600; font-size:0.875rem;">Notifications</span>
-                        <div style="display:flex; gap:0.75rem; align-items:center;">
-                            <button type="button" onclick="markAllRead()" style="background:none; border:none; color:var(--accent-red); font-size:0.75rem; cursor:pointer; font-weight:600;">Mark all read</button>
-                            <button type="button" onclick="clearAllNotifications(event)" style="background:none; border:none; color:var(--text-muted); font-size:0.75rem; cursor:pointer; font-weight:600;">Clear all</button>
-                        </div>
-                    </div>
-                    <div id="bell-list" style="max-height:320px; overflow-y:auto;"></div>
-                    <div style="padding:0.5rem 1rem; border-top:1px solid var(--border-light); text-align:center;">
-                        <a href="/notifications" style="font-size:0.75rem; color:var(--accent-red); text-decoration:none; font-weight:600;">See all notifications</a>
-                    </div>
-                </div>
-            </div>
-
+            <%# Admin badge %>
             <span id="nav-admin" style="display:none;"></span>
 
-            <%# Sell — only visible to active sellers (storeActive gated in initNav) %>
-            <button type="button" id="nav-sell-btn" class="nav-pill nav-pill-red" style="display:none;margin-left:0.15rem;" onclick="navigateSell()">
+            <%# Sell button (active sellers only) %>
+            <button type="button" id="nav-sell-btn" class="nav-pill nav-pill-red" style="display:none; margin-left:0.1rem;" onclick="navigateSell()">
                 <i class="fa fa-tag" style="margin-right:0.4rem;"></i> Sell
             </button>
 
-            <%# Avatar dropdown %>
-            <div style="position:relative; margin-left:0.15rem;">
-                <button type="button" class="nav-avatar-btn" id="nav-avatar-btn" onclick="toggleUserDropdown()" aria-label="Account menu" aria-expanded="false">
-                    <i class="fa fa-user-circle"></i>
-                </button>
-                <div class="nav-dropdown" id="user-dropdown" style="display:none;">
-                    <div class="nav-dropdown-header">
-                        <div class="nav-dropdown-name" id="nav-display-name">—</div>
-                        <div class="nav-dropdown-role" id="nav-display-role"></div>
-                    </div>
-                    <a href="/account" class="nav-dropdown-item">
-                        <i class="fa fa-user"></i> My Account
-                    </a>
-                    <a href="/dashboard" class="nav-dropdown-item">
-                        <i class="fa fa-th-large"></i> Dashboard
-                    </a>
-                    <a href="/orders" class="nav-dropdown-item">
-                        <i class="fa fa-shopping-bag"></i> My Orders
-                    </a>
-                    <a href="/account/wallet" class="nav-dropdown-item">
-                        <i class="fa fa-credit-card"></i> Wallet
-                    </a>
-                    <button type="button" class="nav-dropdown-item logout" onclick="handleLogout()">
-                        <i class="fa fa-sign-out-alt"></i> Log Out
-                    </button>
-                </div>
-            </div>
+            <%# User pill: first name + icon → /account (no dropdown) %>
+            <a href="/account" class="nav-user-pill" id="nav-user-pill" title="My Account">
+                <i class="fa fa-user-circle"></i>
+                <span id="nav-display-name">Account</span>
+            </a>
+
+            <%# Hidden role span — kept for dashboard.ejs compatibility %>
+            <span id="nav-display-role" style="display:none;"></span>
+
+            <%# Logout icon %>
+            <button type="button" class="nav-icon-btn nav-logout-btn" onclick="handleLogout()" title="Sign out" aria-label="Sign out">
+                <i class="fa fa-sign-out-alt"></i>
+            </button>
 
         </div>
+
+        <%# ── Mobile burger (always visible on small screens) ── %>
+        <button class="nav-burger" id="nav-burger" onclick="toggleMobileMenu()" aria-label="Open menu" aria-expanded="false">
+            <span class="burger-bar"></span>
+            <span class="burger-bar"></span>
+            <span class="burger-bar"></span>
+        </button>
+
     </div>
+
+<%# ── Mobile slide-in drawer ── %>
+<div class="nav-mobile-overlay" id="nav-mobile-overlay" onclick="closeMobileMenu()"></div>
+<div class="nav-mobile-drawer" id="nav-mobile-drawer" aria-hidden="true">
+
+    <div class="nav-drawer-header">
+        <span class="brand">Markee</span>
+        <button class="nav-drawer-close" onclick="closeMobileMenu()" aria-label="Close menu">
+            <i class="fa fa-times"></i>
+        </button>
+    </div>
+
+    <%# User info (logged-in, populated by initNav) %>
+    <div class="nav-drawer-user" id="drawer-user-info" style="display:none;">
+        <i class="fa fa-user-circle"></i>
+        <div>
+            <div class="nav-drawer-username" id="drawer-display-name">—</div>
+            <div class="nav-drawer-userrole" id="drawer-display-role"></div>
+        </div>
+    </div>
+
+    <nav class="nav-drawer-nav">
+        <a href="/" class="nav-drawer-item"><i class="fa fa-store"></i> Market</a>
+        <a href="/dashboard"      class="nav-drawer-item" id="drawer-dashboard"      style="display:none"><i class="fa fa-th-large"></i> Dashboard</a>
+        <a href="/messages"       class="nav-drawer-item" id="drawer-messages"       style="display:none"><i class="fa fa-comments"></i> Messages <span class="drawer-badge" id="drawer-msg-badge" style="display:none;"></span></a>
+        <a href="/notifications"  class="nav-drawer-item" id="drawer-notifications"  style="display:none"><i class="fa fa-bell"></i> Notifications <span class="drawer-badge" id="drawer-bell-badge" style="display:none;"></span></a>
+        <a href="/orders"         class="nav-drawer-item" id="drawer-orders"         style="display:none"><i class="fa fa-shopping-bag"></i> My Orders</a>
+        <a href="/cart"           class="nav-drawer-item"><i class="fa fa-shopping-cart"></i> Cart</a>
+        <a href="/account"        class="nav-drawer-item" id="drawer-account"        style="display:none"><i class="fa fa-user"></i> My Account</a>
+        <a href="/account/wallet" class="nav-drawer-item" id="drawer-wallet"         style="display:none"><i class="fa fa-credit-card"></i> Wallet</a>
+
+        <div class="nav-drawer-divider" id="drawer-sell-section" style="display:none;">
+            <span class="nav-drawer-section-label">Selling</span>
+            <button type="button" class="nav-drawer-item w-full" onclick="navigateSell(); closeMobileMenu()">
+                <i class="fa fa-tag"></i> Sell / Manage Listings
+            </button>
+        </div>
+
+        <div class="nav-drawer-divider" id="drawer-guest-section">
+            <button type="button" class="nav-drawer-item w-full" onclick="openSignInModal(); closeMobileMenu()">
+                <i class="fa fa-sign-in-alt"></i> Sign In
+            </button>
+        </div>
+
+        <button type="button" class="nav-drawer-item nav-drawer-logout" id="drawer-logout" onclick="handleLogout()" style="display:none">
+            <i class="fa fa-sign-out-alt"></i> Sign Out
+        </button>
+    </nav>
+</div>
+
 <script>
 (function initNav() {
     const t = localStorage.getItem('access_token');
-    if (!t) return;
+    if (!t) {
+        // Guest: show guest section in drawer
+        const dg = document.getElementById('drawer-guest-section');
+        if (dg) dg.style.display = 'block';
+        return;
+    }
     try {
         const u = JSON.parse(atob(t.split('.')[1]));
-        // If token is expired, clear it and stop — don't make API calls with a dead token
         if (u.exp && u.exp * 1000 < Date.now()) {
             localStorage.removeItem('access_token');
             localStorage.removeItem('refresh_token');
+            const dg = document.getElementById('drawer-guest-section');
+            if (dg) dg.style.display = 'block';
             return;
         }
+
+        // Switch auth state
         document.getElementById('auth-links').style.display = 'none';
         document.getElementById('user-links').style.display = 'flex';
 
-        const name = u.displayName || u.email?.split('@')[0] || 'Account';
+        // Display name — prefer short first name for tight nav
+        const fullName = u.displayName || u.email?.split('@')[0] || 'Account';
+        const firstName = fullName.split(' ')[0];
+
         const dn = document.getElementById('nav-display-name');
-        if (dn) dn.textContent = name;
+        if (dn) dn.textContent = firstName;
         const dr = document.getElementById('nav-display-role');
         if (dr) dr.textContent = u.role || 'buyer';
 
-        // Show Sell button only for active sellers
+        // Show logged-in icon buttons
+        const showEl = id => { const e = document.getElementById(id); if (e) e.style.display = ''; };
+        showEl('nav-dashboard-link');
+        showEl('nav-msg-btn');
+        showEl('nav-bell-link');
+
+        // Drawer: show logged-in items, hide guest
+        const dg = document.getElementById('drawer-guest-section');
+        if (dg) dg.style.display = 'none';
+        ['drawer-dashboard','drawer-messages','drawer-notifications','drawer-orders','drawer-account','drawer-wallet','drawer-logout'].forEach(showEl);
+
+        const dui = document.getElementById('drawer-user-info');
+        if (dui) dui.style.display = 'flex';
+        const ddn = document.getElementById('drawer-display-name');
+        if (ddn) ddn.textContent = fullName;
+        const ddr = document.getElementById('drawer-display-role');
+        if (ddr) ddr.textContent = u.storeActive ? 'Buyer & Seller' : (u.role || 'Buyer');
+
+        // Sell button (active sellers)
         if (u.storeActive === true) {
-            const sellBtn = document.getElementById('nav-sell-btn');
-            if (sellBtn) sellBtn.style.display = '';
+            showEl('nav-sell-btn');
+            showEl('drawer-sell-section');
         }
 
+        // Admin badge
         if (u.role === 'admin') {
             const adminBadge = document.getElementById('nav-admin');
             if (adminBadge) {
-                adminBadge.innerHTML = '<a href="/admin" style="font-size:0.75rem; font-weight:700; padding:0.2rem 0.6rem; background:var(--accent-red); color:white; border-radius:4px; text-decoration:none; margin-left:0.25rem;">Admin</a>';
+                adminBadge.innerHTML = '<a href="/admin" style="font-size:0.75rem;font-weight:700;padding:0.2rem 0.6rem;background:var(--accent-red);color:white;border-radius:4px;text-decoration:none;margin-left:0.15rem;">Admin</a>';
                 adminBadge.style.display = 'inline';
             }
         }
     } catch {}
 
-    // Bell badge — refreshed every 30s (matches message badge pattern)
+    // Bell badge
     function refreshBellBadge() {
-        fetch('/api/notifications/unread-count', {
-            headers: { Authorization: 'Bearer ' + t }
-        }).then(r => r.ok ? r.json() : null).then(data => {
-            const b = document.getElementById('bell-badge');
-            if (!b) return;
-            if (data && data.count > 0) {
-                b.textContent = data.count > 9 ? '9+' : data.count;
-                b.style.display = 'block';
-            } else {
-                b.style.display = 'none';
-            }
-        }).catch(() => {});
+        fetch('/api/notifications/unread-count', { headers: { Authorization: 'Bearer ' + t } })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                const count = data?.count || 0;
+                const b = document.getElementById('bell-badge');
+                const db = document.getElementById('drawer-bell-badge');
+                if (b)  { b.textContent  = count > 9 ? '9+' : count; b.style.display  = count > 0 ? 'block' : 'none'; }
+                if (db) { db.textContent = count > 9 ? '9+' : count; db.style.display = count > 0 ? 'inline' : 'none'; }
+            }).catch(() => {});
     }
     refreshBellBadge();
     setInterval(refreshBellBadge, 30000);
 
-    // Messages badge — non-blocking, refreshed every 2 min
+    // Messages badge
     function refreshMsgBadge() {
         fetch('/api/messages/unread-count', { headers: { Authorization: 'Bearer ' + t } })
             .then(r => r.ok ? r.json() : null)
             .then(data => {
                 const total = data?.total || 0;
-                const b = document.getElementById('msg-nav-badge');
-                if (b) { b.textContent = total > 9 ? '9+' : total; b.style.display = total > 0 ? 'inline' : 'none'; }
-                // Also update dashboard sidebar badge if present (dashboard context)
+                const b  = document.getElementById('msg-nav-badge');
+                const db = document.getElementById('drawer-msg-badge');
                 const sb = document.getElementById('messages-badge');
+                if (b)  { b.textContent  = total > 9 ? '9+' : total; b.style.display  = total > 0 ? 'inline' : 'none'; }
+                if (db) { db.textContent = total > 9 ? '9+' : total; db.style.display = total > 0 ? 'inline' : 'none'; }
                 if (sb) { sb.textContent = total > 9 ? '9+' : total; sb.style.display = total > 0 ? 'inline' : 'none'; }
             }).catch(() => {});
     }
@@ -160,135 +232,34 @@
     setInterval(refreshMsgBadge, 120000);
 })();
 
-function toggleUserDropdown() {
-    const dd  = document.getElementById('user-dropdown');
-    const btn = document.getElementById('nav-avatar-btn');
-    if (!dd) return;
-    const open = dd.style.display === 'none';
-    dd.style.display = open ? 'block' : 'none';
-    if (btn) btn.setAttribute('aria-expanded', String(open));
+// ── Mobile drawer ─────────────────────────────────────────────────────────────
+function toggleMobileMenu() {
+    const drawer  = document.getElementById('nav-mobile-drawer');
+    const overlay = document.getElementById('nav-mobile-overlay');
+    const burger  = document.getElementById('nav-burger');
+    const open = drawer.getAttribute('aria-hidden') !== 'false';
+    drawer.setAttribute('aria-hidden', String(!open));
+    drawer.classList.toggle('open', open);
+    overlay.classList.toggle('open', open);
+    if (burger) burger.setAttribute('aria-expanded', String(open));
+    document.body.style.overflow = open ? 'hidden' : '';
 }
-
-document.addEventListener('click', function(e) {
-    if (!e.target.closest('#user-links')) {
-        const dd = document.getElementById('user-dropdown');
-        if (dd) dd.style.display = 'none';
-        const btn = document.getElementById('nav-avatar-btn');
-        if (btn) btn.setAttribute('aria-expanded', 'false');
-    }
-    // Close bell dropdown when clicking outside
-    if (!e.target.closest('#nav-bell-btn') && !e.target.closest('#bell-dropdown')) {
-        const bd = document.getElementById('bell-dropdown');
-        if (bd) bd.style.display = 'none';
-    }
-});
-
-let _bellLoaded = false;
-function toggleBellDropdown() {
-    const bd = document.getElementById('bell-dropdown');
-    if (!bd) return;
-    const open = bd.style.display === 'none';
-    bd.style.display = open ? 'block' : 'none';
-    if (open && !_bellLoaded) {
-        _bellLoaded = true;
-        loadBellNotifications();
-    }
+function closeMobileMenu() {
+    const drawer  = document.getElementById('nav-mobile-drawer');
+    const overlay = document.getElementById('nav-mobile-overlay');
+    const burger  = document.getElementById('nav-burger');
+    drawer.setAttribute('aria-hidden', 'true');
+    drawer.classList.remove('open');
+    overlay.classList.remove('open');
+    if (burger) burger.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
 }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMobileMenu(); });
 
-function loadBellNotifications() {
-    const t = localStorage.getItem('access_token');
-    const list = document.getElementById('bell-list');
-    if (!t || !list) return;
-    list.innerHTML = '<div class="notif-empty">Loading...</div>';
-    fetch('/api/notifications/my', { headers: { Authorization: 'Bearer ' + t } })
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-            const notifs = Array.isArray(data) ? data : (data?.notifications || []);
-            if (!notifs.length) {
-                list.innerHTML = '<div class="notif-empty">No notifications yet.</div>';
-                return;
-            }
-            list.innerHTML = notifs.slice(0, 8).map(n => {
-                const iconColor = n.priority === 'critical' ? '#b91c1c' : n.priority === 'high' ? 'var(--accent-red)' : 'var(--text-muted)';
-                const timeStr = formatTimeAgo(new Date(n.sentAt || n.createdAt || Date.now()));
-                return `
-                <div class="notif-item${n.read ? '' : ' unread'}" data-notif-id="${n._id}">
-                    <div class="notif-icon"><i class="fa ${n.icon || 'fa-bell'}" style="color:${iconColor};"></i></div>
-                    <div class="notif-body"${n.link ? ` onclick="handleBellNotifClick('${n._id}','${n.link}')"` : ''} style="${n.link ? 'cursor:pointer;' : ''}">
-                        <div class="notif-subject">${n.subject || n.body || '—'}</div>
-                        ${n.body && n.subject ? `<div class="notif-preview">${n.body.slice(0, 80)}</div>` : ''}
-                        <div class="notif-time">${timeStr}</div>
-                    </div>
-                    <button type="button" onclick="dismissNotification('${n._id}', this)" title="Dismiss" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.8rem;padding:0.25rem;flex-shrink:0;line-height:1;opacity:0.6;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">&times;</button>
-                </div>`;
-            }).join('');
-        }).catch(() => {
-            list.innerHTML = '<div class="notif-empty">Failed to load.</div>';
-        });
-}
-
-function markAllRead() {
-    const t = localStorage.getItem('access_token');
-    if (!t) return;
-    fetch('/api/notifications/read-all', { method: 'PATCH', headers: { Authorization: 'Bearer ' + t } })
-        .then(r => r.ok ? r.json() : null)
-        .then(() => {
-            const b = document.getElementById('bell-badge');
-            if (b) { b.textContent = ''; b.style.display = 'none'; }
-            _bellLoaded = false;
-            loadBellNotifications();
-        }).catch(() => {});
-}
-
-function clearAllNotifications(evt) {
-    const t = localStorage.getItem('access_token');
-    if (!t) return;
-    fetch('/api/notifications/my', { method: 'DELETE', headers: { Authorization: 'Bearer ' + t } })
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-            if (!data?.ok) return;
-            const b = document.getElementById('bell-badge');
-            if (b) { b.textContent = ''; b.style.display = 'none'; }
-            const list = document.getElementById('bell-list');
-            if (list) list.innerHTML = '<div style="padding:1.5rem; text-align:center; color:var(--text-muted); font-size:0.8rem;">No notifications yet.</div>';
-            _bellLoaded = true;
-            if (typeof showToast === 'function') showToast('All notifications cleared', 'success', 3500, evt);
-        }).catch(() => {});
-}
-
-function dismissNotification(id, btn) {
-    const t = localStorage.getItem('access_token');
-    if (!t || !id) return;
-    fetch('/api/notifications/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + t } })
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-            if (!data?.ok) return;
-            const row = document.querySelector('[data-notif-id="' + id + '"]');
-            if (row) row.remove();
-            // Refresh badge count
-            const list = document.getElementById('bell-list');
-            if (list && !list.querySelector('[data-notif-id]')) {
-                list.innerHTML = '<div style="padding:1.5rem; text-align:center; color:var(--text-muted); font-size:0.8rem;">No notifications yet.</div>';
-            }
-        }).catch(() => {});
-}
-
-function handleBellNotifClick(notifId, link) {
-    const t = localStorage.getItem('access_token');
-    if (t && notifId) {
-        fetch('/api/notifications/' + notifId + '/read', { method: 'PATCH', headers: { Authorization: 'Bearer ' + t } }).catch(() => {});
-    }
-    if (link) window.location = link;
-    // Close the dropdown
-    const bd = document.getElementById('bell-dropdown');
-    if (bd) bd.style.display = 'none';
-    _bellLoaded = false;
-}
-
+// ── Auth helpers ──────────────────────────────────────────────────────────────
 function navigateSell() {
     const t = localStorage.getItem('access_token');
     if (!t) { openSignInModal(function(){ window.location.href = '/dashboard?sell=1'; }, 'Sign in to start selling'); return; }
-    // On dashboard, navSell() switches tab directly without a page reload
     if (typeof navSell === 'function') { navSell(); return; }
     window.location.href = '/dashboard?sell=1';
 }
@@ -319,7 +290,7 @@ function formatTimeAgo(date) {
     return `${Math.floor(hrs / 24)}d ago`;
 }
 
-// ── Inline error helpers (shared across all pages via _nav.ejs) ──────────────
+// ── Inline error helpers (shared across all pages) ────────────────────────────
 window.showInlineError = function(containerId, message) {
     var el = document.getElementById(containerId);
     if (!el) return;
@@ -339,13 +310,12 @@ window.clearInlineError = function(containerId) {
     if (err) err.style.display = 'none';
 };
 
-// Shared monetary formatting (used across all pages)
 window.formatCurrency = function(amountCents, currency) {
     currency = currency || 'CAD';
     return (amountCents / 100).toLocaleString('en-CA', { style: 'currency', currency: currency });
 };
 
-// ===== Sign In Modal (shared across all pages) =====
+// ── Sign-in modal ─────────────────────────────────────────────────────────────
 var _pendingAction = null;
 
 function openSignInModal(pendingAction, subtitle) {
@@ -370,79 +340,65 @@ function closeSignInModal() {
 }
 
 function _handleSignInModalOutsideClick(e) {
-    if (e.target === document.getElementById('signin-modal')) {
-        closeSignInModal();
-    }
+    if (e.target === document.getElementById('signin-modal')) closeSignInModal();
 }
 
 async function submitSignIn(e) {
     e.preventDefault();
     clearInlineError('signin-error-container');
-    var btn = document.getElementById('modal-submit-btn');
+    var btn   = document.getElementById('modal-submit-btn');
     var email = document.getElementById('modal-email').value;
-    var password = document.getElementById('modal-password').value;
-
+    var pass  = document.getElementById('modal-password').value;
     btn.disabled = true;
     btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="margin-right:0.5rem;"></i>Signing in...';
-
     try {
         var res = await fetch('/oauth/quick-login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email, password: password })
+            body: JSON.stringify({ email, password: pass })
         });
         var data = await res.json();
         if (!res.ok) {
             showInlineError('signin-error-container', data.error || 'Invalid credentials');
-            btn.disabled = false;
-            btn.textContent = 'Sign In';
+            btn.disabled = false; btn.textContent = 'Sign In';
             return;
         }
-        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('access_token',  data.access_token);
         localStorage.setItem('refresh_token', data.refresh_token);
         if (window.MarkeeCart) MarkeeCart.migrateGuestCart();
         var pendingAction = _pendingAction;
         closeSignInModal();
-        // Re-init nav state
         try {
             document.getElementById('auth-links').style.display = 'none';
             document.getElementById('user-links').style.display = 'flex';
-            var u = JSON.parse(atob(data.access_token.split('.')[1]));
-            var dn = document.getElementById('nav-display-name');
-            if (dn) dn.textContent = u.displayName || u.email?.split('@')[0] || 'Account';
-            var dr = document.getElementById('nav-display-role');
+            var u   = JSON.parse(atob(data.access_token.split('.')[1]));
+            var dn  = document.getElementById('nav-display-name');
+            if (dn) dn.textContent = (u.displayName || u.email?.split('@')[0] || 'Account').split(' ')[0];
+            var dr  = document.getElementById('nav-display-role');
             if (dr) dr.textContent = u.role || 'buyer';
         } catch (_) {}
         if (typeof showToast === 'function') showToast('Welcome back!', 'success');
         if (pendingAction) pendingAction();
     } catch (err) {
         showInlineError('signin-error-container', 'Connection error. Please try again.');
-        btn.disabled = false;
-        btn.textContent = 'Sign In';
+        btn.disabled = false; btn.textContent = 'Sign In';
     }
 }
 
-// ── Global Search Autocomplete Logic ─────────────────────────────────────────
+// ── Global search autocomplete ────────────────────────────────────────────────
 let _navSearchDebounce = null;
 function onNavSearchInput() {
-    const q = document.getElementById('nav-search-input').value.trim();
+    const q       = document.getElementById('nav-search-input').value.trim();
     const results = document.getElementById('nav-search-results');
     const clearBtn = document.getElementById('nav-search-clear');
-    
     clearBtn.style.display = q ? 'block' : 'none';
-    
-    if (q.length < 2) {
-        results.style.display = 'none';
-        return;
-    }
-    
+    if (q.length < 2) { results.style.display = 'none'; return; }
     clearTimeout(_navSearchDebounce);
     _navSearchDebounce = setTimeout(async () => {
         try {
             const res = await fetch(`/api/search/suggest?q=${encodeURIComponent(q)}`);
             if (!res.ok) return;
-            const data = await res.json();
-            renderNavSuggestions(data);
+            renderNavSuggestions(await res.json());
         } catch {}
     }, 250);
 }
@@ -450,23 +406,24 @@ function onNavSearchInput() {
 function renderNavSuggestions(data) {
     const results = document.getElementById('nav-search-results');
     const { products = [], categories = [] } = data;
-    
-    if (!products.length && !categories.length) {
-        results.style.display = 'none';
-        return;
+    if (!products.length && !categories.length) { results.style.display = 'none'; return; }
+    let html = '';
+    if (categories.length) {
+        html += `<h5>Categories</h5>`;
+        categories.forEach(c => {
+            html += `<a href="/?category=${encodeURIComponent(c)}" class="search-result-item">
+                <i class="fa fa-tag"></i><span>${c}</span></a>`;
+        });
     }
-    
     if (products.length) {
         html += `<h5>Products</h5>`;
         products.forEach(p => {
             html += `<a href="/product/${p.productId}" class="search-result-item">
-                <i class="fa fa-tag"></i>
+                <i class="fa fa-box"></i>
                 <span>${p.title}</span>
-                <span class="search-result-cat">${p.category}</span>
-            </a>`;
+                <span class="search-result-cat">${p.category}</span></a>`;
         });
     }
-    
     results.innerHTML = html;
     results.style.display = 'block';
 }
@@ -483,16 +440,13 @@ function clearNavSearch() {
     input.focus();
 }
 
-// Close results on outside click
-document.addEventListener('click', (e) => {
-    if (!e.target.closest('.nav-search-bar')) {
+document.addEventListener('click', e => {
+    if (!e.target.closest('.nav-search-bar'))
         document.getElementById('nav-search-results').style.display = 'none';
-    }
 });
-
 </script>
 
-<%# ── Sign-in modal (rendered on every page via _nav.ejs) ── %>
+<%# ── Sign-in modal (rendered on every page) ── %>
 <div class="modal-overlay" id="signin-modal" onclick="_handleSignInModalOutsideClick(event)">
     <div class="modal-box">
         <button class="modal-close-btn" onclick="closeSignInModal()" title="Close">&times;</button>
@@ -510,9 +464,7 @@ document.addEventListener('click', (e) => {
                 <input type="password" id="modal-password" placeholder="••••••••" required autocomplete="current-password" oninput="clearInlineError('signin-error-container')">
             </div>
             <div id="signin-error-container"></div>
-            <button type="submit" id="modal-submit-btn" class="btn w-100" style="background:var(--accent-red); margin-top:0.75rem;">
-                Sign In
-            </button>
+            <button type="submit" id="modal-submit-btn" class="btn w-100" style="background:var(--accent-red); margin-top:0.75rem;">Sign In</button>
         </form>
         <p class="text-muted small text-center" style="margin-top:1rem;">
             Don't have an account? <a href="/register" style="color:var(--accent-red);font-weight:600;">Register</a>

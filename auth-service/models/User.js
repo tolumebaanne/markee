@@ -25,6 +25,9 @@ const UserSchema = new mongoose.Schema({
   // Password reset — raw token is emailed; only the SHA-256 hash is stored here (m0t.AUTH.3.4)
   resetToken:           { type: String, default: null },
   resetTokenExpiry:     { type: Date,   default: null },
+
+  // Onboarding — false until user completes Phase 1 profile setup (phone + default address)
+  profileSetupDone: { type: Boolean, default: false },
 });
 
 // Normalize email before every save — lowercase + trim enforced at model layer
