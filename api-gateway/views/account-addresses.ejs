@@ -162,6 +162,7 @@
 <script>
 const toast  = window.showToast;   // showToast is the exported name in toast.js
 const TOKEN  = localStorage.getItem('access_token') || localStorage.getItem('authToken') || localStorage.getItem('token') || '';
+if (!TOKEN) { window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search)); }
 const HDRS   = { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` };
 const RETURN_TO = new URLSearchParams(window.location.search).get('returnTo') || '';
 let _storeId = null;

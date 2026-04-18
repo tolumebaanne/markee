@@ -104,6 +104,7 @@
 </div>
 
 <script>
+(function() { const _t = localStorage.getItem('access_token'); if (!_t) window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search)); })();
 const _stripeKey = '<%= stripePublishableKey %>';
 
 // ── Expiry check ──────────────────────────────────────────────────────────────

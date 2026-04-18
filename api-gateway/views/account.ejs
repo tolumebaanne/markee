@@ -95,7 +95,7 @@
 <script>
 (async () => {
     const token = localStorage.getItem('access_token') || localStorage.getItem('authToken') || localStorage.getItem('token') || '';
-    if (!token) return;
+    if (!token) { window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search)); return; }
     try {
         const r = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
         if (!r.ok) return;

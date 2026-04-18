@@ -71,6 +71,7 @@
 </div>
 
 <script>
+(function() { const _t = localStorage.getItem('access_token'); if (!_t) window.location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search)); })();
 function toggleField(id, btn) {
     const input = document.getElementById(id);
     if (!input) return;
