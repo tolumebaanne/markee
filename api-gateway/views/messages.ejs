@@ -71,13 +71,14 @@
             width: 9px; height: 9px; border-radius: 50%;
             background: var(--color-green); border: 1.5px solid white;
         }
-        .thread-meta { flex-grow: 1; min-width: 0; }
-        .thread-name { font-weight: 600; font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .thread-subtitle { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.05rem; }
-        .thread-preview { font-size: 0.73rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.15rem; }
+        .thread-meta      { flex-grow: 1; min-width: 0; }
+        .thread-name      { font-weight: 600; font-size: 0.82rem; display: flex; justify-content: space-between; align-items: baseline; gap: 0.25rem; }
+        .thread-name-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .thread-name small { font-size: 0.65rem; flex-shrink: 0; }
+        .thread-subtitle  { font-size: 0.7rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.3rem; margin-top: 0.1rem; overflow: hidden; }
+        .thread-subtitle-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .thread-preview   { font-size: 0.73rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.12rem; }
         .thread-preview.system-preview { font-style: italic; }
-        .thread-meta-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.05rem; }
-        .thread-time { font-size: 0.65rem; color: var(--text-muted); flex-shrink: 0; margin-left: 0.3rem; }
         .context-badge {
             display: inline-block; font-size: 0.6rem; font-weight: 700; padding: 0.1rem 0.35rem;
             border-radius: 4px; text-transform: uppercase; letter-spacing: 0.03em;
@@ -754,7 +755,7 @@ function renderThreadItem(t) {
         ? otherMeta.displayName
         : (otherMeta && otherMeta.emailFallback
             ? otherMeta.emailFallback.split('@')[0]
-            : ('\u2026' + (t.threadId || '').slice(-6)));
+            : 'User');
 
     var isActive  = t.threadId === currentThreadId;
     var isUrgent  = t.priority === 'urgent';
@@ -773,12 +774,14 @@ function renderThreadItem(t) {
             escapeHtml(displayName.slice(0,2).toUpperCase()) +
         '</div>' +
         '<div class="thread-meta">' +
-            '<div class="thread-meta-top">' +
-                '<span class="context-badge ' + badgeClass + '">' + badgeLabel + '</span>' +
-                (timeLabel ? '<span class="thread-time">' + timeLabel + '</span>' : '') +
+            '<div class="thread-name">' +
+                '<span class="thread-name-text">' + escapeHtml(displayName) + '</span>' +
+                (timeLabel ? '<small class="text-muted">' + timeLabel + '</small>' : '') +
             '</div>' +
-            '<div class="thread-name">' + escapeHtml(displayName) + '</div>' +
-            (subtitle ? '<div class="thread-subtitle">' + escapeHtml(subtitle) + '</div>' : '') +
+            '<div class="thread-subtitle">' +
+                '<span class="context-badge ' + badgeClass + '">' + badgeLabel + '</span>' +
+                (subtitle ? '<span class="thread-subtitle-text">' + escapeHtml(subtitle) + '</span>' : '') +
+            '</div>' +
             '<div class="thread-preview' + (isSystem ? ' system-preview' : '') + '">' + escapeHtml(preview) + '</div>' +
         '</div>' +
         (unread > 0 ? '<div class="unread-badge">' + (unread > 99 ? '99+' : unread) + '</div>' : '') +
