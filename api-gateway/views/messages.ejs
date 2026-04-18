@@ -76,9 +76,11 @@
         .thread-subtitle { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.05rem; }
         .thread-preview { font-size: 0.73rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.15rem; }
         .thread-preview.system-preview { font-style: italic; }
+        .thread-meta-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.05rem; }
+        .thread-time { font-size: 0.65rem; color: var(--text-muted); flex-shrink: 0; margin-left: 0.3rem; }
         .context-badge {
             display: inline-block; font-size: 0.6rem; font-weight: 700; padding: 0.1rem 0.35rem;
-            border-radius: 4px; margin-bottom: 0.2rem; text-transform: uppercase; letter-spacing: 0.03em;
+            border-radius: 4px; text-transform: uppercase; letter-spacing: 0.03em;
         }
         .badge-product { background: #dbeafe; color: var(--color-blue); }
         .badge-order   { background: #dcfce7; color: var(--toast-success-fg); }
@@ -723,8 +725,8 @@ async function loadThreads() {
         threads.sort(function(a, b) {
             if (a.pinned && !b.pinned) return -1;
             if (!a.pinned && b.pinned) return 1;
-            var aTime = new Date(a.lastMessageAt || a.updatedAt || 0).getTime();
-            var bTime = new Date(b.lastMessageAt || b.updatedAt || 0).getTime();
+            var aTime = new Date(a.lastAt || 0).getTime();
+            var bTime = new Date(b.lastAt || 0).getTime();
             return bTime - aTime;
         });
 
@@ -748,7 +750,11 @@ function renderThreadItem(t) {
     var otherMeta = (t.participantMeta || []).find(function(m) {
         return m.userId && m.userId.toString() !== user.sub;
     });
-    var displayName = (otherMeta && otherMeta.displayName) ? otherMeta.displayName : ('\u2026' + (t.threadId || '').slice(-6));
+    var displayName = (otherMeta && otherMeta.displayName)
+        ? otherMeta.displayName
+        : (otherMeta && otherMeta.emailFallback
+            ? otherMeta.emailFallback.split('@')[0]
+            : ('\u2026' + (t.threadId || '').slice(-6)));
 
     var isActive  = t.threadId === currentThreadId;
     var isUrgent  = t.priority === 'urgent';
@@ -758,6 +764,7 @@ function renderThreadItem(t) {
     var isSystem  = t.lastMessageType === 'system';
     var subtitle  = ctx.refTitle || '';
 
+    var timeLabel = t.lastAt ? formatTimeRelative(t.lastAt) : '';
     var cls = 'thread-item' + (isActive ? ' active' : '') + (isUrgent ? ' urgent' : '') + (isPinned ? ' pinned' : '');
 
     return '<div class="' + cls + '" id="thread-item-' + escapeHtml(t.threadId) + '"' +
@@ -766,8 +773,9 @@ function renderThreadItem(t) {
             escapeHtml(displayName.slice(0,2).toUpperCase()) +
         '</div>' +
         '<div class="thread-meta">' +
-            '<div style="display:flex; align-items:center; gap:0.3rem;">' +
+            '<div class="thread-meta-top">' +
                 '<span class="context-badge ' + badgeClass + '">' + badgeLabel + '</span>' +
+                (timeLabel ? '<span class="thread-time">' + timeLabel + '</span>' : '') +
             '</div>' +
             '<div class="thread-name">' + escapeHtml(displayName) + '</div>' +
             (subtitle ? '<div class="thread-subtitle">' + escapeHtml(subtitle) + '</div>' : '') +
@@ -1299,6 +1307,18 @@ function escapeHtml(str) {
 function formatTime(ts) {
     if (!ts) return '';
     return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatTimeRelative(ts) {
+    if (!ts) return '';
+    var d     = new Date(ts);
+    var now   = new Date();
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var yest  = new Date(today - 86400000);
+    if (d >= today) return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    if (d >= yest)  return 'Yesterday';
+    if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function stringToColor(str) {

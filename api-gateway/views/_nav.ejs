@@ -205,7 +205,7 @@
             }).catch(() => {});
     }
     refreshBellBadge();
-    setInterval(refreshBellBadge, 30000);
+    setInterval(refreshBellBadge, 8000);
 
     function refreshMsgBadge() {
         fetch('/api/messages/unread-count', { headers: { Authorization: 'Bearer ' + t } })
@@ -221,7 +221,7 @@
             }).catch(() => {});
     }
     refreshMsgBadge();
-    setInterval(refreshMsgBadge, 120000);
+    setInterval(refreshMsgBadge, 15000);
 })();
 
 // ── Mobile drawer ─────────────────────────────────────────────────────────────

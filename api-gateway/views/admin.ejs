@@ -581,13 +581,23 @@ const tabLoaders = {
   audit:          () => loadAudit()
 };
 
+let _activeTab = 'godview';
+
 function switchTab(name, el) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   if (el) el.classList.add('active');
+  _activeTab = name;
   if (!loadedTabs.has(name)) { loadedTabs.add(name); tabLoaders[name]?.(); }
 }
+
+// Silent auto-refresh for live-data tabs every 60s
+const _liveRefreshTabs = new Set(['godview','orders','reviews']);
+setInterval(() => {
+  if (!_liveRefreshTabs.has(_activeTab)) return;
+  tabLoaders[_activeTab]?.();
+}, 60000);
 function switchSubTab(group, name, el) {
   document.querySelectorAll(`[id^="${group}-"].sub-panel`).forEach(p => p.style.display='none');
   const panel = document.getElementById(`${group}-${name}`);

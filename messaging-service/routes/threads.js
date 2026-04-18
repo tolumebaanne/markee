@@ -1,8 +1,21 @@
 module.exports = function createThreadRoutes(services) {
-    const express = require('express');
-    const router  = express.Router();
+    const express  = require('express');
+    const router   = express.Router();
     const { threadService, unreadService, identityService, logger } = services;
     const errorResponse = require('../../shared/utils/errorResponse');
+
+    const USER_URL = process.env.USER_SERVICE_URL || 'http://localhost:5013';
+
+    async function fetchDisplayNames(userIds) {
+        if (!userIds.length) return {};
+        try {
+            const r = await fetch(
+                `${USER_URL}/users/internal/display-names?ids=${userIds.join(',')}`,
+                { headers: { 'x-internal-service': 'messaging-service' } }
+            );
+            return r.ok ? await r.json() : {};
+        } catch { return {}; }
+    }
 
     // GET /threads — List user's threads (paginated)
     router.get('/threads', async (req, res) => {
@@ -33,7 +46,26 @@ module.exports = function createThreadRoutes(services) {
                 };
             });
 
-            res.json({ threads, total: result.total, page: result.page });
+            // Enrich other participants' displayName + email fallback from user-service
+            const otherIds = [...new Set(
+                threads.flatMap(t => (t.participantMeta || [])
+                    .map(m => m.userId?.toString())
+                    .filter(id => id && id !== userId)
+                )
+            )];
+            const nameMap = await fetchDisplayNames(otherIds);
+            const enriched = threads.map(t => ({
+                ...t,
+                participantMeta: (t.participantMeta || []).map(m => {
+                    const id = m.userId?.toString();
+                    if (!id || id === userId) return m;
+                    const fresh = nameMap[id];
+                    if (!fresh) return m;
+                    return { ...m, displayName: fresh.displayName || m.displayName || '', emailFallback: fresh.email };
+                })
+            }));
+
+            res.json({ threads: enriched, total: result.total, page: result.page });
         } catch (err) {
             logger.error('GET /threads error:', err.message);
             errorResponse(res, 500, err.message);

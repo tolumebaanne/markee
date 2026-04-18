@@ -474,6 +474,24 @@ app.get('/users/internal/:userId/stripe-data', async (req, res) => {
     } catch (err) { errorResponse(res, 500, err.message); }
 });
 
+// GET /users/internal/display-names?ids=id1,id2 — messaging-service enrichment
+app.get('/users/internal/display-names', async (req, res) => {
+    if (req.headers['x-internal-service'] !== 'messaging-service') return errorResponse(res, 403, 'Internal only');
+    try {
+        const ids = (req.query.ids || '').split(',').filter(Boolean);
+        if (!ids.length) return res.json({});
+        const profiles = await Profile.find(
+            { userId: { $in: ids } },
+            { userId: 1, displayName: 1, email: 1 }
+        ).lean();
+        const map = {};
+        for (const p of profiles) {
+            map[p.userId.toString()] = { displayName: p.displayName || '', email: p.email || '' };
+        }
+        res.json(map);
+    } catch (err) { errorResponse(res, 500, err.message); }
+});
+
 // GET /users/:userId — admin only
 app.get('/users/:userId', async (req, res) => {
     if (!req.user?.sub) return errorResponse(res, 401, 'Unauthorized');
