@@ -181,38 +181,18 @@ async function loadProducts(append = false) {
         let products, hasMoreFlag, totalCount;
 
         if (currentSearch) {
-            // Keyword search — use search-service for relevance ranking
-            params.set('q', currentSearch);
-            params.set('sort', currentSort === 'momentum' ? 'trending' : currentSort);
-            const res = await fetch(`/api/search?${params}`);
+            // Keyword search — query catalog directly (source of truth, regex on title + description)
+            const catParams = new URLSearchParams({ search: currentSearch, page: currentPage, limit: PAGE_LIMIT });
+            if (currentCategory) catParams.set('category', currentCategory);
+            if (currentSort && currentSort !== 'momentum') catParams.set('sort', currentSort);
+            const res = await fetch(`/api/catalog/products?${catParams}`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            // Normalize: SearchIndex has productId not _id, and no images field
-            products = (data.results || []).map(r => ({
-                _id:    r.productId || r._id,
-                title:  r.title,
-                price:  r.price,
-                images: r.images || (r.imageUrl ? [r.imageUrl] : []),
-                category:      r.category,
-                sellerId:      r.sellerId,
-                rating:        r.rating,
-                reviewCount:   r.reviewCount,
-                fastDeliveryFee:    r.fastDeliveryFee    || 0,
-                fulfillmentOptions: r.fulfillmentOptions || [],
-                enabledCarriers:    r.enabledCarriers    || [],
-                pickupLocationId:   r.pickupLocationId   || null
-            }));
-            hasMoreFlag = !!data.hasMore;
-            totalCount  = data.totalCount || products.length;
-            // "Did you mean?" suggestions
+            products = await res.json();
+            if (!Array.isArray(products)) throw new Error('Invalid response from catalog');
+            hasMoreFlag = products.length >= PAGE_LIMIT;
+            totalCount  = products.length;
             const dym = document.getElementById('did-you-mean');
-            const suggestions = data.suggestions;
-            if (suggestions && suggestions.didYouMean && suggestions.didYouMean.length > 0) {
-                dym.innerHTML = `Did you mean: ${suggestions.didYouMean.map(s => `<span class="dym-link" onclick="applySuggestion('${s.replace(/'/g, "\\'")}')">${s}</span>`).join(', ')}?`;
-                dym.style.display = 'flex';
-            } else {
-                dym.style.display = 'none';
-            }
+            if (dym) dym.style.display = 'none';
         } else {
             // Browse/discovery mode — use catalog directly (has images, always populated)
             if (currentSort === 'momentum') params.set('shuffle', currentPage === 1 ? 'true' : 'false');
