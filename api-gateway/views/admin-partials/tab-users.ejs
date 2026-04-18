@@ -191,7 +191,7 @@ async function viewUserDetail(id) {
         : ''}
       <button class="btn btn-ghost btn-sm" onclick="closeModal('userDetailModal');changeUserRole('${id}','${p.role||'user'}')"><i class="fas fa-user-gear"></i> Role</button>
       <button class="btn btn-ghost btn-sm" onclick="forceLogoutUser('${id}')"><i class="fas fa-right-from-bracket"></i> Force Logout</button>
-      ${window._isSuperuser ? `<button class="btn btn-warn btn-sm" onclick="forcePasswordReset('${id}')"><i class="fas fa-key"></i> Reset Password</button>` : ''}
+      ${window._isSuperuser ? `<button class="btn btn-warn btn-sm" onclick="closeModal('userDetailModal');forcePasswordReset('${id}')"><i class="fas fa-key"></i> Reset Password</button>` : ''}
       ${window._isSuperuser ? `<button class="btn btn-danger btn-sm" onclick="closeModal('userDetailModal');deleteUser('${id}','${userEmail.replace(/\\/g,'\\\\').replace(/'/g,'\\x27')}')"><i class="fas fa-trash"></i> Hard Delete</button>` : ''}
     </div>`;
 
@@ -319,11 +319,12 @@ async function deleteUser(id, email) {
   });
   if (!r.confirmed) return;
   try {
+    toast('Deleting account across all services…', 'info', 10000);
     await adminApi('DELETE', `/proxy/users/${id}`, { reason: r.reason });
-    toast('User hard-deleted. Full cascade cleanup emitted.', 'warn');
+    toast('Account permanently deleted.', 'warn');
     loadUsers(_uPage);
     loadDeletedUsers();
-  } catch (err) { toast('Error: ' + err.message, 'error'); }
+  } catch (err) { toast('Delete failed: ' + err.message, 'error'); }
 }
 
 // ── Deleted Accounts (Superuser only) ────────────────────────────────────────
@@ -413,10 +414,11 @@ async function hardDeleteDeletedUser(id, email) {
   });
   if (!r.confirmed) return;
   try {
+    toast('Deleting account across all services…', 'info', 10000);
     await adminApi('DELETE', `/proxy/users/${id}`, {});
-    toast('Account permanently erased. Full mop complete.', 'warn');
+    toast('Account permanently erased.', 'warn');
     loadDeletedUsers();
-  } catch (err) { toast('Error: ' + err.message, 'error'); }
+  } catch (err) { toast('Delete failed: ' + err.message, 'error'); }
 }
 </script>
 
