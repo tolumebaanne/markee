@@ -58,7 +58,8 @@ function createThreadService({ Thread, Message, mongoose, logger }) {
                 Thread.find(query)
                     .sort({ pinnedBy: -1, priority: -1, lastAt: -1 })
                     .skip(skip)
-                    .limit(limit),
+                    .limit(limit)
+                    .lean(),
                 Thread.countDocuments(query)
             ]);
 
