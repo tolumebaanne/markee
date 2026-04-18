@@ -606,10 +606,14 @@ async function runSweep() {
     } catch (err) { console.error('[PAYMENT] Sweep error:', err.message); }
 }
 
-// Run once immediately on startup — catches any windows that expired during downtime.
-// Then schedule the recurring interval.
-runSweep();
-setInterval(runSweep, SWEEP_INTERVAL_MS);
+// Wait for the DB connection before running the first sweep.
+// Running immediately at module load hits the buffer timeout because the
+// connection hasn't been established yet. Once connected, run once to catch
+// anything that expired during downtime, then schedule the interval.
+db.once('connected', () => {
+    runSweep();
+    setInterval(runSweep, SWEEP_INTERVAL_MS);
+});
 
 // ── Phase 3 — Stripe webhook handler (body assigned here, route registered above express.json()) ──
 
