@@ -754,13 +754,14 @@ app.put('/products/:id', async (req, res) => {
             ? { enabled: true, percent: p.discount.percent, discountedPrice: Math.round(p.price * (1 - p.discount.percent / 100)) }
             : { enabled: false, percent: 0, discountedPrice: p.price };
         bus.emit('product.updated', {
-            productId:   p._id,
-            title:       p.title,
-            category:    p.category,
-            price:       p.price,
-            status:      p.status,
-            description: p.description || '',
-            discount:    disc,
+            productId:     p._id,
+            title:         p.title,
+            category:      p.category,
+            price:         p.price,
+            status:        p.status,
+            displayStatus: p.displayStatus,
+            description:   p.description || '',
+            discount:      disc,
             storeName
         });
         res.json(p);

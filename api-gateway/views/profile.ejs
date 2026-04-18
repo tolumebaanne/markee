@@ -631,8 +631,8 @@
             if (store.responseTime) rtSel.value = store.responseTime;
 
             // Business hours
-            document.getElementById('store-open-time').value  = store.businessHours?.openTime  || '09:00';
-            document.getElementById('store-close-time').value = store.businessHours?.closeTime || '18:00';
+            document.getElementById('store-open-time').value  = store.businessHours?.openTime  || '';
+            document.getElementById('store-close-time').value = store.businessHours?.closeTime || '';
 
             // Store status
             const isOpen = store.isOpen !== false;
@@ -668,8 +668,8 @@
         const rtSel = document.getElementById('store-response-time');
         if (s.responseTime) rtSel.value = s.responseTime;
 
-        document.getElementById('store-open-time').value  = s.businessHours?.openTime  || '09:00';
-        document.getElementById('store-close-time').value = s.businessHours?.closeTime || '18:00';
+        document.getElementById('store-open-time').value  = s.businessHours?.openTime  || '';
+        document.getElementById('store-close-time').value = s.businessHours?.closeTime || '';
 
         const isOpen = s.isOpen !== false;
         document.getElementById('store-open').checked   = isOpen;
@@ -964,11 +964,15 @@
 
         // Persist bio fields to user-service; displayName also triggers JWT refresh
         try {
-            await fetch('/api/users/me', {
+            const pRes = await fetch('/api/users/me', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ displayName: bio.name || '', bio: bio.bio || '', location: bio.location || '' })
             });
+            if (!pRes.ok) {
+                const d = await pRes.json().catch(() => ({}));
+                throw new Error(d.message || (typeof d.error === 'string' ? d.error : null) || `Save failed (HTTP ${pRes.status})`);
+            }
             // Refresh JWT so dashboard banner clears on next load
             const refreshToken = localStorage.getItem('refresh_token');
             if (refreshToken) {
@@ -985,7 +989,12 @@
                     }
                 }
             }
-        } catch (_) { /* non-fatal — localStorage copy is always saved */ }
+        } catch (err) {
+            // Revert localStorage on server failure so stale data isn't shown next visit
+            localStorage.removeItem(`markee_bio_${user.email}`);
+            showToast('Could not save: ' + err.message, 'error', 5000, evt);
+            return;
+        }
 
         showToast('Bio saved!', 'success', 3500, evt);
     }

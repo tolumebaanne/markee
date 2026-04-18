@@ -405,11 +405,11 @@ bus.on('product.updated', async (p) => {
         if (p.title    !== undefined) updateFields.title    = p.title;
         if (p.category !== undefined) updateFields.category = p.category;
         if (p.price    !== undefined) updateFields.price    = p.price;
-        // Map status: prefer explicit p.status; fall back to displayStatus from review events
-        if (p.status !== undefined) {
-            updateFields.status = p.status === 'deleted' ? 'deleted' : p.status === 'active' ? 'active' : 'hidden';
-        } else if (p.displayStatus !== undefined) {
+        // displayStatus is authoritative for search visibility; p.status handles deletion only
+        if (p.displayStatus !== undefined) {
             updateFields.status = p.displayStatus === 'visible' ? 'active' : 'hidden';
+        } else if (p.status !== undefined) {
+            updateFields.status = p.status === 'deleted' ? 'deleted' : p.status === 'active' ? 'active' : 'hidden';
         }
         if (p.description  !== undefined) updateFields.description  = p.description;
         if (p.storeName    !== undefined) updateFields.storeName    = p.storeName;

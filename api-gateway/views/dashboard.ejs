@@ -616,8 +616,8 @@
                         </div>
                     </div>
 
-                    <!-- Pickup Locations (shown when pickup is enabled) -->
-                    <div id="pickup-locations-section" style="display:none; margin-top:1rem;">
+                    <!-- Pickup Locations — always shown so sellers can manage locations before enabling the option -->
+                    <div id="pickup-locations-section" style="margin-top:1rem;">
                         <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:0.5rem;">
                             <label style="font-weight:700; margin:0;"><i class="fa fa-map-marker-alt" style="margin-right:0.4rem; color:var(--accent-red);"></i> Pickup Locations</label>
                             <a href="/account/addresses" style="font-size:0.78rem; color:var(--primary); text-decoration:none;">Manage in Account Settings <i class="fa fa-external-link-alt" style="font-size:0.7rem;"></i></a>
@@ -2091,8 +2091,12 @@
         // ── Status label (legacy status field) ────────────────────────────
         const isPaused = p.status === 'paused';
         const statusColor = isPaused ? '#a16207' : (rs === 'published' || (!rs && p.status === 'active') ? '#15803d' : '#6b7280');
-        const statusText  = rs === 'published' ? 'Live' : (!rs && p.status === 'active') ? 'Live' : p.status;
-        const statusLabel = `<span id="status-label-${p._id}" style="color:${statusColor};">${statusText}</span>`;
+        // When reviewStatus is set, hide the raw 'active' status to avoid confusing it with the Active tab
+        const statusText = rs === 'published' ? 'Live'
+            : (!rs && p.status === 'active') ? 'Live'
+            : rs ? '' // badge already communicates state
+            : p.status;
+        const statusLabel = statusText ? `<span id="status-label-${p._id}" style="color:${statusColor};">${statusText}</span>` : '';
 
         // ── Context-aware action buttons ──────────────────────────────────
         let actionBtn = '';

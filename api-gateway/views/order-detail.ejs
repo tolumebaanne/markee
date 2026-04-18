@@ -1139,10 +1139,10 @@
             const res = await fetch(`/api/orders/${ORDER_ID}/note`, {
                 method:  'PATCH',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body:    JSON.stringify({ sellerNote: note })
+                body:    JSON.stringify({ note })
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            if (!res.ok) throw new Error(data.message || (typeof data.error === 'string' ? data.error : null) || `HTTP ${res.status}`);
             showToast('Note saved.', 'success', 3500, evt);
             _order.sellerNote = note;
             renderNotes(_order);

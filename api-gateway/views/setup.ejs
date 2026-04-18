@@ -205,7 +205,8 @@ window.addEventListener('DOMContentLoaded', async () => {
             if (p.phone)       document.getElementById('s-phone').value = p.phone;
             // If phone + address already set, fast-track setup-done
             if (p.phone && p.addresses && p.addresses.length > 0) {
-                await markSetupDone(token);
+                try { await markSetupDone(token); } catch {}
+                await refreshJwt();
                 window.location.replace(_next);
             }
         }
@@ -213,11 +214,31 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function markSetupDone(token) {
+    const res = await fetch('/api/auth/setup-done', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.message || d.error || `Failed to save setup (HTTP ${res.status})`);
+    }
+}
+
+async function refreshJwt() {
     try {
-        await fetch('/api/auth/setup-done', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}` }
+        const rt = localStorage.getItem('refresh_token');
+        if (!rt) return;
+        const r = await fetch('/oauth/refresh', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ refresh_token: rt })
         });
+        if (!r.ok) return;
+        const tokens = await r.json();
+        if (tokens.access_token) {
+            localStorage.setItem('access_token',  tokens.access_token);
+            localStorage.setItem('refresh_token', tokens.refresh_token);
+        }
     } catch {}
 }
 
@@ -275,6 +296,9 @@ async function submitSetup() {
         // 3. Mark setup done in auth-service
         await markSetupDone(token);
 
+        // Refresh JWT so profileSetupDone: true is reflected in the current session
+        await refreshJwt();
+
         // Done — go to destination
         window.location.replace(_next);
 
@@ -288,7 +312,10 @@ async function submitSetup() {
 async function skipSetup() {
     // Mark done so user isn't interrupted on every login after skipping
     const token = getToken();
-    if (token) await markSetupDone(token);
+    if (token) {
+        try { await markSetupDone(token); } catch {}
+        await refreshJwt();
+    }
     window.location.replace(_next);
 }
 </script>

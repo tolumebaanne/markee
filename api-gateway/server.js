@@ -181,7 +181,8 @@ app.use('/api/seller', verifyToken, (req, res, next) => {
 
 // ── Inventory ─────────────────────────────────────────────────────────────────
 // Public stock availability check — buyers need this for watchlist stock status
-app.use('/api/inventory/stock', proxy(process.env.INVENTORY_SERVICE_URL || 'http://localhost:5006'));
+// pathRewrite: gateway strips /api/inventory/stock, so /api/inventory/stock/:id → /stock/:id on the service
+app.use('/api/inventory/stock', proxy(process.env.INVENTORY_SERVICE_URL || 'http://localhost:5006', { pathRewrite: { '^/': '/stock/' } }));
 // All other inventory routes require seller scope
 app.use('/api/inventory', verifyToken, enforceScope('inventory:write'), proxy(process.env.INVENTORY_SERVICE_URL || 'http://localhost:5006'));
 

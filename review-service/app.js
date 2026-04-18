@@ -236,9 +236,12 @@ app.post('/', async (req, res) => {
         let { productId, sellerId, orderId, rating, body, imageUrl } = req.body;
         if (!productId || !orderId || !rating) return errorResponse(res, 400, 'Missing required fields');
 
-        // Purchase verification
-        if (!deliveredSet.has(orderId?.toString())) {
-            return errorResponse(res, 403, 'Cannot review — order has not been delivered yet');
+        // Purchase verification — check in-memory set first, fall back to DB
+        const _oidStr = orderId?.toString();
+        if (!deliveredSet.has(_oidStr)) {
+            const _dbRecord = await DeliveredOrder.findOne({ orderId }).lean();
+            if (!_dbRecord) return errorResponse(res, 403, 'Cannot review — order has not been delivered yet');
+            deliveredSet.add(_oidStr);
         }
 
         // Duplicate guard
@@ -580,9 +583,12 @@ app.post('/seller', async (req, res) => {
         const { sellerId, orderId, rating, body, tags } = req.body;
         if (!sellerId || !orderId || !rating) return errorResponse(res, 400, 'Missing required fields');
 
-        // Purchase verification
-        if (!deliveredSet.has(orderId?.toString())) {
-            return errorResponse(res, 403, 'Cannot review seller — order has not been delivered yet');
+        // Purchase verification — check in-memory set first, fall back to DB
+        const oidStr = orderId?.toString();
+        if (!deliveredSet.has(oidStr)) {
+            const dbRecord = await DeliveredOrder.findOne({ orderId }).lean();
+            if (!dbRecord) return errorResponse(res, 403, 'Cannot review seller — order has not been delivered yet');
+            deliveredSet.add(oidStr); // re-populate so future requests skip the DB
         }
 
         // One seller review per buyer per order

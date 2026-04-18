@@ -146,8 +146,8 @@
                     <input type="text" id="pu-country" class="form-control" value="Canada" maxlength="100">
                 </div>
                 <div class="full">
-                    <label class="form-label">Pickup Instructions <span style="font-size:0.8rem;font-weight:400;color:var(--text-muted)">(optional)</span></label>
-                    <input type="text" id="pu-hours" class="form-control" placeholder="e.g. Ring doorbell, available after 5pm" maxlength="100">
+                    <label class="form-label">Pickup Notes <span style="font-size:0.8rem;font-weight:400;color:var(--text-muted)">(optional — e.g. access instructions, not business hours)</span></label>
+                    <input type="text" id="pu-hours" class="form-control" placeholder="e.g. Ring buzzer #204, side entrance" maxlength="100">
                 </div>
             </div>
         </div>
@@ -173,6 +173,24 @@ const _next = (() => {
 
 function getToken() { return localStorage.getItem('access_token'); }
 function parseJwt(t) { try { return JSON.parse(atob(t.split('.')[1])); } catch { return null; } }
+
+async function refreshJwt() {
+    try {
+        const rt = localStorage.getItem('refresh_token');
+        if (!rt) return;
+        const r = await fetch('/oauth/refresh', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ refresh_token: rt })
+        });
+        if (!r.ok) return;
+        const tokens = await r.json();
+        if (tokens.access_token) {
+            localStorage.setItem('access_token',  tokens.access_token);
+            localStorage.setItem('refresh_token', tokens.refresh_token);
+        }
+    } catch {}
+}
 
 function showError(msg) {
     const el = document.getElementById('setup-error');
@@ -282,6 +300,7 @@ async function submitStoreSetup() {
             }
         }
 
+        await refreshJwt();
         window.location.replace(_next);
 
     } catch (err) {
@@ -303,6 +322,7 @@ async function skipStoreSetup() {
                 body:    JSON.stringify({ storeSetupDone: true })
             });
         } catch {}
+        await refreshJwt();
     }
     window.location.replace(_next);
 }

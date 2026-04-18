@@ -753,7 +753,7 @@
     // ── S34 — Stock status badge ──────────────────────────────────────────────
     async function loadStockStatus() {
         try {
-            const r = await fetch(`/api/inventory/stock?productId=${PRODUCT_ID}`);
+            const r = await fetch(`/api/inventory/stock/${PRODUCT_ID}`);
             if (!r.ok) return;
             const inv = await r.json();
             const available = inv.available ?? (inv.quantity - (inv.reserved || 0));
